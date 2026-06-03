@@ -37,8 +37,23 @@ Chỉ **một màn Báo cáo**. **Đánh giá KH** mở dạng panel bên phải
 
 ## Deploy
 
+### Vercel (khuyến nghị)
+
+Repo đã có **`vercel.json`** ở thư mục gốc — chỉ build app CRM, không build portal chính.
+
+1. Đăng nhập [vercel.com](https://vercel.com) → **Add New Project** → import repo GitHub/GitLab.
+2. **Root Directory**: để **`.`** (gốc repo, không chọn `crm-web` — build cần `package.json` gốc và thư mục `pages/`).
+3. Vercel đọc tự động:
+   - **Build Command**: `npm run build:crm`
+   - **Output Directory**: `crm-web/dist`
+4. Deploy. Mọi route SPA đã rewrite về `index.html`.
+
+Nếu tạo project thủ công trong dashboard, nhập đúng Build / Output như trên.
+
+### Build thủ công
+
 ```bash
 npm run build:crm
 ```
 
-Upload thư mục **`crm-web/dist/`** lên domain riêng. Cấu hình SPA: mọi path → `index.html`.
+Upload thư mục **`crm-web/dist/`** lên host khác. Cấu hình SPA: mọi path → `index.html`.
