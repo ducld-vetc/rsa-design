@@ -1,0 +1,5 @@
+{
+  "name": "VETC Roadside Assistance Portal",
+  "description": "A comprehensive multi-step workflow for managing roadside assistance requests, featuring customer search, service configuration, price estimation, and order confirmation.",
+  "requestFramePermissions": ["geolocation"]
+}

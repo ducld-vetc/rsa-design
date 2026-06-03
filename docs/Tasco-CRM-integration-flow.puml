@@ -1,0 +1,154 @@
+@startuml Tasco-CRM-Architecture-v11
+title Kiến trúc v1.1 — Import 00:00 + UI đọc DB VETC, Ford chỉ nhận kết quả cuối
+left to right direction
+
+package "Ford / Đối tác" #E3F2FD {
+  [Ford DMS] as DMS
+  [API #1 GET\nDanh sách R/O] as API1
+  [API #3 PUT\nKết quả cuối] as API3
+  DMS --> API1
+  API3 --> DMS
+}
+
+package "VETC" #E8F5E9 {
+  [Job 00:00 hàng ngày\nImport snapshot] as JOB
+  database "DB VETC\nsnapshot + evaluation" as DB
+  [Web CRM\nBáo cáo + Đánh giá] as UI
+  [VETC API] as VAPI
+  [Outbound Sync\nAPI #3] as OUT
+  JOB --> API1 : ① định kỳ
+  API1 --> JOB
+  JOB --> DB : UPSERT
+  UI --> VAPI : ② chỉ đọc/ghi DB
+  VAPI --> DB
+  VAPI --> OUT : ③ sau Lưu
+  OUT --> API3
+}
+
+note bottom of JOB
+  Không gọi Ford khi CSKH mở màn hình
+end note
+
+@enduml
+
+@startuml Tasco-CRM-Job-Import-Midnight
+title Job import định kỳ — 00:00 hàng ngày (API #1)
+autonumber
+
+participant "Scheduler\n0 0 * * *" as CRON
+participant "Import Job" as JOB
+participant "Ford API" as PAPI
+database "Ford DMS" as DMS
+database "DB VETC" as DB
+
+CRON -> JOB : Trigger 00:00 Asia/Ho_Chi_Minh
+JOB -> DB : BEGIN import_batch
+loop page / branchCode
+  JOB -> PAPI : GET pending-evaluation
+  PAPI -> DMS : Query R/O
+  DMS --> PAPI : items[]
+  PAPI --> JOB : 200
+  JOB -> DB : UPSERT snapshot\n(không ghi đè evaluation VETC)
+end
+JOB -> DB : COMMIT SUCCESS
+
+@enduml
+
+@startuml Tasco-CRM-CSKH-Read-VETC-DB
+title CSKH — Báo cáo & đánh giá (chỉ DB VETC)
+autonumber
+
+actor CSKH
+participant "Web CRM" as UI
+participant "VETC API" as VAPI
+database "DB VETC" as DB
+
+== Mở báo cáo / Refresh (không gọi Ford) ==
+CSKH -> UI : Báo cáo / Lọc / Refresh
+UI -> VAPI : GET /internal/post-service/repair-orders
+VAPI -> DB : SELECT snapshot + evaluation
+DB --> VAPI : items, contactStatus (VETC)
+VAPI --> UI : 200
+UI --> CSKH : Bảng + SLA
+
+== Submit đánh giá ==
+CSKH -> UI : Đánh giá KH → Lưu
+UI -> VAPI : POST /evaluations
+VAPI -> DB : UPDATE evaluation,\ncontactStatus, calls
+VAPI --> UI : SAVED
+UI --> CSKH : Cập nhật từ DB
+
+@enduml
+
+@startuml Tasco-CRM-Push-Final-To-Ford
+title Đồng bộ kết quả cuối sang Ford (API #3)
+autonumber
+
+participant "VETC API" as VAPI
+database "DB VETC" as DB
+participant "Outbound Sync" as OUT
+participant "Ford API" as PAPI
+database "Ford DMS" as DMS
+
+VAPI -> DB : evaluation SAVED
+VAPI -> OUT : Enqueue evaluationId
+OUT -> PAPI : PUT /repair-orders/{ro}/evaluation
+note right of PAPI
+  Chỉ kết quả cuối:
+  calls, criteria, overallRating
+  Không trạng thái trung gian
+end note
+PAPI -> DMS : Ghi kết quả
+DMS --> PAPI : partnerRecordId
+PAPI --> OUT : 200
+OUT -> DB : syncStatus=SYNCED
+
+@enduml
+
+@startuml Tasco-CRM-Outbound-Retry
+title Retry API #3 (kết quả cuối)
+autonumber
+
+participant "Outbound Sync" as OUT
+participant "Ford API" as PAPI
+database "DB VETC" as DB
+participant "Vận hành" as OPS
+
+OUT -> PAPI : PUT evaluation
+alt 200 OK
+  PAPI --> OUT : OK
+  OUT -> DB : SYNCED
+else 5xx / timeout
+  PAPI --> OUT : 503
+  OUT -> DB : PENDING, retry
+else 422
+  PAPI --> OUT : validation
+  OUT -> DB : FAILED
+  OUT -> OPS : Alert
+end
+
+@enduml
+
+@startuml Tasco-CRM-Data-Ownership
+title Phân quyền dữ liệu
+legend left
+  |= Nguồn |= Ai quản lý |
+  | Snapshot R/O (master) | Import Ford @ 00:00 → VETC |
+  | contactStatus, SLA | VETC |
+  | Call 1-3, đánh giá | VETC (evaluation) |
+  | Bản ghi trên Ford DMS | Ford (sau API #3) |
+endlegend
+
+@enduml
+
+@startuml Tasco-CRM-SyncStatus-State
+title syncStatus — đồng bộ kết quả cuối sang Ford
+hide empty description
+
+[*] --> PENDING : POST evaluations OK
+PENDING --> SYNCED : PUT Ford 200
+PENDING --> FAILED : 422 / hết retry
+FAILED --> PENDING : retry thủ công
+SYNCED --> [*]
+
+@enduml

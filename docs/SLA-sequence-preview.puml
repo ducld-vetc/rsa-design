@@ -1,0 +1,116 @@
+@startuml
+title Luồng tính toán SLA và do bảng tổng hợp (event-driven: topic update-state)
+autonumber
+
+box "Database Core" #E8F4FD
+  database MASTER as "Database Core"
+end box
+
+queue TOPIC as "Topic\nupdate-state"
+participant RO as "rescue-order-service"
+participant CONSUMER as "Job A\nĐồng bộ Duration"
+participant JOB_B as "Job B\nTính SLA từng đơn"
+participant JOB_C as "Job C\nTổng hợp Dashboard"
+participant API as "API Dashboard"
+participant ADMIN as "Admin"
+participant UI as "FE Dashboard"
+
+note over RO
+  Nhóm bảng trên Database Core:
+  [A] Meta data: rescue_order_v2, rescue_order_history, ro_work_order, ro_resource_work_order
+  [B] Cấu hình: kpi_sla_config_version, kpi_sla_config_rule
+  [C] Tổng hợp: kpi_order_state_duration_fact, kpi_order_sla_fact, kpi_dashboard_snapshot_5m, ...
+end note
+
+== Bước 1: Đơn đổi trạng thái\nPhát sự kiện ==
+RO -> MASTER : Cập nhật trạng thái đơn\nvà ghi nhật ký chuyển state
+RO -> TOPIC : Gửi sự kiện update-state\n(mã đơn, state cũ/mới, thời điểm)
+
+== Bước 2: Consumer nhận sự kiện\nCập nhật duration ==
+TOPIC --> CONSUMER : Nhận message từ topic
+CONSUMER -> CONSUMER : Xử lý trùng lặp an toàn\n(theo message_id)
+CONSUMER -> MASTER : Lấy tổng thời gian theo từng state\nchỉ cho đơn trong message
+MASTER --> CONSUMER : Thời gian đã gộp theo state
+CONSUMER -> MASTER : Lưu / cập nhật bảng thời gian đơn
+CONSUMER -> MASTER : Đưa đơn vào hàng đợi tính SLA\n(hoặc báo Job B xử lý ngay)
+CONSUMER -> MASTER : Ghi nhận consumer đã xử lý xong
+
+== Bước 3: Job B\nTính SLA ==
+JOB_B -> MASTER : Lấy danh sách đơn cần tính SLA\n(từ hàng đợi hoặc từ Job A)
+JOB_B -> MASTER : Đọc thời gian + thông tin đơn
+JOB_B -> MASTER : Chọn bộ ngưỡng SLA theo thời điểm chốt\n(sla_anchor_at)
+note right of JOB_B
+  Thời điểm chốt (sla_anchor_at):
+  - Đã hoàn thành: thời điểm hoàn thành
+  - Đang xử lý: thời điểm tạo đơn
+  Ghi lại phiên bản ngưỡng đã áp dụng
+end note
+MASTER --> JOB_B : Bộ rule SLA tương ứng
+JOB_B -> JOB_B : Đánh giá đủ điều kiện SLA,\ntừng mốc đặt/không, SLA đơn
+JOB_B -> MASTER : Lưu kết quả SLA từng đơn
+JOB_B -> MASTER : Ghi nhận Job B đã xử lý xong
+
+== Bước 4: Job C\nTổng hợp chỉ số ==
+JOB_C -> MASTER : Đọc kết quả SLA các đơn\n(và đếm đơn đang xử lý nếu cần)
+JOB_C -> MASTER : Tính thẻ KPI, % SLA, CSAT...\nghi snapshot và chuỗi thời gian
+JOB_C -> MASTER : Ghi nhận Job C đã cập nhật xong
+
+== Bước 5: API trả dữ liệu Dashboard ==
+API -> MASTER : Đọc dữ liệu dashboard đã tổng hợp
+API -> MASTER : Đọc chi tiết SLA đơn\n(khi drill-down, cảnh báo, export)
+MASTER --> API : Bộ dữ liệu sẵn sàng hiển thị
+API --> UI : Trả về dữ liệu + thời điểm cập nhật
+
+alt Dữ liệu dashboard quá cũ (> 10 phút)
+    API --> UI : Đánh dấu dữ liệu có thể chưa mới\n(gợi ý: Làm mới ngay)
+else Du lieu con tuoi
+    API --> UI : Dữ liệu được coi là cập nhật
+end
+
+
+== Trường hợp: Đổi ngưỡng SLA — không sửa đơn đã tính ==
+ADMIN -> API : Tạo bản ghi KPI mới,\nchỉnh sửa rule, kích hoạt
+API -> MASTER : Lưu phiên bản V2;\nngừng hiệu lực V1
+
+JOB_B -> MASTER : Xử lý từng đơn trong hàng đợi
+loop tung don
+    alt Đơn đã tính SLA với phiên bản cũ
+        JOB_B -> JOB_B : Giữ nguyên ngưỡng và kết quả đã chốt\n(không áp dụng V2)
+    else Don moi / chua tinh, thuoc thoi gian V2
+        JOB_B -> MASTER : Áp dụng ngưỡng phiên bản V2
+        JOB_B -> MASTER : Lưu kết quả với phiên bản V2
+    else Đơn đang xử lý, thuộc thời gian V1
+        JOB_B -> MASTER : Áp dụng ngưỡng phiên bản V1
+        JOB_B -> MASTER : Lưu kết quả với phiên bản V1
+    end
+end
+
+== Trường hợp: Làm mới Dashboard thủ công ==
+ADMIN -> UI : Bấm "Làm mới"
+UI -> API : Yêu cầu cập nhật Dashboard ngay
+API -> JOB_C : Gọi trực tiếp Job C\n(phạm vi, bộ lọc — không qua DB để kích hoạt)
+note right of API
+  API không ghi DB để "đặt lệnh" Job C.
+  Chỉ gọi service Job C; DB chỉ do Job C ghi sau khi tính xong.
+end note
+JOB_C -> MASTER : Đọc dữ liệu cần tổng hợp
+JOB_C -> JOB_C : Tính thẻ KPI, % SLA, CSAT...
+JOB_C -> MASTER : Lưu snapshot và chuỗi thời gian
+JOB_C -> MASTER : Ghi nhan trang thai lan chay\n(tuy chon, sau khi xong)
+JOB_C --> API : Hoàn thành (hoặc mã tiến trình nếu chạy như vậy)
+API --> UI : Đã cập nhật / cho phép tải lại màn hình
+UI -> API : Tải lại dữ liệu Dashboard
+API -> MASTER : Đọc dữ liệu đã tổng hợp mới
+MASTER --> API : Bộ dữ liệu mới
+API --> UI : Hiển thị dữ liệu mới, không cảnh báo stale
+
+legend right
+  Đổi trạng thái: subscribe topic update-state
+  Consumer: 1 sự kiện = 1 đơn
+  Job B: tính SLA sau khi có duration mới
+  Làm mới ngay: API -> Job C -> DB (không API -> DB -> Job C)
+  Job C định kỳ: 5 phút (scheduler gọi Job C tương tự)
+  Chi tiết kỹ thuật DB: BRD §14, data dictionary
+endlegend
+
+@enduml

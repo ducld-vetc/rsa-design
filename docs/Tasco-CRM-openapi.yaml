@@ -1,0 +1,307 @@
+openapi: 3.0.3
+info:
+  title: Tasco CRM — Post-service evaluation (VETC ↔ Partner)
+  version: 1.0.0
+  description: |
+    API #1 do đối tác host. API #2, #3 do VETC host (sync push gọi endpoint đối tác).
+    Chi tiết nghiệp vụ: Tasco-CRM-API.md
+
+servers:
+  - url: https://api.partner.example.com
+    description: Đối tác (API #1, #3 inbound)
+  - url: https://api.vetc.example.com/rsa-crm
+    description: VETC (API #2)
+
+tags:
+  - name: Partner - Pending list
+    description: API #1 — Đối tác cung cấp
+  - name: VETC - Evaluation
+    description: API #2 — Submit
+  - name: Partner - Sync inbound
+    description: API #3 — VETC gọi sang đối tác
+
+paths:
+  /api/v1/post-service/repair-orders/pending-evaluation:
+    get:
+      tags: [Partner - Pending list]
+      summary: API #1 — Danh sách R/O cần gọi đánh giá
+      operationId: getPendingEvaluations
+      parameters:
+        - $ref: '#/components/parameters/dateFrom'
+        - $ref: '#/components/parameters/dateTo'
+        - $ref: '#/components/parameters/branchCode'
+        - name: contactStatus
+          in: query
+          schema:
+            $ref: '#/components/schemas/ContactStatus'
+        - name: licensePlate
+          in: query
+          schema: { type: string }
+        - name: repairOrderNo
+          in: query
+          schema: { type: string }
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/pageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingEvaluationListResponse'
+
+  /api/v1/post-service/evaluations:
+    post:
+      tags: [VETC - Evaluation]
+      summary: API #2 — Submit đánh giá
+      operationId: submitEvaluation
+      parameters:
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluationSubmitRequest'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationSubmitResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/v1/post-service/repair-orders/{repairOrderNo}/evaluation:
+    put:
+      tags: [Partner - Sync inbound]
+      summary: API #3 — Đồng bộ đánh giá sang đối tác
+      operationId: syncEvaluationToPartner
+      parameters:
+        - name: repairOrderNo
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/idempotencyKey'
+        - name: X-VETC-Evaluation-Id
+          in: header
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluationSyncRequest'
+      responses:
+        '200':
+          description: Synced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationSyncResponse'
+
+components:
+  parameters:
+    dateFrom:
+      name: dateFrom
+      in: query
+      required: true
+      schema: { type: string, format: date }
+    dateTo:
+      name: dateTo
+      in: query
+      required: true
+      schema: { type: string, format: date }
+    branchCode:
+      name: branchCode
+      in: query
+      required: true
+      schema: { type: string }
+    page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    pageSize:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      schema: { type: string, format: uuid }
+
+  schemas:
+    ContactStatus:
+      type: string
+      enum: [CHUA_LIEN_HE, CAN_GOI_LAI, HOAN_THANH, QUA_HAN]
+    ContactResult:
+      type: string
+      enum: [CONTACT_SUCCESS, CONTACT_FAILED, NO_CONTACT]
+    ContactReason:
+      type: string
+      enum: [SATISFIED, NO_ANSWER, CALLBACK_REQUEST, OTHER]
+    ContactChannel:
+      type: string
+      enum: [PHONE, SMS, ZALO, EMAIL, IN_PERSON]
+    OverallRating:
+      type: string
+      enum: [SATISFIED, NORMAL, UNSATISFIED, NOT_RATED]
+    CriterionRating:
+      type: string
+      enum: [STAR_5, STAR_4, STAR_3, STAR_2, STAR_1, NOT_RATED]
+    SyncStatus:
+      type: string
+      enum: [PENDING, SYNCED, FAILED]
+
+    CallAttempt:
+      type: object
+      properties:
+        attemptNo: { type: integer, enum: [1, 2, 3] }
+        callDate: { type: string, format: date, nullable: true }
+        callTime: { type: string, example: '08:53' }
+        result: { $ref: '#/components/schemas/ContactResult' }
+        reason: { $ref: '#/components/schemas/ContactReason' }
+        note: { type: string, maxLength: 2000 }
+
+    PendingEvaluationItem:
+      type: object
+      required: [repairOrderNo, vehicleExitDate, contactStatus]
+      properties:
+        repairOrderNo: { type: string }
+        entryDate: { type: string, format: date }
+        licensePlate: { type: string }
+        customerName: { type: string }
+        customerAddress: { type: string }
+        repairSummary: { type: string }
+        contactPerson: { type: string }
+        contactPhone: { type: string }
+        vehicleModel: { type: string }
+        mileage: { type: integer }
+        acceptanceDate: { type: string, format: date }
+        vehicleExitDate: { type: string, format: date }
+        chassisNo: { type: string }
+        serviceAdvisorName: { type: string }
+        careStaffName: { type: string }
+        contactStatus: { $ref: '#/components/schemas/ContactStatus' }
+        slaDueDate: { type: string, format: date }
+        calls:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/CallAttempt' }
+        overallRating: { $ref: '#/components/schemas/OverallRating' }
+        lastContactResult: { $ref: '#/components/schemas/ContactResult' }
+        lastContactReason: { $ref: '#/components/schemas/ContactReason' }
+        partnerUpdatedAt: { type: string, format: date-time }
+
+    PendingEvaluationListResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        code: { type: string }
+        data:
+          type: object
+          properties:
+            summary:
+              type: object
+              additionalProperties: { type: integer }
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/PendingEvaluationItem' }
+        meta: { $ref: '#/components/schemas/PageMeta' }
+
+    EvaluationSubmitRequest:
+      type: object
+      required: [repairOrderNo, branchCode, submittedBy, contactChannel, vehicleDelivered, contacts]
+      properties:
+        repairOrderNo: { type: string }
+        branchCode: { type: string }
+        submittedBy: { type: string }
+        contactChannel: { $ref: '#/components/schemas/ContactChannel' }
+        overallRating: { $ref: '#/components/schemas/OverallRating' }
+        vehicleDelivered: { type: boolean }
+        vrcCode: { type: string }
+        contacts:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items: { $ref: '#/components/schemas/CallAttempt' }
+        criteria:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string, enum: ['01', '02', '03', '04'] }
+              rating: { $ref: '#/components/schemas/CriterionRating' }
+              note: { type: string }
+
+    EvaluationSubmitResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            evaluationId: { type: string, format: uuid }
+            repairOrderNo: { type: string }
+            status: { type: string, enum: [SAVED] }
+            syncStatus: { $ref: '#/components/schemas/SyncStatus' }
+            submittedAt: { type: string, format: date-time }
+
+    EvaluationSyncRequest:
+      allOf:
+        - $ref: '#/components/schemas/EvaluationSubmitRequest'
+        - type: object
+          required: [evaluationId, submittedAt, source]
+          properties:
+            evaluationId: { type: string, format: uuid }
+            submittedAt: { type: string, format: date-time }
+            source: { type: string, enum: [VETC_CRM] }
+
+    EvaluationSyncResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            repairOrderNo: { type: string }
+            partnerRecordId: { type: string }
+            syncedAt: { type: string, format: date-time }
+
+    PageMeta:
+      type: object
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalItems: { type: integer }
+        totalPages: { type: integer }
+
+    ErrorEnvelope:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        code: { type: string }
+        message: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              code: { type: string }
+              message: { type: string }
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []

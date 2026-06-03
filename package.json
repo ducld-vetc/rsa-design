@@ -1,0 +1,32 @@
+{
+  "name": "vetc-roadside-assistance-portal",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "dev:crm": "vite --config crm-web/vite.config.ts",
+    "build:crm": "vite build --config crm-web/vite.config.ts",
+    "preview:crm": "vite preview --config crm-web/vite.config.ts",
+    "start:crm": "npm run build:crm && npx --yes serve@14 crm-web/dist -l 5180 -s",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@types/leaflet": "^1.9.21",
+    "framer-motion": "^12.34.3",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^0.563.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-leaflet": "^5.0.0",
+    "react-router-dom": "6.22.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}

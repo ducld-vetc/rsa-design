@@ -1,0 +1,117 @@
+
+export interface CustomerData {
+  phone: string;
+  plate: string;
+  name: string;
+  vin: string;
+  vehicleBrand: string;
+  vehicleLine: string;
+  payload: string;
+  seats: string;
+  servicePackage: string;
+}
+
+export interface AssistanceInfo {
+  rescueName: string;
+  rescuePhone: string;
+  address: string;
+  lng: string;
+  lat: string;
+  city: string;
+  district: string;
+  ward: string;
+  note: string;
+}
+
+export interface ServiceSelection {
+  serviceIds: string[];
+  quantity: number;
+  description: string;
+  deposit: number;
+}
+
+export interface RescueUnit {
+  id: string;
+  name: string;
+  partner: string;
+  status: 'Accepted' | 'Rejected' | 'Pending';
+  distance: number;
+  time: number;
+  address: string;
+  contact1: string;
+  contact2: string;
+  vehicleType: string;
+}
+
+export interface StationInfo {
+  partner: string;
+  station: string;
+  contact1: string;
+  contact2: string;
+  address: string;
+  towingDestination: string;
+  vehicleType: string;
+}
+
+export interface PricingData {
+  estimatedPrice: string;
+  distance: number;
+  adjustments: {
+    id: number;
+    serviceName: string;
+    fixedPrice: string;
+    adjustmentType: string;
+    coefficient: string;
+    ceilingPrice: string;
+    totalPrice: string;
+  }[]
+}
+export interface FormData {
+  orderId?: string;
+  customer: CustomerData;
+  assistance: AssistanceInfo;
+  service: ServiceSelection;
+  station: StationInfo;
+  pricing: PricingData;
+}
+
+export interface OrderHistory {
+  id: string;
+  date: string;
+  service: string;
+  status: 'Completed' | 'Cancelled' | 'In Progress';
+}
+
+export enum Step {
+  CUSTOMER_INFO = 1,
+  PAYMENT_QR = 2,
+  SEARCHING = 3,
+  RESCUE_LIST = 3.5,
+  STATION_INFO = 4,
+  CONFIRMATION = 5,
+  SUCCESS = 6,
+  MONITORING = 10,
+  SUPPORTING = 13,
+  ORDER_MANAGEMENT = 11,
+  GUEST_ORDER = 12,
+  LIVE_MONITORING = 14,
+  STATION_CREATE = 20,
+  STATION_ORDERS = 21,
+  STATION_MANAGEMENT = 22,
+  STAFF_MANAGEMENT = 30,
+  RESCUE_SUPERVISION = 15,
+  PRICING_POLICY = 40,
+}
+
+export interface MonitoringOrder {
+  id: string;
+  orderId: string;
+  customerName: string;
+  phone: string;
+  plate: string;
+  address: string;
+  district: string;
+  services: string[];
+  waitingTime: number;
+  status: 'Searching' | 'Expired' | 'NoPartner';
+}
