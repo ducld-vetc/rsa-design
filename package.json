@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "start": "npm run build && npx --yes serve@14 dist -l 3333 -s",
     "dev:crm": "vite --config crm-web/vite.config.ts",
     "build:crm": "vite build --config crm-web/vite.config.ts",
     "preview:crm": "vite preview --config crm-web/vite.config.ts",

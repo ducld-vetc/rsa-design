@@ -37,18 +37,30 @@ Chỉ **một màn Báo cáo**. **Đánh giá KH** mở dạng panel bên phải
 
 ## Deploy
 
-### Vercel (khuyến nghị)
+Repo có **2 app** deploy lên **2 domain riêng** trên Vercel (cùng Git repo — mỗi lần push sẽ build cả hai):
 
-Repo đã có **`vercel.json`** ở thư mục gốc — chỉ build app CRM, không build portal chính.
+| App | Config | Build | Output | Domain (ví dụ) |
+|-----|--------|-------|--------|----------------|
+| **CRM** (màn này) | `vercel.json` | `npm run build:crm` | `crm-web/dist` | `crm-xxx.vercel.app` |
+| **Portal** (cổng đại lý) | `vercel.portal.json` | `npm run build` | `dist` | `portal-xxx.vercel.app` |
 
-1. Đăng nhập [vercel.com](https://vercel.com) → **Add New Project** → import repo GitHub/GitLab.
-2. **Root Directory**: để **`.`** (gốc repo, không chọn `crm-web` — build cần `package.json` gốc và thư mục `pages/`).
-3. Vercel đọc tự động:
-   - **Build Command**: `npm run build:crm`
-   - **Output Directory**: `crm-web/dist`
-4. Deploy. Mọi route SPA đã rewrite về `index.html`.
+### Vercel — Project CRM
 
-Nếu tạo project thủ công trong dashboard, nhập đúng Build / Output như trên.
+1. [vercel.com](https://vercel.com) → **Add New Project** → import repo.
+2. **Root Directory**: **`.`** (gốc repo — build cần `package.json` gốc và `pages/`).
+3. **Config File**: `vercel.json` (mặc định).
+4. Gán domain CRM (Settings → Domains).
+
+### Vercel — Project Portal (app `npm run dev`)
+
+1. **Add New Project** → import **cùng repo** lần nữa (2 project, 1 repo).
+2. **Root Directory**: **`.`**
+3. **Settings → General → Config File**: đặt **`vercel.portal.json`**
+4. Build / Output (nếu không đọc config): `npm run build` → `dist`
+5. **Environment Variables** (nếu dùng Gemini): thêm `GEMINI_API_KEY` cho project Portal.
+6. Gán domain Portal riêng (Settings → Domains).
+
+Mỗi lần push lên Git, Vercel deploy **song song** 2 project → 2 domain khác nhau.
 
 ### Build thủ công
 

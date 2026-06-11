@@ -18,3 +18,14 @@ View your app in AI Studio: https://ai.studio/apps/838d914f-26b9-4c0d-a944-b7600
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Deploy (2 domain)
+
+Cùng repo, **2 project Vercel** — mỗi push tự build cả hai:
+
+| App | Script local | Config Vercel | Output |
+|-----|--------------|---------------|--------|
+| Portal (cổng đại lý) | `npm run dev` | `vercel.portal.json` | `dist/` |
+| CRM Tasco | `npm run dev:crm` | `vercel.json` | `crm-web/dist/` |
+
+Chi tiết: [crm-web/README.md](crm-web/README.md#deploy).
