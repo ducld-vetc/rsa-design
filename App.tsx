@@ -21,6 +21,7 @@ import StationOrderDetail from './pages/StationOrderDetail';
 import StationManagement from './pages/StationManagement';
 import StaffManagement2 from './pages/StaffManagement2';
 import RescueSupervision from './pages/RescueSupervision';
+import RsaDashboardOverview from './pages/RsaDashboardOverview';
 import PricingPolicyCreate from './pages/PricingPolicyCreate';
 
 const initialData: FormData = {
@@ -84,6 +85,7 @@ const App: React.FC = () => {
   // Helper to map URL path to Step enum for Sidebar/Stepper compatibility
   const getStepFromPath = (path: string): Step => {
     if (path.includes('/pricing-policy')) return Step.PRICING_POLICY;
+    if (path.includes('/rsa-dashboard')) return Step.RSA_DASHBOARD;
     if (path.includes('/rescue-supervision')) return Step.RESCUE_SUPERVISION;
     if (path.includes('/monitoring')) return Step.MONITORING;
     if (path.includes('/supporting')) return Step.SUPPORTING;
@@ -262,6 +264,7 @@ const App: React.FC = () => {
   };
 
   // Navigation Handlers
+  const handleNavigateToRsaDashboard = () => navigate('/rsa-dashboard');
   const handleNavigateToRescueSupervision = () => navigate('/rescue-supervision');
   const handleNavigateToSupporting = () => navigate('/supporting');
   const handleNavigateToOrderManagement = () => navigate('/orders');
@@ -338,6 +341,7 @@ const App: React.FC = () => {
     Step.ORDER_MANAGEMENT,
     Step.GUEST_ORDER,
     Step.RESCUE_SUPERVISION,
+    Step.RSA_DASHBOARD,
     Step.SUCCESS,
     Step.STATION_CREATE,
     Step.STATION_MANAGEMENT,
@@ -348,6 +352,7 @@ const App: React.FC = () => {
   const isStepperVisible = !hideStepperSteps.includes(currentStep);
 
   const getBreadcrumbLabels = () => {
+    if (currentStep === Step.RSA_DASHBOARD) return ['Giám sát cứu hộ', 'Tổng quan'];
     if (currentStep === Step.RESCUE_SUPERVISION) return ['Giám sát cứu hộ', 'Giám sát'];
     if (currentStep === Step.SUPPORTING) return ['Giám sát cứu hộ', 'Đang hỗ trợ'];
     if (currentStep === Step.ORDER_MANAGEMENT) return ['Chăm sóc khách hàng', 'Quản lý đơn hàng'];
@@ -366,6 +371,7 @@ const App: React.FC = () => {
     <div className="flex h-screen overflow-hidden bg-gray-100">
       <Sidebar 
         isOpen={isSidebarOpen} 
+        onNavigateRsaDashboard={handleNavigateToRsaDashboard}
         onNavigateRescueSupervision={handleNavigateToRescueSupervision}
         onNavigateSupporting={handleNavigateToSupporting}
         onNavigateOrderManagement={handleNavigateToOrderManagement}
@@ -471,6 +477,9 @@ const App: React.FC = () => {
                 } />
                 <Route path="/success" element={
                   <CreateRescueOrderComplete data={formData} onReset={resetFlow} onViewList={handleNavigateToOrderManagement} />
+                } />
+                <Route path="/rsa-dashboard" element={
+                  <RsaDashboardOverview />
                 } />
                 <Route path="/rescue-supervision" element={
                   <RescueSupervision />

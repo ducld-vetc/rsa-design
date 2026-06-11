@@ -37,6 +37,28 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #008f4c;
         }
+
+        .map-trip-tooltip.leaflet-tooltip {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 0;
+        }
+        .map-trip-tooltip.leaflet-tooltip::before {
+            display: none;
+        }
+
+        .rsa-dashboard-map .leaflet-container {
+            z-index: 0 !important;
+        }
+        .rsa-dashboard-map .leaflet-pane,
+        .rsa-dashboard-map .leaflet-top,
+        .rsa-dashboard-map .leaflet-bottom {
+            z-index: 1 !important;
+        }
+        .rsa-dashboard-map .leaflet-tooltip-pane {
+            z-index: 2 !important;
+        }
     </style>
 <script type="importmap">
 {

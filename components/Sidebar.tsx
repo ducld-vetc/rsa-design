@@ -1,10 +1,11 @@
 
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign } from 'lucide-react';
+import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard } from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
   isOpen: boolean;
+  onNavigateRsaDashboard: () => void;
   onNavigateRescueSupervision: () => void;
   onNavigateSupporting: () => void;
   onNavigateCreate: () => void;
@@ -20,6 +21,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ 
   isOpen, 
+  onNavigateRsaDashboard,
   onNavigateRescueSupervision,
   onNavigateSupporting, 
   onNavigateCreate, 
@@ -131,6 +133,13 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
           {isMenuOpen('rescue') && (
             <div className="ml-8 mt-2 space-y-1">
+              <div
+                onClick={onNavigateRsaDashboard}
+                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.RSA_DASHBOARD ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                <LayoutDashboard size={14} />
+                <span>Tổng quan</span>
+              </div>
               <div
                 onClick={onNavigateSupporting}
                 className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.SUPPORTING ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
