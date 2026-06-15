@@ -411,7 +411,9 @@ const Input = ({
     />
 );
 
-const GuestOrderDetails: React.FC = () => {
+const GuestOrderDetails: React.FC<{
+  role?: 'OSA' | 'ADMIN' | 'CSKH' | 'STATION' | 'DRIVER';
+}> = ({ role = 'CSKH' }) => {
   const [viewMode, setViewMode] = useState<'list' | 'tabs'>('list');
   const [activeTab, setActiveTab] = useState('general');
 
@@ -2166,6 +2168,7 @@ const GuestOrderDetails: React.FC = () => {
             amount={activePaymentType === 'deposit' ? DEPOSIT_AMOUNT.toLocaleString('en-US') : remainingAmount.toLocaleString('en-US')}
             session={activePaymentType === 'deposit' ? depositPaymentSession : remainingPaymentSession}
             onSessionChange={activePaymentType === 'deposit' ? setDepositPaymentSession : setRemainingPaymentSession}
+            allowCashPayment={role === 'ADMIN'}
         />
 
         <CustomerFeeChangeWarningModal

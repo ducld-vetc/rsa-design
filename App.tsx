@@ -491,7 +491,7 @@ const App: React.FC = () => {
                   <OrderManagement onViewDetails={handleViewDetails} />
                 } />
                 <Route path="/details" element={
-                  <GuestOrderDetails />
+                  <GuestOrderDetails role={role} />
                 } />
                 <Route path="/station/create" element={
                   <StationCreateOrder />
