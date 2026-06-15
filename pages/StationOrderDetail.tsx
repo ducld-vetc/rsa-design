@@ -360,6 +360,8 @@ const StationOrderDetail: React.FC = () => {
   const [stationName, setStationName] = useState(orderData?.coordination?.station || 'Carpla Service - CN Hà Nội');
   const [rescueVehicleType, setRescueVehicleType] = useState(orderData?.coordination?.vehicleType || 'Xe kéo cẩu');
   const [rescueDistance, setRescueDistance] = useState(orderData?.coordination?.distance || '8');
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [advancePerson, setAdvancePerson] = useState('');
 
   // Adjustment Coefficients Data state
   const [adjustmentRows, setAdjustmentRows] = useState(orderData?.pricing?.adjustments || (isVetcOrder ? [
@@ -1175,6 +1177,32 @@ const StationOrderDetail: React.FC = () => {
                         >
                           <Plus size={12} className="mr-1.5" /> Thêm dịch vụ thực tế
                         </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-4 mt-4 pt-4 border-t border-gray-100">
+                    <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
+                      <span className="w-1 h-3 bg-vetc-green mr-2 rounded-full"></span>
+                      Tạm ứng
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                      <div className="lg:col-span-1">
+                        <Label>Tạm ứng</Label>
+                        <Input
+                            value={advanceAmount}
+                            onChange={setAdvanceAmount}
+                            readOnly={!isEditing}
+                            className="text-right font-bold"
+                        />
+                      </div>
+                      <div className="lg:col-span-1">
+                        <Label>Người tạm ứng</Label>
+                        <Input
+                            value={advancePerson}
+                            onChange={setAdvancePerson}
+                            readOnly={!isEditing}
+                        />
                       </div>
                     </div>
                   </div>

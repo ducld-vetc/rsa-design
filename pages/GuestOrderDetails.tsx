@@ -25,7 +25,6 @@ import {
   Paperclip,
   Plus,
   Printer,
-  QrCode,
   RefreshCw,
   RotateCcw,
   Save,
@@ -55,7 +54,13 @@ import ManualStationSearch from '../components/ManualStationSearch';
 import MapSelectionModal from '../shared/MapSelectionModal';
 import CancellationDialog from '../shared/CancellationDialog';
 import InvoicePreviewModal from '../shared/InvoicePreviewModal';
-import PaymentQrModal from '../shared/PaymentQrModal';
+import CustomerPaymentModal, {
+  CustomerPaymentSession,
+  CustomerPaymentType
+} from '../shared/CustomerPaymentModal';
+import CustomerFeeChangeWarningModal, {
+  CustomerFeeWarningType
+} from '../shared/CustomerFeeChangeWarningModal';
 import ProviderPaymentConfirmDialog from '../shared/ProviderPaymentConfirmDialog';
 import UsageHistoryModal from '../shared/UsageHistoryModal';
 import StatusUpdateModal, { STATUS_OPTIONS } from '../shared/StatusUpdateModal';
@@ -147,6 +152,74 @@ const ADJUSTMENT_OPTIONS = [
     ] 
   },
 ];
+
+type AdjustmentRow = {
+  id: number;
+  serviceName: string;
+  fixedPrice: string;
+  adjustmentType: string;
+  coefficient: string;
+  ceilingPrice: string;
+  discount: string;
+  totalPrice: string;
+  customerPaid: string;
+};
+
+const parseMoney = (value: string) => parseFloat(value.replace(/,/g, '')) || 0;
+
+const calculateCustomerTotal = (rows: AdjustmentRow[]) =>
+  rows.reduce((sum, row) => sum + parseMoney(row.customerPaid), 0);
+
+const computeUpdatedRows = (
+  rows: AdjustmentRow[],
+  id: number,
+  field: string,
+  value: string
+): AdjustmentRow[] =>
+  rows.map(row => {
+    if (row.id !== id) return row;
+
+    let processedValue = value;
+    if (['fixedPrice', 'discount', 'customerPaid', 'ceilingPrice', 'totalPrice'].includes(field)) {
+      const isNegative = value.trim().startsWith('-');
+      const numericPart = value.replace(/[^0-9.]/g, '');
+      const num = parseFloat(numericPart) || 0;
+      processedValue = (isNegative ? -num : num).toLocaleString('en-US');
+    }
+
+    let updatedRow = { ...row, [field]: processedValue };
+
+    if (field === 'totalPrice') {
+      const numericPrice = parseMoney(processedValue);
+      updatedRow.customerPaid = (numericPrice * 0.1).toLocaleString('en-US');
+    }
+
+    if (field === 'adjustmentType') {
+      const selectedLabels = processedValue.split(',').map(s => s.trim()).filter(s => s !== '');
+      let maxCoef = 1.0;
+
+      selectedLabels.forEach(label => {
+        ADJUSTMENT_OPTIONS.forEach(cat => {
+          const opt = cat.options.find(o => o.label === label);
+          if (opt && opt.coef > maxCoef) {
+            maxCoef = opt.coef;
+          }
+        });
+      });
+
+      updatedRow.coefficient = maxCoef.toFixed(2);
+    }
+
+    if (field === 'fixedPrice' || field === 'coefficient' || field === 'totalPrice' || field === 'adjustmentType') {
+      const fixed = parseMoney(updatedRow.fixedPrice);
+      const coef = parseFloat(updatedRow.coefficient) || 0;
+      const total = parseMoney(updatedRow.totalPrice);
+      const diff = fixed * coef - total;
+      updatedRow.discount = diff.toLocaleString('en-US');
+    }
+
+    return updatedRow;
+  });
 
 const AdjustmentTypeSelect = ({
                                 value,
@@ -387,6 +460,8 @@ const GuestOrderDetails: React.FC = () => {
   const [estimatedDistance, setEstimatedDistance] = useState('2.37');
   const [trackingUrl, setTrackingUrl] = useState('https://dev-customer-rsa.vetc.com.vn/rescue-order?ref=76e45863-22d7-4ffc-b02b-133f76443543');
   const [trackingCopied, setTrackingCopied] = useState(false);
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [advancePerson, setAdvancePerson] = useState('');
 
   // Adjustment Coefficients Data state
   const [adjustmentRows, setAdjustmentRows] = useState([
@@ -407,7 +482,27 @@ const GuestOrderDetails: React.FC = () => {
 
   const [severityLevel, setSeverityLevel] = useState('Nhẹ');
   const [weather, setWeather] = useState('Bình thường');
-  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [activePaymentType, setActivePaymentType] = useState<CustomerPaymentType>('deposit');
+  const [depositPaymentSession, setDepositPaymentSession] = useState<CustomerPaymentSession>({ method: null });
+  const [remainingPaymentSession, setRemainingPaymentSession] = useState<CustomerPaymentSession>({ method: null });
+  const DEPOSIT_AMOUNT = 50_000;
+  const paidAmount = 50_000;
+  const [refundAmount, setRefundAmount] = useState(0);
+  const hasDeposited = DEPOSIT_AMOUNT > 0;
+  const hasPartialPayment = hasDeposited || paidAmount > 0;
+  const [isFeeWarningOpen, setIsFeeWarningOpen] = useState(false);
+  const [editBaselineTotal, setEditBaselineTotal] = useState(0);
+  const [pendingFeeChange, setPendingFeeChange] = useState<{
+    type: CustomerFeeWarningType;
+    oldTotal: number;
+    newTotal: number;
+  } | null>(null);
+
+  const openPaymentModal = (type: CustomerPaymentType) => {
+    setActivePaymentType(type);
+    setIsPaymentModalOpen(true);
+  };
   const [isProviderPaymentConfirmOpen, setIsProviderPaymentConfirmOpen] = useState(false);
   const [isDistanceWarningOpen, setIsDistanceWarningOpen] = useState(false);
 
@@ -459,10 +554,56 @@ const GuestOrderDetails: React.FC = () => {
   const totalProviderPriceBeforeTax = totalProviderPrice / (1 + providerVatValue / 100);
 
   // Calculate total customer price from adjustmentRows
-  const totalCustomerPrice = adjustmentRows.reduce((sum, row) => {
-    const price = parseFloat(row.customerPaid.toString().replace(/,/g, '')) || 0;
-    return sum + price;
-  }, 0);
+  const totalCustomerPrice = calculateCustomerTotal(adjustmentRows);
+  const remainingAmount = refundAmount > 0 ? 0 : Math.max(0, totalCustomerPrice - paidAmount);
+
+  const handleStartEditing = () => {
+    setEditBaselineTotal(totalCustomerPrice);
+    setIsEditing(true);
+  };
+
+  const finalizeSave = () => {
+    if (hasPartialPayment && totalCustomerPrice < DEPOSIT_AMOUNT) {
+      setRefundAmount(Math.max(0, DEPOSIT_AMOUNT - totalCustomerPrice));
+    } else if (totalCustomerPrice >= paidAmount) {
+      setRefundAmount(0);
+    }
+    setIsEditing(false);
+  };
+
+  const handleSaveChanges = () => {
+    const newTotal = totalCustomerPrice;
+    const oldTotal = editBaselineTotal;
+
+    if (hasPartialPayment && newTotal < DEPOSIT_AMOUNT) {
+      setPendingFeeChange({ type: 'decrease', oldTotal, newTotal });
+      setIsFeeWarningOpen(true);
+      return;
+    }
+
+    if (hasPartialPayment && newTotal > oldTotal) {
+      setPendingFeeChange({ type: 'increase', oldTotal, newTotal });
+      setIsFeeWarningOpen(true);
+      return;
+    }
+
+    finalizeSave();
+  };
+
+  const handleConfirmFeeChange = () => {
+    if (!pendingFeeChange) return;
+    if (pendingFeeChange.type === 'decrease') {
+      setRefundAmount(Math.max(0, DEPOSIT_AMOUNT - pendingFeeChange.newTotal));
+    }
+    setPendingFeeChange(null);
+    setIsFeeWarningOpen(false);
+    setIsEditing(false);
+  };
+
+  const handleCancelFeeChange = () => {
+    setPendingFeeChange(null);
+    setIsFeeWarningOpen(false);
+  };
 
   useEffect(() => {
     if (!incidentDescription || incidentDescription.trim().length < 5) {
@@ -586,57 +727,7 @@ const GuestOrderDetails: React.FC = () => {
   };
 
   const handleAdjustmentChange = (id: number, field: string, value: string) => {
-    setAdjustmentRows(prev => prev.map(row => {
-      if (row.id !== id) return row;
-
-      let processedValue = value;
-      if (['fixedPrice', 'discount', 'customerPaid', 'ceilingPrice', 'totalPrice'].includes(field)) {
-        const isNegative = value.trim().startsWith('-');
-        const numericPart = value.replace(/[^0-9.]/g, '');
-        const num = parseFloat(numericPart) || 0;
-        processedValue = (isNegative ? -num : num).toLocaleString('en-US');
-      }
-
-      let updatedRow = { ...row, [field]: processedValue };
-
-      // If totalPrice changes, update customerPaid to 10%
-      if (field === 'totalPrice') {
-        const numericPrice = parseFloat(processedValue.replace(/,/g, '')) || 0;
-        updatedRow.customerPaid = (numericPrice * 0.1).toLocaleString('en-US');
-      }
-
-      // If adjustmentType changes, recalculate coefficient
-      if (field === 'adjustmentType') {
-        const selectedLabels = processedValue.split(',').map(s => s.trim()).filter(s => s !== '');
-        let maxCoef = 1.0;
-        
-        selectedLabels.forEach(label => {
-          ADJUSTMENT_OPTIONS.forEach(cat => {
-            const opt = cat.options.find(o => o.label === label);
-            if (opt) {
-              // Take the maximum coefficient among selected options
-              if (opt.coef > maxCoef) {
-                maxCoef = opt.coef;
-              }
-            }
-          });
-        });
-        
-        updatedRow.coefficient = maxCoef.toFixed(2);
-      }
-
-      // Auto recalculate discount if fixed price, coefficient or total price changes
-      if (field === 'fixedPrice' || field === 'coefficient' || field === 'totalPrice' || field === 'adjustmentType') {
-        const fixed = parseFloat(updatedRow.fixedPrice.replace(/,/g, '')) || 0;
-        const coef = parseFloat(updatedRow.coefficient) || 0;
-        const total = parseFloat(updatedRow.totalPrice.replace(/,/g, '')) || 0;
-        
-        // Formula: Chênh lệch giá = (Giá cố định * Hệ số) - Giá NCC
-        const diff = (fixed * coef) - total;
-        updatedRow.discount = diff.toLocaleString('en-US');
-      }
-      return updatedRow;
-    }));
+    setAdjustmentRows(computeUpdatedRows(adjustmentRows, id, field, value));
   };
 
   const handleRescueSelect = (unit: RescueUnit) => {
@@ -799,7 +890,7 @@ const GuestOrderDetails: React.FC = () => {
                       <span>Hủy thay đổi</span>
                     </button>
                     <button
-                        onClick={() => setIsEditing(false)}
+                        onClick={handleSaveChanges}
                         className="flex items-center space-x-2 px-6 py-2 bg-vetc-green text-white rounded-lg text-xs font-bold hover:bg-green-700 shadow-lg transition-all active:scale-95 group"
                     >
                       <Save size={14} className="group-hover:scale-110 transition-transform" />
@@ -808,9 +899,9 @@ const GuestOrderDetails: React.FC = () => {
                   </>
               ) : (
                   <button
-                      onClick={() => setIsEditing(true)}
+                      onClick={handleStartEditing}
                       className="flex items-center space-x-2 px-6 py-2 bg-vetc-green text-white rounded-lg text-xs font-bold hover:bg-green-700 shadow-lg transition-all active:scale-95 group"
-                  >
+                    >
                     <Edit size={14} className="group-hover:scale-110 transition-transform" />
                     <span>Cập nhật</span>
                   </button>
@@ -1477,42 +1568,72 @@ const GuestOrderDetails: React.FC = () => {
                             className="font-black text-red-600 text-right bg-red-50"
                         />
                       </div>
-                      {/*Deposit paid*/}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 mt-4 pt-4 border-t border-gray-100">
                       <div className="lg:col-span-1">
                         <Label>Tiền đã cọc</Label>
                         <div className="flex space-x-2">
                           <div className="w-2/3 shrink-0">
-                            <Input defaultValue="50,000" className="text-right text-green-600 font-bold" readOnly={!isEditing} />
+                            <Input
+                                value={DEPOSIT_AMOUNT.toLocaleString('en-US')}
+                                className="text-right text-green-600 font-bold bg-gray-50"
+                                readOnly
+                            />
                           </div>
                           <button
-                              title="Xem mã QR thanh toán"
-                              disabled={!isEditing}
-                              className={`flex-1 bg-green-600 text-white px-3 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center transition-all hover:bg-green-700 active:scale-95 ${!isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => setIsQrModalOpen(true)}
+                              title="Thanh toán tiền cọc"
+                              disabled={isEditing}
+                              className={`flex-1 bg-green-600 text-white px-3 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center transition-all hover:bg-green-700 active:scale-95 ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              onClick={() => openPaymentModal('deposit')}
                           >
-                            <QrCode size={14} className="mr-2" />
-                            <span>QrCode</span>
+                            <CreditCard size={14} className="mr-1.5" />
+                            <span>Thanh toán</span>
+                          </button>
+                        </div>
+                        {hasDeposited && isEditing && (
+                          <p className="text-[9px] text-amber-600 font-medium mt-1">Đã cọc — không thể chỉnh sửa</p>
+                        )}
+                      </div>
+
+                      <div className="lg:col-span-1">
+                        <Label>Đã thanh toán</Label>
+                        <Input
+                            value={paidAmount.toLocaleString('en-US')}
+                            className="text-right text-blue-600 font-bold"
+                            readOnly
+                        />
+                      </div>
+
+                      <div className="lg:col-span-1">
+                        <Label>Còn lại</Label>
+                        <div className="flex space-x-2">
+                          <div className="w-2/3 shrink-0">
+                            <Input
+                                value={remainingAmount.toLocaleString('en-US')}
+                                readOnly
+                                className="text-right font-black"
+                            />
+                          </div>
+                          <button
+                              title="Thanh toán phần còn lại"
+                              disabled={isEditing}
+                              className={`flex-1 bg-green-600 text-white px-3 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center transition-all hover:bg-green-700 active:scale-95 ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              onClick={() => openPaymentModal('remaining')}
+                          >
+                            <CreditCard size={14} className="mr-1.5" />
+                            <span>Thanh toán</span>
                           </button>
                         </div>
                       </div>
 
-                      {/*Remaining amount*/}
                       <div className="lg:col-span-1">
-                        <Label>Còn lại phải thu</Label>
-                        <div className="flex space-x-2">
-                          <div className="w-2/3 shrink-0">
-                            <Input defaultValue="382,000" readOnly className="text-right font-black" />
-                          </div>
-                          <button
-                              title="Xem mã QR thanh toán"
-                              disabled={!isEditing}
-                              className={`flex-1 bg-green-600 text-white px-3 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center transition-all hover:bg-green-700 active:scale-95 ${!isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => setIsQrModalOpen(true)}
-                          >
-                            <QrCode size={14} className="mr-2" />
-                            <span>QrCode</span>
-                          </button>
-                        </div>
+                        <Label>Tiền hoàn</Label>
+                        <Input
+                            value={refundAmount.toLocaleString('en-US')}
+                            className="text-right text-amber-600 font-bold bg-gray-50"
+                            readOnly
+                        />
                       </div>
                     </div>
                   </div>
@@ -1623,6 +1744,32 @@ const GuestOrderDetails: React.FC = () => {
                         >
                           <Plus size={12} className="mr-1.5" /> Thêm dịch vụ thực tế
                         </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-4 mt-4 pt-4 border-t border-gray-100">
+                    <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
+                      <span className="w-1 h-3 bg-vetc-green mr-2 rounded-full"></span>
+                      Tạm ứng
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                      <div className="lg:col-span-1">
+                        <Label>Tạm ứng</Label>
+                        <Input
+                            value={advanceAmount}
+                            onChange={setAdvanceAmount}
+                            readOnly={!isEditing}
+                            className="text-right font-bold"
+                        />
+                      </div>
+                      <div className="lg:col-span-1">
+                        <Label>Người tạm ứng</Label>
+                        <Input
+                            value={advancePerson}
+                            onChange={setAdvancePerson}
+                            readOnly={!isEditing}
+                        />
                       </div>
                     </div>
                   </div>
@@ -2012,10 +2159,24 @@ const GuestOrderDetails: React.FC = () => {
             </div>
         )}
 
-        {/* QR Code Dialog */}
-        <PaymentQrModal
-            isOpen={isQrModalOpen}
-            onClose={() => setIsQrModalOpen(false)}
+        <CustomerPaymentModal
+            isOpen={isPaymentModalOpen}
+            onClose={() => setIsPaymentModalOpen(false)}
+            paymentType={activePaymentType}
+            amount={activePaymentType === 'deposit' ? DEPOSIT_AMOUNT.toLocaleString('en-US') : remainingAmount.toLocaleString('en-US')}
+            session={activePaymentType === 'deposit' ? depositPaymentSession : remainingPaymentSession}
+            onSessionChange={activePaymentType === 'deposit' ? setDepositPaymentSession : setRemainingPaymentSession}
+        />
+
+        <CustomerFeeChangeWarningModal
+            isOpen={isFeeWarningOpen}
+            onClose={handleCancelFeeChange}
+            onConfirm={handleConfirmFeeChange}
+            type={pendingFeeChange?.type ?? 'increase'}
+            oldTotal={pendingFeeChange?.oldTotal ?? 0}
+            newTotal={pendingFeeChange?.newTotal ?? 0}
+            excessRefund={pendingFeeChange?.type === 'decrease' ? Math.max(0, DEPOSIT_AMOUNT - (pendingFeeChange?.newTotal ?? 0)) : 0}
+            additionalAmount={pendingFeeChange?.type === 'increase' ? (pendingFeeChange?.newTotal ?? 0) - (pendingFeeChange?.oldTotal ?? 0) : 0}
         />
 
         {/* Cancellation Dialog */}
