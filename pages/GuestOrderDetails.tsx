@@ -86,6 +86,37 @@ const DRIVERS_MOCK = [
   { id: 'D4', name: 'Phạm Đức Anh', phone: '0900111222' }
 ];
 
+type OrderPaymentStatus = 'PENDING' | 'DEPOSITED' | 'PAID';
+
+const PAYMENT_STATUS_CONFIG: Record<OrderPaymentStatus, { label: string; color: string; dot: string }> = {
+  PENDING: {
+    label: 'Chờ thanh toán',
+    color: 'bg-amber-50 text-amber-700 border-amber-200',
+    dot: 'bg-amber-500'
+  },
+  DEPOSITED: {
+    label: 'Đã cọc tiền',
+    color: 'bg-blue-50 text-blue-700 border-blue-200',
+    dot: 'bg-blue-500'
+  },
+  PAID: {
+    label: 'Đã thanh toán',
+    color: 'bg-green-50 text-green-700 border-green-200',
+    dot: 'bg-green-500'
+  }
+};
+
+const resolveOrderPaymentStatus = (
+  totalDue: number,
+  paid: number,
+  deposited: number,
+  remaining: number
+): OrderPaymentStatus => {
+  if (totalDue > 0 && remaining === 0 && paid >= totalDue) return 'PAID';
+  if (deposited > 0 || paid > 0) return 'DEPOSITED';
+  return 'PENDING';
+};
+
 const PACKAGE_LIST = [
   {
     id: 'BASIC',
@@ -558,6 +589,13 @@ const GuestOrderDetails: React.FC<{
   // Calculate total customer price from adjustmentRows
   const totalCustomerPrice = calculateCustomerTotal(adjustmentRows);
   const remainingAmount = refundAmount > 0 ? 0 : Math.max(0, totalCustomerPrice - paidAmount);
+  const orderPaymentStatus = resolveOrderPaymentStatus(
+    totalCustomerPrice,
+    paidAmount,
+    DEPOSIT_AMOUNT,
+    remainingAmount
+  );
+  const paymentStatusInfo = PAYMENT_STATUS_CONFIG[orderPaymentStatus];
 
   const handleStartEditing = () => {
     setEditBaselineTotal(totalCustomerPrice);
@@ -859,6 +897,15 @@ const GuestOrderDetails: React.FC<{
                     );
                   })()}
                 </button>
+              </div>
+
+              <div className="h-10 w-px bg-gray-100 hidden md:block"></div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Trạng thái thanh toán</span>
+                <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-bold border w-fit ${paymentStatusInfo.color}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full mr-2 ${paymentStatusInfo.dot}`}></div>
+                  <span>{paymentStatusInfo.label}</span>
+                </span>
               </div>
             </div>
 
