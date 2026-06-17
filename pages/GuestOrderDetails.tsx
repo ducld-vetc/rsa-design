@@ -496,6 +496,27 @@ const GuestOrderDetails: React.FC<{
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [advancePerson, setAdvancePerson] = useState('');
 
+  const ENTERPRISE_OPTIONS = [
+    { value: '', label: '-- Chọn doanh nghiệp --' },
+    { value: 'VETC', label: 'VETC' },
+    { value: 'FORD', label: 'Ford Việt Nam' },
+    { value: 'TOYOTA', label: 'Toyota Việt Nam' },
+    { value: 'HONDA', label: 'Honda Việt Nam' },
+  ];
+  const [selectedEnterprise, setSelectedEnterprise] = useState('');
+  const [hasGuarantee, setHasGuarantee] = useState<'yes' | 'no'>('no');
+  const [guaranteeNote, setGuaranteeNote] = useState('');
+  const [enterprisePaymentTotal, setEnterprisePaymentTotal] = useState('0');
+
+  const handleEnterpriseChange = (value: string) => {
+    setSelectedEnterprise(value);
+    if (!value) {
+      setHasGuarantee('no');
+      setGuaranteeNote('');
+      setEnterprisePaymentTotal('0');
+    }
+  };
+
   // Adjustment Coefficients Data state
   const [adjustmentRows, setAdjustmentRows] = useState([
     { id: 1, serviceName: 'Xe hết pin ', fixedPrice: '500,000', adjustmentType: 'Đêm', coefficient: '1.2', ceilingPrice: '1,000,000', discount: '0', totalPrice: '600,000', customerPaid: '60,000' },
@@ -1021,21 +1042,64 @@ const GuestOrderDetails: React.FC<{
                   <Input defaultValue="0967419411" readOnly={!isEditing} />
                 </div>
 
-                <div>
-                  <Label required>Biển số xe</Label>
-                  <Input defaultValue="29E366666" readOnly={true} />
+                <div className="lg:col-span-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 pt-4 border-t border-gray-100">
+                  <div>
+                    <Label>Doanh nghiệp</Label>
+                    <select
+                      value={selectedEnterprise}
+                      disabled={!isEditing}
+                      onChange={(e) => handleEnterpriseChange(e.target.value)}
+                      className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all ${!isEditing ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
+                    >
+                      {ENTERPRISE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {selectedEnterprise && (
+                    <>
+                      <div>
+                        <Label>Bảo lãnh</Label>
+                        <select
+                          value={hasGuarantee}
+                          disabled={!isEditing}
+                          onChange={(e) => setHasGuarantee(e.target.value as 'yes' | 'no')}
+                          className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all ${!isEditing ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
+                        >
+                          <option value="no">Không</option>
+                          <option value="yes">Có</option>
+                        </select>
+                      </div>
+                      <div className="lg:col-span-2">
+                        <Label>Ghi chú bảo lãnh</Label>
+                        <Input
+                          value={guaranteeNote}
+                          onChange={(e) => setGuaranteeNote(e.target.value)}
+                          placeholder="Nhập nội dung chi tiết bảo lãnh..."
+                          readOnly={!isEditing}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div>
-                  <Label>Số khung (Vin)</Label>
-                  <Input defaultValue="R7C2X9M4A8" readOnly={!isEditing} />
-                </div>
-                <div>
-                  <Label>Hãng xe</Label>
-                  <Input defaultValue="Toyota" readOnly={!isEditing} />
-                </div>
-                <div>
-                  <Label>Dòng xe</Label>
-                  <Input defaultValue="Sedan" readOnly={!isEditing} />
+
+                <div className="lg:col-span-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 pt-4 border-t border-gray-100">
+                  <div>
+                    <Label required>Biển số xe</Label>
+                    <Input defaultValue="29E366666" readOnly={true} />
+                  </div>
+                  <div>
+                    <Label>Số khung (Vin)</Label>
+                    <Input defaultValue="R7C2X9M4A8" readOnly={!isEditing} />
+                  </div>
+                  <div>
+                    <Label>Hãng xe</Label>
+                    <Input defaultValue="Toyota" readOnly={!isEditing} />
+                  </div>
+                  <div>
+                    <Label>Dòng xe</Label>
+                    <Input defaultValue="Sedan" readOnly={!isEditing} />
+                  </div>
                 </div>
 
                 <div>
@@ -1143,7 +1207,7 @@ const GuestOrderDetails: React.FC<{
                 {/* Điểm xưởng */}
                 <div className="lg:col-span-4">
                   <Label>Điểm xưởng</Label>
-                  <div className="w-[260px] relative">
+                  <div className="w-full relative">
                     <select
                         value={workshopStation}
                         disabled={!isEditing}
@@ -1479,9 +1543,9 @@ const GuestOrderDetails: React.FC<{
                     />
                   </div>
 
-                  <div>
+                  <div className="min-w-0">
                     <Label>Điểm xưởng</Label>
-                    <div className="w-[260px] relative">
+                    <div className="relative w-full">
                       <select
                           value={workshopStation}
                           disabled={!isEditing}
@@ -1496,10 +1560,10 @@ const GuestOrderDetails: React.FC<{
                       <ChevronDown size={14} className="absolute right-2.5 top-2 text-gray-400 pointer-events-none" />
                     </div>
                   </div>
-                  <div className="lg:col-span-1">
+                  <div className="min-w-0 lg:col-span-2">
                     <Label required>Điểm kéo về (Destination)</Label>
-                    <div className="flex space-x-2">
-                      <Input value={towingDestination} onChange={setTowingDestination} className="flex-1" readOnly={!isEditing} />
+                    <div className="flex gap-2">
+                      <Input value={towingDestination} onChange={setTowingDestination} className="flex-1 min-w-0" readOnly={!isEditing} />
                       <button
                           onClick={() => setIsMapModalOpen(true)}
                           disabled={!isEditing}
@@ -1532,52 +1596,47 @@ const GuestOrderDetails: React.FC<{
                       <span className="w-1 h-3 bg-blue-500 mr-2 rounded-full"></span>
                       Trả cho NCC
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
-                      <div className="lg:col-span-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                      <div className="min-w-0">
                         <Label>Tổng thanh toán (Trước thuế)</Label>
                         <Input
                             value={Math.round(totalProviderPriceBeforeTax).toLocaleString('en-US')}
                             readOnly={!isEditing}
-                            className="font-bold text-gray-800 text-right bg-gray-50"
+                            className="w-full font-bold text-gray-800 text-right bg-gray-50"
                         />
                       </div>
 
-                      <div className="lg:col-span-1">
+                      <div className="min-w-0">
                         <Label>Thuế VAT (%)</Label>
-                        <div className="flex items-center space-x-2">
-                          <select
-                              value={vat}
-                              disabled={!isEditing}
-                              onChange={(e) => setVat(e.target.value)}
-                              className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all bg-white ${!isEditing ? 'cursor-not-allowed opacity-60' : ''}`}
-                          >
-                            <option value="0">0%</option>
-                            <option value="8">8%</option>
-                            <option value="10">10%</option>
-                          </select>
-                        </div>
+                        <select
+                            value={vat}
+                            disabled={!isEditing}
+                            onChange={(e) => setVat(e.target.value)}
+                            className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all bg-white ${!isEditing ? 'cursor-not-allowed opacity-60' : ''}`}
+                        >
+                          <option value="0">0%</option>
+                          <option value="8">8%</option>
+                          <option value="10">10%</option>
+                        </select>
                       </div>
 
-                      <div className="lg:col-span-2">
+                      <div className="min-w-0">
                         <Label>Tổng thanh toán (Sau thuế)</Label>
-                        <div className="flex space-x-2">
-                          <div className="w-1/2 shrink-0">
-                            <Input
-                                value={totalProviderPrice.toLocaleString('en-US')}
-                                readOnly={!isEditing}
-                                className="font-black text-red-600 text-right bg-red-50"
-                            />
-                          </div>
-                          <div className="flex-1 flex space-x-1">
-                            <button
-                                disabled={!isEditing}
-                                className={`bg-green-600 text-white px-2 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center transition-all hover:bg-green-700 active:scale-95 ${!isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                              <RefreshCw size={12} />
-                            </button>
-                          </div>
+                        <div className="flex gap-2">
+                          <Input
+                              value={totalProviderPrice.toLocaleString('en-US')}
+                              readOnly={!isEditing}
+                              className="flex-1 min-w-0 font-black text-red-600 text-right bg-red-50"
+                          />
+                          <button
+                              disabled={!isEditing}
+                              className={`shrink-0 bg-green-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center transition-all hover:bg-green-700 active:scale-95 ${!isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            <RefreshCw size={12} />
+                          </button>
                         </div>
                       </div>
+                      <div className="hidden lg:block" aria-hidden="true" />
                     </div>
                   </div>
 
@@ -1588,55 +1647,61 @@ const GuestOrderDetails: React.FC<{
                       <span className="w-1 h-3 bg-vetc-green mr-2 rounded-full"></span>
                       Khách hàng trả phí
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
-                      <div className="lg:col-span-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                      <div className="min-w-0">
                         <Label required>Chi phí tạm tính</Label>
-                        <Input defaultValue="400,000" className="font-black text-gray-800 text-right" readOnly={!isEditing} />
+                        <Input defaultValue="400,000" className="w-full font-black text-gray-800 text-right" readOnly={!isEditing} />
                       </div>
-                      <div className="lg:col-span-1">
+                      <div className="min-w-0">
                         <Label>Thuế VAT (%)</Label>
-                        <div className="flex items-center space-x-2">
-                          <select
-                              value={vat}
-                              disabled={!isEditing}
-                              onChange={(e) => setVat(e.target.value)}
-                              className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all bg-white ${!isEditing ? 'cursor-not-allowed opacity-60' : ''}`}
-                          >
-                            <option value="0">0%</option>
-                            <option value="8">8%</option>
-                            <option value="10">10%</option>
-                          </select>
-                        </div>
+                        <select
+                            value={vat}
+                            disabled={!isEditing}
+                            onChange={(e) => setVat(e.target.value)}
+                            className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all bg-white ${!isEditing ? 'cursor-not-allowed opacity-60' : ''}`}
+                        >
+                          <option value="0">0%</option>
+                          <option value="8">8%</option>
+                          <option value="10">10%</option>
+                        </select>
                       </div>
 
-                      <div className="lg:col-span-1">
-                        <Label>Tổng thanh toán (Sau thuế)</Label>
+                      <div className="min-w-0">
+                        <Label>Tổng thanh toán (Sau thuế) - Cá nhân</Label>
                         <Input
                             value={totalCustomerPrice.toLocaleString('en-US')}
                             readOnly={!isEditing}
-                            className="font-black text-red-600 text-right bg-red-50"
+                            className="w-full font-black text-red-600 text-right bg-red-50"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <Label required={!!selectedEnterprise}>Tổng thanh toán (Sau thuế) - Doanh nghiệp</Label>
+                        <Input
+                            value={selectedEnterprise ? enterprisePaymentTotal : '0'}
+                            onChange={(e) => setEnterprisePaymentTotal(e.target.value.replace(/[^\d,]/g, ''))}
+                            readOnly={!isEditing || !selectedEnterprise}
+                            className={`w-full font-black text-red-600 text-right bg-red-50 ${!selectedEnterprise ? 'opacity-60' : ''}`}
+                            placeholder="0"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 mt-4 pt-4 border-t border-gray-100">
-                      <div className="lg:col-span-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 mt-4 pt-4 border-t border-gray-100">
+                      <div className="min-w-0">
                         <Label>Tiền đã cọc</Label>
-                        <div className="flex space-x-2">
-                          <div className="w-2/3 shrink-0">
-                            <Input
-                                value={DEPOSIT_AMOUNT.toLocaleString('en-US')}
-                                className="text-right text-green-600 font-bold bg-gray-50"
-                                readOnly
-                            />
-                          </div>
+                        <div className="flex gap-2">
+                          <Input
+                              value={DEPOSIT_AMOUNT.toLocaleString('en-US')}
+                              className="flex-1 min-w-0 text-right text-green-600 font-bold bg-gray-50"
+                              readOnly
+                          />
                           <button
                               title="Thanh toán tiền cọc"
                               disabled={isEditing}
-                              className={`flex-1 bg-green-600 text-white px-3 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center transition-all hover:bg-green-700 active:scale-95 ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`shrink-0 bg-green-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center gap-1 transition-all hover:bg-green-700 active:scale-95 whitespace-nowrap ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => openPaymentModal('deposit')}
                           >
-                            <CreditCard size={14} className="mr-1.5" />
+                            <CreditCard size={14} />
                             <span>Thanh toán</span>
                           </button>
                         </div>
@@ -1645,42 +1710,40 @@ const GuestOrderDetails: React.FC<{
                         )}
                       </div>
 
-                      <div className="lg:col-span-1">
+                      <div className="min-w-0">
                         <Label>Đã thanh toán</Label>
                         <Input
                             value={paidAmount.toLocaleString('en-US')}
-                            className="text-right text-blue-600 font-bold"
+                            className="w-full text-right text-blue-600 font-bold"
                             readOnly
                         />
                       </div>
 
-                      <div className="lg:col-span-1">
+                      <div className="min-w-0">
                         <Label>Còn lại</Label>
-                        <div className="flex space-x-2">
-                          <div className="w-2/3 shrink-0">
-                            <Input
-                                value={remainingAmount.toLocaleString('en-US')}
-                                readOnly
-                                className="text-right font-black"
-                            />
-                          </div>
+                        <div className="flex gap-2">
+                          <Input
+                              value={remainingAmount.toLocaleString('en-US')}
+                              readOnly
+                              className="flex-1 min-w-0 text-right font-black"
+                          />
                           <button
                               title="Thanh toán phần còn lại"
                               disabled={isEditing}
-                              className={`flex-1 bg-green-600 text-white px-3 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center transition-all hover:bg-green-700 active:scale-95 ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`shrink-0 bg-green-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center gap-1 transition-all hover:bg-green-700 active:scale-95 whitespace-nowrap ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => openPaymentModal('remaining')}
                           >
-                            <CreditCard size={14} className="mr-1.5" />
+                            <CreditCard size={14} />
                             <span>Thanh toán</span>
                           </button>
                         </div>
                       </div>
 
-                      <div className="lg:col-span-1">
+                      <div className="min-w-0">
                         <Label>Tiền hoàn</Label>
                         <Input
                             value={refundAmount.toLocaleString('en-US')}
-                            className="text-right text-amber-600 font-bold bg-gray-50"
+                            className="w-full text-right text-amber-600 font-bold bg-gray-50"
                             readOnly
                         />
                       </div>

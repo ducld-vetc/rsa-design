@@ -89,6 +89,25 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
   const [towingLng, setTowingLng] = useState('');
   const [estimatedDistance, setEstimatedDistance] = useState('');
 
+  const ENTERPRISE_OPTIONS = [
+    { value: '', label: '-- Chọn doanh nghiệp --' },
+    { value: 'VETC', label: 'VETC' },
+    { value: 'FORD', label: 'Ford Việt Nam' },
+    { value: 'TOYOTA', label: 'Toyota Việt Nam' },
+    { value: 'HONDA', label: 'Honda Việt Nam' },
+  ];
+  const [selectedEnterprise, setSelectedEnterprise] = useState('');
+  const [hasGuarantee, setHasGuarantee] = useState<'yes' | 'no'>('no');
+  const [guaranteeNote, setGuaranteeNote] = useState('');
+
+  const handleEnterpriseChange = (value: string) => {
+    setSelectedEnterprise(value);
+    if (!value) {
+      setHasGuarantee('no');
+      setGuaranteeNote('');
+    }
+  };
+
   // AI Analysis logic
   useEffect(() => {
     if (!description || description.trim().length < 5) {
@@ -240,8 +259,47 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
                     </div>
                   </div>
                 </div>
-                {/* Car info 1 */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-x-12 gap-y-4">
+                {/* Doanh nghiệp & bảo lãnh */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-x-12 gap-y-4 pt-4 border-t border-gray-100">
+                  <div className="flex items-center">
+                    <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">Doanh nghiệp</label>
+                    <select
+                      value={selectedEnterprise}
+                      onChange={(e) => handleEnterpriseChange(e.target.value)}
+                      className="flex-1 border rounded px-3 py-1.5 text-xs bg-white outline-none focus:border-vetc-green font-bold text-gray-700"
+                    >
+                      {ENTERPRISE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {selectedEnterprise && (
+                    <>
+                      <div className="flex items-center">
+                        <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">Bảo lãnh</label>
+                        <select
+                          value={hasGuarantee}
+                          onChange={(e) => setHasGuarantee(e.target.value as 'yes' | 'no')}
+                          className="flex-1 border rounded px-3 py-1.5 text-xs bg-white outline-none focus:border-vetc-green font-bold text-gray-700"
+                        >
+                          <option value="no">Không</option>
+                          <option value="yes">Có</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center md:col-span-2">
+                        <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">Ghi chú bảo lãnh</label>
+                        <input
+                          value={guaranteeNote}
+                          onChange={(e) => setGuaranteeNote(e.target.value)}
+                          placeholder="Nhập nội dung chi tiết bảo lãnh..."
+                          className="flex-1 border rounded px-3 py-1.5 text-xs"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+                {/* Thông tin xe — dòng riêng */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-x-12 gap-y-4 pt-4 border-t border-gray-100">
                   <div className="flex items-center">
                     <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">Biển số xe <span className="text-red-500">*</span></label>
                     <div className="relative flex-1">
