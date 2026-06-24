@@ -65,6 +65,9 @@ import ProviderPaymentConfirmDialog from '../shared/ProviderPaymentConfirmDialog
 import UsageHistoryModal from '../shared/UsageHistoryModal';
 import StatusUpdateModal, { STATUS_OPTIONS } from '../shared/StatusUpdateModal';
 import DetailedRatingCard from '../shared/DetailedRatingCard';
+import RatingHistoryModal from '../shared/RatingHistoryModal';
+import { RatingType, RATING_TYPE_LABELS } from '../shared/ratingTypes';
+import { INITIAL_RATING_HISTORIES, RATING_DEMO_CASES } from '../data/ratingMockData';
 import {AISuggestion, analyzeIncident} from '../data/aiDataMock';
 import {FormData, RescueUnit} from '../types';
 import Searching from "./Searching";
@@ -573,25 +576,57 @@ const GuestOrderDetails: React.FC<{
   };
   const [isStatusUpdateModalOpen, setIsStatusUpdateModalOpen] = useState(false);
   const [currentStatus, setCurrentStatus] = useState('EXECUTE-RESCUING');
-  const [customerRating, setCustomerRating] = useState(4);
-  const [customerDriverRating, setCustomerDriverRating] = useState(4);
-  const [customerWorkshopRating, setCustomerWorkshopRating] = useState(3);
-  const [rescueRating, setRescueRating] = useState(5);
-  const [vetcRating, setVetcRating] = useState(4);
+  const [ratingHistories, setRatingHistories] = useState(INITIAL_RATING_HISTORIES);
+  const [ratingHistoryModal, setRatingHistoryModal] = useState<{
+    isOpen: boolean;
+    type: RatingType | null;
+  }>({ isOpen: false, type: null });
   const [expandedRatings, setExpandedRatings] = useState<Record<string, boolean>>({
-    customer: true,
-    customerDriver: false,
-    customerWorkshop: false,
-    rescue: false,
-    vetc: false
+    customer_vetc: true,
+    customer_driver: true,
+    customer_workshop: false,
+    rescue_customer: false,
+    vetc_rescue: false,
   });
-  const [ratingDetails, setRatingDetails] = useState({
-    customer: { note: '', category: 'Bình thường' },
-    customerDriver: { note: '', category: 'Bình thường' },
-    customerWorkshop: { note: '', category: 'Bình thường' },
-    rescue: { note: '', category: 'Bình thường' },
-    vetc: { note: '', category: 'Bình thường' }
-  });
+
+  const handleSaveRatingVersion = (
+    type: RatingType,
+    data: { stars: number; category: string; content: string; attachments: { name: string; url?: string }[] }
+  ) => {
+    setRatingHistories((prev) => {
+      const history = prev[type];
+      const nextVersion = history.length + 1;
+      return {
+        ...prev,
+        [type]: [
+          ...history,
+          {
+            id: `${type}-v${nextVersion}-${Date.now()}`,
+            version: nextVersion,
+            targetLabel: RATING_TYPE_LABELS[type],
+            ratedAt: new Date().toLocaleString('vi-VN'),
+            stars: data.stars,
+            content: data.content,
+            attachments: data.attachments,
+            category: data.category,
+            updatedBy: 'CSKH — Nguyễn Thị Lan',
+          },
+        ],
+      };
+    });
+  };
+
+  const RATING_CARD_CONFIG: {
+    type: RatingType;
+    categories: string[];
+    feedback?: boolean;
+  }[] = [
+    { type: 'customer_vetc', categories: ['Bình thường', 'Khen ngợi', 'Góp ý nhẹ', 'Khiếu nại'], feedback: true },
+    { type: 'customer_driver', categories: ['Bình thường', 'Khen ngợi', 'Góp ý nhẹ', 'Khiếu nại'], feedback: true },
+    { type: 'customer_workshop', categories: ['Bình thường', 'Khen ngợi', 'Góp ý nhẹ', 'Khiếu nại'], feedback: true },
+    { type: 'rescue_customer', categories: ['Bình thường', 'Khách hàng nhiệt tình', 'Khách hàng khó tính', 'Sai lệch thông tin'], feedback: true },
+    { type: 'vetc_rescue', categories: ['Bình thường', 'Đúng giờ, chuyên nghiệp', 'Chậm trễ', 'Thái độ không tốt', 'Vi phạm quy trình'], feedback: false },
+  ];
   const [vat, setVat] = useState('8');
 
 
@@ -1998,7 +2033,24 @@ const GuestOrderDetails: React.FC<{
           <div id="section-monitoring" className={`scroll-mt-40 ${isVisible('monitoring') ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden text-left">
               <SectionHeader title="Thông tin giám sát, thực thi" number={5} icon={<ShieldCheck size={18} />} />
-              <div className="p-5">
+              <div className="p-5 space-y-4">
+                <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3">
+                  <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest mb-2">
+                    Demo các trường hợp đánh giá
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {RATING_DEMO_CASES.map((item) => (
+                      <div key={item.type} className="flex items-start space-x-2 text-[10px] text-blue-900">
+                        <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-blue-400" />
+                        <span>
+                          <strong className="font-bold">{RATING_TYPE_LABELS[item.type]}:</strong>{' '}
+                          {item.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Cột trái: Đánh giá từ Khách hàng */}
                   <div className="space-y-3">
@@ -2006,51 +2058,19 @@ const GuestOrderDetails: React.FC<{
                       <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
                       <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Đánh giá từ Khách hàng</span>
                     </div>
-                    {/* 1a. KH đánh giá VETC */}
-                    <DetailedRatingCard
-                      title="Khách hàng đánh giá dịch vụ VETC"
-                      rating={customerRating}
-                      category={ratingDetails.customer.category}
-                      note={ratingDetails.customer.note}
-                      isExpanded={expandedRatings.customer}
-                      isEditing={isEditing}
-                      categories={['Bình thường', 'Khen ngợi', 'Góp ý nhẹ', 'Khiếu nại']}
-                      feedback={true}
-                      onToggle={() => setExpandedRatings(prev => ({ ...prev, customer: !prev.customer }))}
-                      onRatingChange={setCustomerRating}
-                      onCategoryChange={(cat) => setRatingDetails(prev => ({ ...prev, customer: { ...prev.customer, category: cat } }))}
-                      onNoteChange={(note) => setRatingDetails(prev => ({ ...prev, customer: { ...prev.customer, note: note } }))}
-                    />
-                    {/* 1b. KH đánh giá Tài xế */}
-                    <DetailedRatingCard
-                      title="Khách hàng đánh giá Tài xế"
-                      rating={customerDriverRating}
-                      category={ratingDetails.customerDriver.category}
-                      note={ratingDetails.customerDriver.note}
-                      isExpanded={expandedRatings.customerDriver}
-                      isEditing={isEditing}
-                      categories={['Bình thường', 'Khen ngợi', 'Góp ý nhẹ', 'Khiếu nại']}
-                      feedback={true}
-                      onToggle={() => setExpandedRatings(prev => ({ ...prev, customerDriver: !prev.customerDriver }))}
-                      onRatingChange={setCustomerDriverRating}
-                      onCategoryChange={(cat) => setRatingDetails(prev => ({ ...prev, customerDriver: { ...prev.customerDriver, category: cat } }))}
-                      onNoteChange={(note) => setRatingDetails(prev => ({ ...prev, customerDriver: { ...prev.customerDriver, note: note } }))}
-                    />
-                    {/* 1c. KH đánh giá xưởng dịch vụ */}
-                    <DetailedRatingCard
-                      title="Khách hàng đánh giá xưởng dịch vụ"
-                      rating={customerWorkshopRating}
-                      category={ratingDetails.customerWorkshop.category}
-                      note={ratingDetails.customerWorkshop.note}
-                      isExpanded={expandedRatings.customerWorkshop}
-                      isEditing={isEditing}
-                      categories={['Bình thường', 'Khen ngợi', 'Góp ý nhẹ', 'Khiếu nại']}
-                      feedback={true}
-                      onToggle={() => setExpandedRatings(prev => ({ ...prev, customerWorkshop: !prev.customerWorkshop }))}
-                      onRatingChange={setCustomerWorkshopRating}
-                      onCategoryChange={(cat) => setRatingDetails(prev => ({ ...prev, customerWorkshop: { ...prev.customerWorkshop, category: cat } }))}
-                      onNoteChange={(note) => setRatingDetails(prev => ({ ...prev, customerWorkshop: { ...prev.customerWorkshop, note: note } }))}
-                    />
+                    {RATING_CARD_CONFIG.filter((c) => c.type.startsWith('customer_')).map((config) => (
+                      <DetailedRatingCard
+                        key={config.type}
+                        title={RATING_TYPE_LABELS[config.type]}
+                        versions={ratingHistories[config.type]}
+                        categories={config.categories}
+                        feedback={config.feedback}
+                        isExpanded={expandedRatings[config.type]}
+                        onToggle={() => setExpandedRatings((prev) => ({ ...prev, [config.type]: !prev[config.type] }))}
+                        onSaveVersion={(data) => handleSaveRatingVersion(config.type, data)}
+                        onViewHistory={() => setRatingHistoryModal({ isOpen: true, type: config.type })}
+                      />
+                    ))}
                   </div>
 
                   {/* Cột phải: Đánh giá nội bộ */}
@@ -2059,36 +2079,19 @@ const GuestOrderDetails: React.FC<{
                       <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
                       <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Đánh giá nội bộ</span>
                     </div>
-                    {/* 2. Đơn vị cứu hộ đánh giá KH */}
-                    <DetailedRatingCard
-                      title="Đơn vị cứu hộ đánh giá Khách hàng"
-                      rating={rescueRating}
-                      category={ratingDetails.rescue.category}
-                      note={ratingDetails.rescue.note}
-                      isExpanded={expandedRatings.rescue}
-                      isEditing={isEditing}
-                      categories={['Bình thường', 'Khách hàng nhiệt tình', 'Khách hàng khó tính', 'Sai lệch thông tin']}
-                      feedback={true}
-                      onToggle={() => setExpandedRatings(prev => ({ ...prev, rescue: !prev.rescue }))}
-                      onRatingChange={setRescueRating}
-                      onCategoryChange={(cat) => setRatingDetails(prev => ({ ...prev, rescue: { ...prev.rescue, category: cat } }))}
-                      onNoteChange={(note) => setRatingDetails(prev => ({ ...prev, rescue: { ...prev.rescue, note: note } }))}
-                    />
-                    {/* 3. VETC đánh giá đơn vị cứu hộ */}
-                    <DetailedRatingCard
-                      title="VETC đánh giá đơn vị cứu hộ"
-                      rating={vetcRating}
-                      category={ratingDetails.vetc.category}
-                      note={ratingDetails.vetc.note}
-                      isExpanded={expandedRatings.vetc}
-                      isEditing={isEditing}
-                      categories={['Bình thường', 'Đúng giờ, chuyên nghiệp', 'Chậm trễ', 'Thái độ không tốt', 'Vi phạm quy trình']}
-                      feedback={false}
-                      onToggle={() => setExpandedRatings(prev => ({ ...prev, vetc: !prev.vetc }))}
-                      onRatingChange={setVetcRating}
-                      onCategoryChange={(cat) => setRatingDetails(prev => ({ ...prev, vetc: { ...prev.vetc, category: cat } }))}
-                      onNoteChange={(note) => setRatingDetails(prev => ({ ...prev, vetc: { ...prev.vetc, note: note } }))}
-                    />
+                    {RATING_CARD_CONFIG.filter((c) => !c.type.startsWith('customer_')).map((config) => (
+                      <DetailedRatingCard
+                        key={config.type}
+                        title={RATING_TYPE_LABELS[config.type]}
+                        versions={ratingHistories[config.type]}
+                        categories={config.categories}
+                        feedback={config.feedback}
+                        isExpanded={expandedRatings[config.type]}
+                        onToggle={() => setExpandedRatings((prev) => ({ ...prev, [config.type]: !prev[config.type] }))}
+                        onSaveVersion={(data) => handleSaveRatingVersion(config.type, data)}
+                        onViewHistory={() => setRatingHistoryModal({ isOpen: true, type: config.type })}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>
@@ -2379,6 +2382,14 @@ const GuestOrderDetails: React.FC<{
             onClose={() => setIsProviderPaymentConfirmOpen(false)}
             onConfirm={() => setIsProviderPaymentConfirmOpen(false)}
             partnerName={partnerName}
+        />
+
+        <RatingHistoryModal
+          isOpen={ratingHistoryModal.isOpen}
+          onClose={() => setRatingHistoryModal({ isOpen: false, type: null })}
+          title={ratingHistoryModal.type ? RATING_TYPE_LABELS[ratingHistoryModal.type] : ''}
+          orderCode="RS12602020002"
+          versions={ratingHistoryModal.type ? ratingHistories[ratingHistoryModal.type] : []}
         />
 
         <StatusUpdateModal
