@@ -27,7 +27,7 @@ import PricingPolicyCreate from './pages/PricingPolicyCreate';
 const initialData: FormData = {
   orderId: '',
   customer: {
-    phone: '0960123123',
+    phone: '0967419411',
     plate: '38A58531',
     name: 'TRAN DINH LAN ANH',
     vin: 'R7C2X9M4A8',
@@ -39,7 +39,7 @@ const initialData: FormData = {
   },
   assistance: {
     rescueName: 'TRAN DINH LAN ANH',
-    rescuePhone: '0960123123',
+    rescuePhone: '0967419411',
     address: '20, Phố Hội Vũ, Khu phố cổ, Hà Nội, 11017, Việt Nam',
     lng: '105.8452',
     lat: '21.0285',

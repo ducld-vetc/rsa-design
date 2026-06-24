@@ -66,6 +66,8 @@ import UsageHistoryModal from '../shared/UsageHistoryModal';
 import StatusUpdateModal, { STATUS_OPTIONS } from '../shared/StatusUpdateModal';
 import DetailedRatingCard from '../shared/DetailedRatingCard';
 import RatingHistoryModal from '../shared/RatingHistoryModal';
+import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
+import { isPriorityCustomerPhone } from '../shared/priorityCustomer';
 import { RatingType, RATING_TYPE_LABELS } from '../shared/ratingTypes';
 import { INITIAL_RATING_HISTORIES, RATING_DEMO_CASES } from '../data/ratingMockData';
 import {AISuggestion, analyzeIncident} from '../data/aiDataMock';
@@ -917,6 +919,9 @@ const GuestOrderDetails: React.FC<{
     }
   };
 
+  const customerPhone = mockFormData.customer.phone;
+  const isPriorityCustomer = isPriorityCustomerPhone(customerPhone);
+
   return (
       <div className="space-y-6 animate-in fade-in duration-700 max-w-[1600px] mx-auto pb-20">
         {/* Top Sticky Header Row */}
@@ -931,6 +936,7 @@ const GuestOrderDetails: React.FC<{
                   <span className={`${selectedPackage === 'Không có' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'} px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-tight`}>
                     {selectedPackage === 'Không có' ? 'Đơn Lẻ' : 'Đơn gói'}
                   </span>
+                  {isPriorityCustomer && <PriorityCustomerBadge />}
                 </div>
               </div>
 
@@ -1065,16 +1071,22 @@ const GuestOrderDetails: React.FC<{
                   <Input defaultValue="Vương Đăng Minh" readOnly={true} />
                 </div>
                 <div>
-                  <Label required>SĐT yêu cầu</Label>
-                  <Input defaultValue="0967419411" readOnly={true} />
+                  <div className="flex items-center gap-2 mb-1">
+                    <Label required>SĐT yêu cầu</Label>
+                    {isPriorityCustomer && <PriorityCustomerBadge compact />}
+                  </div>
+                  <Input defaultValue={customerPhone} readOnly={true} />
                 </div>
                 <div>
                   <Label>Người liên hệ</Label>
                   <Input defaultValue="Vương Đăng Minh" readOnly={!isEditing} />
                 </div>
                 <div>
-                  <Label>SĐT liên hệ</Label>
-                  <Input defaultValue="0967419411" readOnly={!isEditing} />
+                  <div className="flex items-center gap-2 mb-1">
+                    <Label>SĐT liên hệ</Label>
+                    {isPriorityCustomer && <PriorityCustomerBadge compact />}
+                  </div>
+                  <Input defaultValue={customerPhone} readOnly={!isEditing} />
                 </div>
 
                 <div className="lg:col-span-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 pt-4 border-t border-gray-100">

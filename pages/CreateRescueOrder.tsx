@@ -26,6 +26,8 @@ import MapSelectionModal from '../shared/MapSelectionModal';
 import RescueHistoryModal from '../shared/RescueHistoryModal';
 import UsageHistoryModal from '../shared/UsageHistoryModal';
 import DuplicateRescueWarningModal from '../shared/DuplicateRescueWarningModal';
+import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
+import { isPriorityCustomerPhone, normalizePhone } from '../shared/priorityCustomer';
 import {analyzeIncident} from '../data/aiDataMock';
 
 interface CreateRescueOrderProps {
@@ -83,6 +85,7 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
   // Duplicate rescue warning modal
   const [isDuplicateWarningOpen, setIsDuplicateWarningOpen] = useState(false);
   const [phoneContact, setPhoneContact] = useState('');
+  const [priorityPhoneFromSearch, setPriorityPhoneFromSearch] = useState<string | null>(null);
   const [workshopStation, setWorkshopStation] = useState('');
   const [towingDestination, setTowingDestination] = useState('');
   const [towingLat, setTowingLat] = useState('');
@@ -135,18 +138,47 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
     return () => clearTimeout(timer);
   }, [description]);
 
-  const simulateSearch = (type: 'phone' | 'plate') => {
+  const simulateSearch = (type: 'phone' | 'plate', phoneOverride?: string) => {
     setIsSearching(true);
     setShowHistory(false);
     setIsHistoryModalOpen(false);
+    if (type !== 'phone') {
+      setPriorityPhoneFromSearch(null);
+    }
     setTimeout(() => {
-      const rawValue = type === 'plate' ? searchPlate : data.customer.phone;
+      const rawValue = type === 'plate' ? searchPlate : (phoneOverride ?? data.customer.phone);
       const normalizedValue = rawValue.toUpperCase().replace(/\W/g, '');
-      const isMockData = normalizedValue === '38A58531' || normalizedValue === '38A58532' || normalizedValue === '0960123123';
+      const isMockPlate =
+        normalizedValue === '38A58531' || normalizedValue === '38A58532';
+      const isMockLegacyPhone = normalizedValue === '0960123123';
+      const isPriorityPhone = type === 'phone' && isPriorityCustomerPhone(rawValue);
 
-      if (isMockData) {
+      if (isPriorityPhone) {
+        const customerName =
+          normalizePhone(rawValue) === '0967419411' ? 'Vương Đăng Minh' : 'NGUYỄN VĂN A';
+        setPriorityPhoneFromSearch(rawValue);
         setCurrentHistory(MOCK_HISTORY_DATA);
-        onUpdateCustomer({ 
+        onUpdateCustomer({
+          name: customerName,
+          phone: rawValue,
+          servicePackage: 'Gói cơ bản 10 dịch vụ',
+          plate: type === 'plate' ? rawValue : '29E366666',
+          vin: 'R7C2X9M4A8',
+          vehicleBrand: 'TOYOTA',
+          vehicleLine: 'Corolla Cross',
+          payload: '1.4',
+          seats: '5',
+        });
+        onUpdateAssistance({ rescueName: customerName, rescuePhone: rawValue });
+        setCustomerContact(customerName);
+        setPhoneContact(rawValue);
+        if (type === 'plate') {
+          setSearchPlate(rawValue);
+        }
+      } else if (isMockPlate || isMockLegacyPhone) {
+        setPriorityPhoneFromSearch(null);
+        setCurrentHistory(MOCK_HISTORY_DATA);
+        onUpdateCustomer({
           name: 'TRAN DINH LAN ANH',
           phone: type === 'phone' ? rawValue : '0960123123',
           servicePackage: 'Gói cơ bản 10 dịch vụ',
@@ -155,20 +187,30 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
           vehicleBrand: 'TOYOTA',
           vehicleLine: 'Corolla Cross',
           payload: '1.4',
-          seats: '5'
+          seats: '5',
         });
-        onUpdateAssistance({ rescueName: 'TRAN DINH LAN ANH', rescuePhone: type === 'phone' ? rawValue : '0960123123' });
+        onUpdateAssistance({
+          rescueName: 'TRAN DINH LAN ANH',
+          rescuePhone: type === 'phone' ? rawValue : '0960123123',
+        });
       } else {
-        // TRƯỜNG HỢP KHÁCH LẺ (KHÔNG CÓ GÓI)
+        setPriorityPhoneFromSearch(null);
         setCurrentHistory([]);
-        onUpdateCustomer({ 
+        onUpdateCustomer({
           name: '',
           servicePackage: 'Không có',
           plate: type === 'plate' ? rawValue : data.customer.plate,
           phone: type === 'phone' ? rawValue : data.customer.phone,
-          vin: '', vehicleBrand: '', vehicleLine: '', payload: '', seats: ''
+          vin: '',
+          vehicleBrand: '',
+          vehicleLine: '',
+          payload: '',
+          seats: '',
         });
-        onUpdateAssistance({ rescueName: '', rescuePhone: type === 'phone' ? rawValue : data.customer.phone });
+        onUpdateAssistance({
+          rescueName: '',
+          rescuePhone: type === 'phone' ? rawValue : data.customer.phone,
+        });
       }
       setShowHistory(true);
       setIsSearching(false);
@@ -182,13 +224,16 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
   // Logic to slice history - Max 4 items on main screen
   const visibleHistory = currentHistory.slice(0, 4);
 
-  const SectionHeader = ({ title, number, icon }: { title: string, number: number, icon?: React.ReactNode }) => (
+  const SectionHeader = ({ title, number, icon, trailing }: { title: string, number: number, icon?: React.ReactNode, trailing?: React.ReactNode }) => (
       <div className="bg-vetc-green text-white px-4 py-2 rounded-t-lg font-bold text-sm flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <span className="bg-white/20 w-5 h-5 flex items-center justify-center rounded-full text-[10px]">{number}</span>
           <span>{title}</span>
         </div>
-        {icon && <div className="opacity-80">{icon}</div>}
+        <div className="flex items-center gap-2">
+          {trailing}
+          {icon && <div className="opacity-80">{icon}</div>}
+        </div>
       </div>
   );
 
@@ -209,6 +254,11 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
   const [locationType, setLocationType] = useState('Đô thị');
   const [severityLevel, setSeverityLevel] = useState('Nhẹ');
 
+  const isRequestPhonePriority = isPriorityCustomerPhone(phoneContact);
+  const isContactPhonePriority = isPriorityCustomerPhone(data.customer.phone);
+  const showPriorityCustomer =
+    priorityPhoneFromSearch !== null || isRequestPhonePriority || isContactPhonePriority;
+
   return (
     <div className="flex flex-col h-full relative">
       <div className="flex-1 space-y-6 pb-24">
@@ -217,7 +267,12 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
             
             {/* THÔNG TIN SỰ CỐ */}
             <div className="border rounded-lg shadow-sm bg-white text-left">
-              <SectionHeader title="Thông tin sự cố" number={1} icon={<User size={16} />}/>
+              <SectionHeader
+                title="Thông tin sự cố"
+                number={1}
+                icon={<User size={16} />}
+                trailing={showPriorityCustomer ? <PriorityCustomerBadge /> : undefined}
+              />
               <div className="p-4 space-y-4">
                 {/* Name and phone */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-x-12 gap-y-4">
@@ -235,30 +290,66 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
                     />
                   </div>
                   <div className="flex items-center">
-                    <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">SĐT yêu cầu <span className="text-red-500">*</span></label>
-                    <input 
-                      value={phoneContact} 
-                      onChange={(e) => setPhoneContact(e.target.value)} 
-                      onBlur={() => {
-                        if (!data.customer.phone) {
-                          onUpdateCustomer({ phone: phoneContact });
-                        }
-                      }}
-                      className="flex-1 border rounded px-3 py-1.5 text-xs"
-                    />
+                    <label className="w-40 text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1.5 flex-wrap">
+                      SĐT yêu cầu <span className="text-red-500">*</span>
+                      {isRequestPhonePriority && <PriorityCustomerBadge compact />}
+                    </label>
+                    <div className="relative flex-1">
+                      <input
+                        value={phoneContact}
+                        onChange={(e) => setPhoneContact(e.target.value)}
+                        onBlur={() => {
+                          if (!data.customer.phone) {
+                            onUpdateCustomer({ phone: phoneContact });
+                          }
+                        }}
+                        className="w-full border rounded px-3 py-1.5 text-xs pr-8"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => simulateSearch('phone', phoneContact || data.customer.phone)}
+                        className={`absolute right-2 top-1.5 text-gray-400 hover:text-vetc-green ${isSearching ? 'animate-spin' : ''}`}
+                        title="Tra cứu theo SĐT"
+                      >
+                        <Search size={14} />
+                      </button>
+                    </div>
                   </div>
                   <div className="flex items-center">
                     <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">Người liên hệ <span className="text-red-500">*</span></label>
                     <input value={data.customer.name} onChange={(e) => onUpdateCustomer({ name: e.target.value })} className="flex-1 border rounded px-3 py-1.5 text-xs" />
                   </div>
                   <div className="flex items-center">
-                    <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">SĐT liên hệ <span className="text-red-500">*</span></label>
+                    <label className="w-40 text-[10px] font-bold text-gray-500 uppercase flex items-center gap-1.5 flex-wrap">
+                      SĐT liên hệ <span className="text-red-500">*</span>
+                      {isContactPhonePriority && <PriorityCustomerBadge compact />}
+                    </label>
                     <div className="relative flex-1">
-                      <input value={data.customer.phone} onChange={(e) => onUpdateCustomer({ phone: e.target.value })} className="flex-1 border rounded px-3 py-1.5 text-xs font-bold" />
-                      <button onClick={() => simulateSearch('phone')} className={`absolute right-2 top-1.5 text-gray-400 hover:text-vetc-green ${isSearching ? 'animate-spin' : ''}`}><Search size={14} /></button>
+                      <input
+                        value={data.customer.phone}
+                        onChange={(e) => onUpdateCustomer({ phone: e.target.value })}
+                        className="w-full border rounded px-3 py-1.5 text-xs font-bold pr-8"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => simulateSearch('phone')}
+                        className={`absolute right-2 top-1.5 text-gray-400 hover:text-vetc-green ${isSearching ? 'animate-spin' : ''}`}
+                        title="Tra cứu theo SĐT"
+                      >
+                        <Search size={14} />
+                      </button>
                     </div>
                   </div>
                 </div>
+
+                {priorityPhoneFromSearch && (
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg animate-in fade-in slide-in-from-top-1 duration-300">
+                    <PriorityCustomerBadge />
+                    <p className="text-[11px] text-amber-900 font-medium">
+                      Số <span className="font-black">{priorityPhoneFromSearch}</span> thuộc danh sách khách hàng ưu tiên.
+                    </p>
+                  </div>
+                )}
                 {/* Doanh nghiệp & bảo lãnh */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-x-12 gap-y-4 pt-4 border-t border-gray-100">
                   <div className="flex items-center">

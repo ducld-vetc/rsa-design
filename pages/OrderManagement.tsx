@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Search,
   FileSpreadsheet,
@@ -8,8 +8,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Pin
 } from 'lucide-react';
+import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
+import { isPriorityCustomerPhone } from '../shared/priorityCustomer';
 
 interface OrderManagementProps {
   onViewDetails?: (orderId: string) => void;
@@ -88,44 +91,6 @@ const OrderStatusBadges: React.FC<{ status: OrderStatusDisplay }> = ({ status })
 
 const MOCK_ORDERS: OrderRow[] = [
   {
-    id: '1',
-    orderId: 'RS12602020001',
-    tags: ['Đơn lẻ', 'PORTAL'],
-    dispatchType: 'Điều phối: Thủ công',
-    mainService: 'Cung cấp nhiên liệu khẩn cấp',
-    waitingTime: '0 giờ 6 phút',
-    orderStatus: { primary: 'Điều phối', primaryStyle: 'outline-blue' },
-    paymentStatus: 'PENDING',
-    supporter: { role: 'SUPPORT', name: 'rsa_test1', roleClass: 'bg-purple-50 text-purple-600 border-purple-100' },
-    invoiceCode: '-',
-    customer: { name: 'NGUYỄN VĂN A', phone: '0912345678' },
-    vehicle: { plate: '30A-123.45', model: 'Toyota Vios' },
-    address: '210 Phố Xã Đàn, Đống Đa, Hà Nội',
-    partner: 'CARPLA - CARPLA SERVICE',
-    driver: { name: 'Nguyễn Văn Tài', phone: '0911222333' },
-    updatedAt: '02/02/2026 14:30',
-    updatedBy: 'rsa_test1'
-  },
-  {
-    id: '2',
-    orderId: 'RS12602020002',
-    tags: ['Đơn lẻ', 'PORTAL'],
-    dispatchType: 'Điều phối: Tự động',
-    mainService: 'Thay lốp dự phòng',
-    waitingTime: '0 giờ 12 phút',
-    orderStatus: { primary: 'Chờ đối tác tiếp nhận', primaryStyle: 'outline-orange' },
-    paymentStatus: 'DEPOSITED',
-    supporter: { role: 'OPERATOR', name: 'hieund2', roleClass: 'bg-green-50 text-green-600 border-green-100' },
-    invoiceCode: '-',
-    customer: { name: 'TRẦN THỊ B', phone: '0987654321' },
-    vehicle: { plate: '29B-888.88', model: 'Honda City' },
-    address: 'Cầu Chương Dương, Long Biên, Hà Nội',
-    partner: 'Cứu hộ 116 Hà Nội',
-    driver: { name: 'Trần Minh Quang', phone: '0988777666' },
-    updatedAt: '02/02/2026 14:25',
-    updatedBy: 'hieund2'
-  },
-  {
     id: '3',
     orderId: 'RS12602020003',
     tags: ['Đơn gói', 'PORTAL'],
@@ -162,6 +127,44 @@ const MOCK_ORDERS: OrderRow[] = [
     driver: { name: '-', phone: '-' },
     updatedAt: '02/02/2026 12:00',
     updatedBy: 'QuynhOSA'
+  },
+  {
+    id: '1',
+    orderId: 'RS12602020001',
+    tags: ['Đơn lẻ', 'PORTAL'],
+    dispatchType: 'Điều phối: Thủ công',
+    mainService: 'Cung cấp nhiên liệu khẩn cấp',
+    waitingTime: '0 giờ 6 phút',
+    orderStatus: { primary: 'Điều phối', primaryStyle: 'outline-blue' },
+    paymentStatus: 'PENDING',
+    supporter: { role: 'SUPPORT', name: 'rsa_test1', roleClass: 'bg-purple-50 text-purple-600 border-purple-100' },
+    invoiceCode: '-',
+    customer: { name: 'NGUYỄN VĂN A', phone: '0909888777' },
+    vehicle: { plate: '30A-123.45', model: 'Toyota Vios' },
+    address: '210 Phố Xã Đàn, Đống Đa, Hà Nội',
+    partner: 'CARPLA - CARPLA SERVICE',
+    driver: { name: 'Nguyễn Văn Tài', phone: '0911222333' },
+    updatedAt: '02/02/2026 14:30',
+    updatedBy: 'rsa_test1'
+  },
+  {
+    id: '2',
+    orderId: 'RS12602020002',
+    tags: ['Đơn lẻ', 'PORTAL'],
+    dispatchType: 'Điều phối: Tự động',
+    mainService: 'Thay lốp dự phòng',
+    waitingTime: '0 giờ 12 phút',
+    orderStatus: { primary: 'Chờ đối tác tiếp nhận', primaryStyle: 'outline-orange' },
+    paymentStatus: 'DEPOSITED',
+    supporter: { role: 'OPERATOR', name: 'hieund2', roleClass: 'bg-green-50 text-green-600 border-green-100' },
+    invoiceCode: '-',
+    customer: { name: 'TRẦN THỊ B', phone: '0967419411' },
+    vehicle: { plate: '29B-888.88', model: 'Honda City' },
+    address: 'Cầu Chương Dương, Long Biên, Hà Nội',
+    partner: 'Cứu hộ 116 Hà Nội',
+    driver: { name: 'Trần Minh Quang', phone: '0988777666' },
+    updatedAt: '02/02/2026 14:25',
+    updatedBy: 'hieund2'
   },
   {
     id: '5',
@@ -203,9 +206,27 @@ const MOCK_ORDERS: OrderRow[] = [
   }
 ];
 
+const isOrderClosed = (status: OrderStatusDisplay): boolean => {
+  const primary = status.primary.trim().toLowerCase();
+  return primary === 'hoàn thành' || primary === 'hủy';
+};
+
+const shouldPinPriorityOrder = (order: OrderRow): boolean =>
+  isPriorityCustomerPhone(order.customer.phone) && !isOrderClosed(order.orderStatus);
+
+const sortOrdersForDisplay = (orders: OrderRow[]): OrderRow[] =>
+  [...orders].sort((a, b) => {
+    const aPinned = shouldPinPriorityOrder(a);
+    const bPinned = shouldPinPriorityOrder(b);
+    if (aPinned !== bPinned) return aPinned ? -1 : 1;
+    return orders.indexOf(a) - orders.indexOf(b);
+  });
+
 const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [supportFilter, setSupportFilter] = useState<'supporting' | 'not-supporting' | 'all'>('all');
+
+  const displayOrders = useMemo(() => sortOrdersForDisplay(MOCK_ORDERS), []);
 
   const SectionHeader = ({ title, icon }: { title: string; icon?: React.ReactNode }) => (
     <div className="bg-vetc-green text-white px-4 py-2 flex items-center space-x-2 font-bold text-sm uppercase tracking-wide">
@@ -353,10 +374,18 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {MOCK_ORDERS.map((order, index) => {
+              {displayOrders.map((order, index) => {
                 const paymentInfo = PAYMENT_STATUS_CONFIG[order.paymentStatus];
+                const isPinned = shouldPinPriorityOrder(order);
                 return (
-                  <tr key={order.id} className="hover:bg-gray-50/80 transition-colors align-top">
+                  <tr
+                    key={order.id}
+                    className={`transition-colors align-top ${
+                      isPinned
+                        ? 'bg-amber-50/60 hover:bg-amber-50 border-l-4 border-l-amber-400'
+                        : 'hover:bg-gray-50/80'
+                    }`}
+                  >
                     <td className="px-3 py-3 text-center border-r text-gray-600">{index + 1}</td>
                     <td className="px-3 py-3 border-r">
                       <div className="flex items-center justify-center gap-2">
@@ -377,7 +406,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
                     </td>
                     <td className="px-3 py-3 border-r">
                       <div className="space-y-1">
-                        <span className="font-bold text-gray-800">{order.orderId}</span>
+                        <div className="flex items-center gap-1.5 flex-nowrap">
+                          <span className="font-bold text-gray-800">{order.orderId}</span>
+                          {isPinned && (
+                            <span className="inline-flex items-center gap-0.5 text-[8px] font-black uppercase text-amber-700" title="Đơn ưu tiên được ghim">
+                              <Pin size={10} className="text-amber-500" />
+                            </span>
+                          )}
+                        </div>
                         <div className="flex flex-wrap gap-1">
                           {order.tags.map(tag => (
                             <span
@@ -430,7 +466,12 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
                       >
                         {order.customer.name}
                       </div>
-                      <div className="text-gray-500 mt-0.5">{order.customer.phone}</div>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <span className="text-gray-500">{order.customer.phone}</span>
+                        {isPriorityCustomerPhone(order.customer.phone) && (
+                          <PriorityCustomerBadge compact />
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-3 border-r max-w-[8rem]">
                       <div
@@ -478,7 +519,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
         </div>
 
         <div className="p-4 border-t bg-gray-50/50 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="text-xs text-gray-500">1–{MOCK_ORDERS.length} của {MOCK_ORDERS.length} yêu cầu</div>
+          <div className="text-xs text-gray-500">1–{displayOrders.length} của {displayOrders.length} yêu cầu</div>
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-1">
               <button className="p-1 hover:bg-white rounded border border-gray-200 text-gray-400 cursor-not-allowed">

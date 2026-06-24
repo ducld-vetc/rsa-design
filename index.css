@@ -1,3 +1,6 @@
+#root {
+  display: flex;
+}
 
 @keyframes progress-fast {
   0% { width: 0%; }
