@@ -106,7 +106,8 @@ const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
       onSessionChange({
         method: 'push',
         pushStatus: 'pushed',
-        pushTime: formatDateTime(new Date())
+        pushTime: formatDateTime(new Date()),
+        paymentCheckStatus: 'pending'
       });
     }, 1200);
   };
@@ -281,7 +282,7 @@ const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               </div>
 
               <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl space-y-3">
-                <div className="flex items-start space-x-3">
+                <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                     {session.pushStatus === 'pushing' ? (
                       <Loader2 size={20} className="animate-spin" />
@@ -289,7 +290,7 @@ const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                       <Bell size={20} />
                     )}
                   </div>
-                  <div className="flex-1 text-left">
+                  <div className="flex-1 min-w-0 text-left">
                     <p className="text-sm font-black text-gray-800">
                       {session.pushStatus === 'pushing' ? 'Đang đẩy thanh toán...' : 'Đã đẩy thanh toán cho khách hàng'}
                     </p>
@@ -299,6 +300,15 @@ const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                       </p>
                     )}
                   </div>
+                  {session.pushStatus && session.pushStatus !== 'pushing' && session.pushStatus !== 'success' && (
+                    <button
+                      onClick={handleRetryPush}
+                      className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-blue-200 text-blue-600 bg-white hover:bg-blue-50 transition-all active:scale-95"
+                    >
+                      <RefreshCw size={11} />
+                      <span>Đẩy lại</span>
+                    </button>
+                  )}
                 </div>
 
                 {session.pushStatus && session.pushStatus !== 'pushing' && (
@@ -309,14 +319,32 @@ const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                 )}
               </div>
 
-              <button
-                onClick={handleRetryPush}
-                disabled={session.pushStatus === 'pushing'}
-                className="w-full flex items-center justify-center space-x-2 bg-white border-2 border-vetc-green text-vetc-green py-2.5 rounded-xl text-xs font-bold hover:bg-green-50 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw size={14} className={session.pushStatus === 'pushing' ? 'animate-spin' : ''} />
-                <span>Đẩy lại</span>
-              </button>
+              {session.lastCheckedAt && session.paymentCheckStatus === 'unpaid' && (
+                <p className="text-[11px] text-center text-gray-500">
+                  Kiểm tra lần cuối: <span className="font-bold">{session.lastCheckedAt}</span> — Chưa thanh toán
+                </p>
+              )}
+              {(session.paymentCheckStatus === 'paid' || session.pushStatus === 'success') && (
+                <div className="flex items-center justify-center space-x-2 text-green-600 text-xs font-bold">
+                  <CheckCircle2 size={14} />
+                  <span>Khách hàng đã thanh toán</span>
+                </div>
+              )}
+
+              {session.pushStatus && session.pushStatus !== 'pushing' && session.pushStatus !== 'success' && (
+                <button
+                  onClick={handleCheckPaymentStatus}
+                  disabled={session.paymentCheckStatus === 'checking'}
+                  className="w-full flex items-center justify-center space-x-2 bg-vetc-green text-white py-2.5 rounded-xl text-xs font-bold shadow-md hover:bg-green-700 transition-all active:scale-95 disabled:opacity-70"
+                >
+                  {session.paymentCheckStatus === 'checking' ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={14} />
+                  )}
+                  <span>Kiểm tra trạng thái thanh toán</span>
+                </button>
+              )}
             </div>
           )}
 
