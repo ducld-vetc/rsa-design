@@ -12,6 +12,7 @@ import {
   Clock,
   Copy,
   CreditCard,
+  Banknote,
   Download,
   Edit,
   Eye,
@@ -61,6 +62,7 @@ import CustomerPaymentModal, {
 import CustomerFeeChangeWarningModal, {
   CustomerFeeWarningType
 } from '../shared/CustomerFeeChangeWarningModal';
+import GuaranteeRateChangeWarningModal from '../shared/GuaranteeRateChangeWarningModal';
 import ProviderPaymentConfirmDialog from '../shared/ProviderPaymentConfirmDialog';
 import UsageHistoryModal from '../shared/UsageHistoryModal';
 import StatusUpdateModal, { STATUS_OPTIONS } from '../shared/StatusUpdateModal';
@@ -202,6 +204,12 @@ type AdjustmentRow = {
 };
 
 const parseMoney = (value: string) => parseFloat(value.replace(/,/g, '')) || 0;
+
+const applyVatAfterTax = (beforeTax: number, vatPercent: number) =>
+  Math.round(beforeTax * (1 + vatPercent / 100));
+
+const applyVatBeforeTax = (afterTax: number, vatPercent: number) =>
+  vatPercent > 0 ? afterTax / (1 + vatPercent / 100) : afterTax;
 
 const calculateCustomerTotal = (rows: AdjustmentRow[]) =>
   rows.reduce((sum, row) => sum + parseMoney(row.customerPaid), 0);
@@ -427,14 +435,16 @@ const Input = ({
                  readOnly = false,
                  placeholder = "",
                  className = "",
-                 onChange
+                 onChange,
+                 onBlur
                }: {
   value?: string,
   defaultValue?: string,
   readOnly?: boolean,
   placeholder?: string,
   className?: string,
-  onChange?: (val: string|any) => void
+  onChange?: (val: string|any) => void,
+  onBlur?: () => void
 }) => (
     <input
         type="text"
@@ -443,6 +453,7 @@ const Input = ({
         readOnly={readOnly}
         placeholder={placeholder}
         onChange={(e) => onChange?.(e.target.value)}
+        onBlur={onBlur}
         className={`w-full border rounded px-3 py-1.5 text-xs outline-none focus:border-vetc-green transition-all ${readOnly ? 'bg-gray-50 text-gray-500 cursor-not-allowed border-gray-100' : 'bg-white'} ${className}`}
     />
 );
@@ -511,15 +522,90 @@ const GuestOrderDetails: React.FC<{
   const [selectedEnterprise, setSelectedEnterprise] = useState('');
   const [hasGuarantee, setHasGuarantee] = useState<'yes' | 'no'>('no');
   const [guaranteeNote, setGuaranteeNote] = useState('');
-  const [enterprisePaymentTotal, setEnterprisePaymentTotal] = useState('0');
+  const [guaranteeRate, setGuaranteeRate] = useState('');
+  const [guaranteeRateDraft, setGuaranteeRateDraft] = useState('');
+  const [isGuaranteeRateWarningOpen, setIsGuaranteeRateWarningOpen] = useState(false);
+  const [pendingGuaranteeRate, setPendingGuaranteeRate] = useState('');
+  const [enterpriseEstimatedCost, setEnterpriseEstimatedCost] = useState('0');
+
+  const selectedEnterpriseLabel =
+    ENTERPRISE_OPTIONS.find((opt) => opt.value === selectedEnterprise)?.label ?? '';
+  const canEditEnterpriseFees = role === 'ADMIN' && isEditing;
 
   const handleEnterpriseChange = (value: string) => {
     setSelectedEnterprise(value);
     if (!value) {
       setHasGuarantee('no');
       setGuaranteeNote('');
-      setEnterprisePaymentTotal('0');
+      setGuaranteeRate('');
+      setGuaranteeRateDraft('');
+      setEnterpriseEstimatedCost('0');
     }
+  };
+
+  const handleGuaranteeChange = (value: 'yes' | 'no') => {
+    setHasGuarantee(value);
+    if (value === 'no') {
+      setGuaranteeRate('');
+      setGuaranteeRateDraft('');
+    }
+  };
+
+  const normalizeGuaranteeRate = (value: string): string => {
+    const digits = value.replace(/\D/g, '');
+    if (!digits) return '';
+    const num = parseInt(digits, 10);
+    if (num < 1) return '';
+    if (num > 100) return '100';
+    return String(num);
+  };
+
+  const handleGuaranteeRateDraftChange = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (!digits) {
+      setGuaranteeRateDraft('');
+      return;
+    }
+    const num = parseInt(digits, 10);
+    if (num > 100) {
+      setGuaranteeRateDraft('100');
+      return;
+    }
+    setGuaranteeRateDraft(digits);
+  };
+
+  const handleGuaranteeRateBlur = () => {
+    if (!isEditing || isGuaranteeRateWarningOpen) return;
+
+    const normalized = normalizeGuaranteeRate(guaranteeRateDraft);
+    setGuaranteeRateDraft(normalized);
+
+    if (normalized === guaranteeRate) return;
+
+    setPendingGuaranteeRate(normalized);
+    setIsGuaranteeRateWarningOpen(true);
+  };
+
+  const handleConfirmGuaranteeRateChange = () => {
+    setGuaranteeRate(pendingGuaranteeRate);
+    setGuaranteeRateDraft(pendingGuaranteeRate);
+    setPendingGuaranteeRate('');
+    setIsGuaranteeRateWarningOpen(false);
+  };
+
+  const handleCancelGuaranteeRateChange = () => {
+    setGuaranteeRateDraft(guaranteeRate);
+    setPendingGuaranteeRate('');
+    setIsGuaranteeRateWarningOpen(false);
+  };
+
+  const handleEnterpriseEstimatedCostChange = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (!digits) {
+      setEnterpriseEstimatedCost('');
+      return;
+    }
+    setEnterpriseEstimatedCost(parseInt(digits, 10).toLocaleString('en-US'));
   };
 
   // Adjustment Coefficients Data state
@@ -645,10 +731,26 @@ const GuestOrderDetails: React.FC<{
   const totalProviderPriceBeforeTax = totalProviderPrice / (1 + providerVatValue / 100);
 
   // Calculate total customer price from adjustmentRows
-  const totalCustomerPrice = calculateCustomerTotal(adjustmentRows);
-  const remainingAmount = refundAmount > 0 ? 0 : Math.max(0, totalCustomerPrice - paidAmount);
+  const grossCustomerTotal = calculateCustomerTotal(adjustmentRows);
+  const vatRate = parseFloat(vat) || 0;
+  const guaranteeRateNum = parseInt(guaranteeRate, 10) || 0;
+  const isGuaranteeActive = hasGuarantee === 'yes' && guaranteeRateNum > 0 && !!selectedEnterprise;
+
+  const enterpriseAfterTax = isGuaranteeActive
+    ? Math.round(grossCustomerTotal * (guaranteeRateNum / 100))
+    : applyVatAfterTax(parseMoney(enterpriseEstimatedCost), vatRate);
+
+  const enterpriseBeforeTax = isGuaranteeActive
+    ? applyVatBeforeTax(enterpriseAfterTax, vatRate)
+    : parseMoney(enterpriseEstimatedCost);
+
+  const individualCustomerPrice = isGuaranteeActive
+    ? Math.round(grossCustomerTotal * ((100 - guaranteeRateNum) / 100))
+    : grossCustomerTotal;
+
+  const remainingAmount = refundAmount > 0 ? 0 : Math.max(0, individualCustomerPrice - paidAmount);
   const orderPaymentStatus = resolveOrderPaymentStatus(
-    totalCustomerPrice,
+    individualCustomerPrice,
     paidAmount,
     DEPOSIT_AMOUNT,
     remainingAmount
@@ -656,21 +758,21 @@ const GuestOrderDetails: React.FC<{
   const paymentStatusInfo = PAYMENT_STATUS_CONFIG[orderPaymentStatus];
 
   const handleStartEditing = () => {
-    setEditBaselineTotal(totalCustomerPrice);
+    setEditBaselineTotal(individualCustomerPrice);
     setIsEditing(true);
   };
 
   const finalizeSave = () => {
-    if (hasPartialPayment && totalCustomerPrice < DEPOSIT_AMOUNT) {
-      setRefundAmount(Math.max(0, DEPOSIT_AMOUNT - totalCustomerPrice));
-    } else if (totalCustomerPrice >= paidAmount) {
+    if (hasPartialPayment && individualCustomerPrice < DEPOSIT_AMOUNT) {
+      setRefundAmount(Math.max(0, DEPOSIT_AMOUNT - individualCustomerPrice));
+    } else if (individualCustomerPrice >= paidAmount) {
       setRefundAmount(0);
     }
     setIsEditing(false);
   };
 
   const handleSaveChanges = () => {
-    const newTotal = totalCustomerPrice;
+    const newTotal = individualCustomerPrice;
     const oldTotal = editBaselineTotal;
 
     if (hasPartialPayment && newTotal < DEPOSIT_AMOUNT) {
@@ -865,6 +967,7 @@ const GuestOrderDetails: React.FC<{
   const TABS = [
     { id: 'general', label: 'Thông tin sự cố', icon: <User size={16}/> },
     { id: 'orchestration', label: 'Điều phối cứu hộ', icon: <LifeBuoy size={16}/> },
+    { id: 'fees', label: 'Thông tin phí', icon: <Banknote size={16}/> },
     { id: 'process', label: 'Quá trình cứu hộ', icon: <Activity size={16}/> },
     { id: 'images', label: 'Hình ảnh', icon: <Camera size={16}/> },
     { id: 'monitoring', label: 'Giám sát & Thực thi', icon: <ShieldCheck size={16}/> },
@@ -1110,14 +1213,30 @@ const GuestOrderDetails: React.FC<{
                         <select
                           value={hasGuarantee}
                           disabled={!isEditing}
-                          onChange={(e) => setHasGuarantee(e.target.value as 'yes' | 'no')}
+                          onChange={(e) => handleGuaranteeChange(e.target.value as 'yes' | 'no')}
                           className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all ${!isEditing ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
                         >
                           <option value="no">Không</option>
                           <option value="yes">Có</option>
                         </select>
                       </div>
-                      <div className="lg:col-span-2">
+                      {hasGuarantee === 'yes' && (
+                        <div>
+                          <Label required>Tỷ lệ bảo lãnh</Label>
+                          <div className="relative">
+                            <Input
+                              value={guaranteeRateDraft}
+                              onChange={handleGuaranteeRateDraftChange}
+                              onBlur={handleGuaranteeRateBlur}
+                              placeholder="1 – 100"
+                              readOnly={!isEditing}
+                              className="w-full text-right font-bold pr-8"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 pointer-events-none">%</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className={hasGuarantee === 'yes' ? '' : 'lg:col-span-2'}>
                         <Label>Ghi chú bảo lãnh</Label>
                         <Input
                           value={guaranteeNote}
@@ -1635,65 +1754,79 @@ const GuestOrderDetails: React.FC<{
                       <span className="text-[10px] font-bold text-gray-400">KM</span>
                     </div>
                   </div>
-                  <div className="invisible lg:block"></div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                  {/* Provider Payment Section */}
-                  <div className="lg:col-span-4 mt-4 pt-4 border-t border-gray-100">
-                    <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
-                      <span className="w-1 h-3 bg-blue-500 mr-2 rounded-full"></span>
-                      Trả cho NCC
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
-                      <div className="min-w-0">
-                        <Label>Tổng thanh toán (Trước thuế)</Label>
-                        <Input
-                            value={Math.round(totalProviderPriceBeforeTax).toLocaleString('en-US')}
-                            readOnly={!isEditing}
-                            className="w-full font-bold text-gray-800 text-right bg-gray-50"
-                        />
-                      </div>
-
-                      <div className="min-w-0">
-                        <Label>Thuế VAT (%)</Label>
-                        <select
-                            value={vat}
-                            disabled={!isEditing}
-                            onChange={(e) => setVat(e.target.value)}
-                            className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all bg-white ${!isEditing ? 'cursor-not-allowed opacity-60' : ''}`}
-                        >
-                          <option value="0">0%</option>
-                          <option value="8">8%</option>
-                          <option value="10">10%</option>
-                        </select>
-                      </div>
-
-                      <div className="min-w-0">
-                        <Label>Tổng thanh toán (Sau thuế)</Label>
-                        <div className="flex gap-2">
-                          <Input
-                              value={totalProviderPrice.toLocaleString('en-US')}
-                              readOnly={!isEditing}
-                              className="flex-1 min-w-0 font-black text-red-600 text-right bg-red-50"
-                          />
-                          <button
-                              disabled={!isEditing}
-                              className={`shrink-0 bg-green-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center transition-all hover:bg-green-700 active:scale-95 ${!isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          >
-                            <RefreshCw size={12} />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="hidden lg:block" aria-hidden="true" />
+          {/* 3. Thông tin phí */}
+          <div id="section-fees" className={`scroll-mt-40 ${isVisible('fees') ? 'block' : 'hidden'}`}>
+            <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
+              <SectionHeader title="Thông tin phí" number={3} icon={<Banknote size={16} />} />
+              <div className="p-5 space-y-6">
+                {/* Provider Payment Section */}
+                <div className="pt-2 border-t border-gray-100">
+                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
+                    <span className="w-1 h-3 bg-blue-500 mr-2 rounded-full"></span>
+                    Trả cho NCC
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                    <div className="min-w-0">
+                      <Label>Tổng thanh toán (Trước thuế)</Label>
+                      <Input
+                          value={Math.round(totalProviderPriceBeforeTax).toLocaleString('en-US')}
+                          readOnly={!isEditing}
+                          className="w-full font-bold text-gray-800 text-right bg-gray-50"
+                      />
                     </div>
+
+                    <div className="min-w-0">
+                      <Label>Thuế VAT (%)</Label>
+                      <select
+                          value={vat}
+                          disabled={!isEditing}
+                          onChange={(e) => setVat(e.target.value)}
+                          className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all bg-white ${!isEditing ? 'cursor-not-allowed opacity-60' : ''}`}
+                      >
+                        <option value="0">0%</option>
+                        <option value="8">8%</option>
+                        <option value="10">10%</option>
+                      </select>
+                    </div>
+
+                    <div className="min-w-0">
+                      <Label>Tổng thanh toán (Sau thuế)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                            value={totalProviderPrice.toLocaleString('en-US')}
+                            readOnly={!isEditing}
+                            className="flex-1 min-w-0 font-black text-red-600 text-right bg-red-50"
+                        />
+                        <button
+                            disabled={!isEditing}
+                            className={`shrink-0 bg-green-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center transition-all hover:bg-green-700 active:scale-95 ${!isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <RefreshCw size={12} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="hidden lg:block" aria-hidden="true" />
                   </div>
+                </div>
 
+                {/* Customer Payment Section */}
+                <div className="pt-4 border-t border-gray-100 space-y-6">
+                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
+                    <span className="w-1 h-3 bg-vetc-green mr-2 rounded-full"></span>
+                    Khách hàng trả phí
+                  </h3>
 
-                  {/* Financial Information Section */}
-                  <div className="lg:col-span-4 mt-4 pt-4">
-                    <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
-                      <span className="w-1 h-3 bg-vetc-green mr-2 rounded-full"></span>
-                      Khách hàng trả phí
-                    </h3>
+                  {/* Cá nhân */}
+                  <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-gray-600 uppercase tracking-wider flex items-center">
+                      <span className="w-1 h-2.5 bg-vetc-green mr-2 rounded-full"></span>
+                      Cá nhân
+                    </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                       <div className="min-w-0">
                         <Label required>Chi phí tạm tính</Label>
@@ -1712,28 +1845,18 @@ const GuestOrderDetails: React.FC<{
                           <option value="10">10%</option>
                         </select>
                       </div>
-
                       <div className="min-w-0">
-                        <Label>Tổng thanh toán (Sau thuế) - Cá nhân</Label>
+                        <Label>Tổng thanh toán (Sau thuế)</Label>
                         <Input
-                            value={totalCustomerPrice.toLocaleString('en-US')}
-                            readOnly={!isEditing}
+                            value={individualCustomerPrice.toLocaleString('en-US')}
+                            readOnly
                             className="w-full font-black text-red-600 text-right bg-red-50"
                         />
                       </div>
-                      <div className="min-w-0">
-                        <Label required={!!selectedEnterprise}>Tổng thanh toán (Sau thuế) - Doanh nghiệp</Label>
-                        <Input
-                            value={selectedEnterprise ? enterprisePaymentTotal : '0'}
-                            onChange={(e) => setEnterprisePaymentTotal(e.target.value.replace(/[^\d,]/g, ''))}
-                            readOnly={!isEditing || !selectedEnterprise}
-                            className={`w-full font-black text-red-600 text-right bg-red-50 ${!selectedEnterprise ? 'opacity-60' : ''}`}
-                            placeholder="0"
-                        />
-                      </div>
+                      <div className="hidden lg:block" aria-hidden="true" />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 mt-4 pt-4 border-t border-gray-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 pt-4 border-t border-gray-100">
                       <div className="min-w-0">
                         <Label>Tiền đã cọc</Label>
                         <div className="flex gap-2">
@@ -1797,139 +1920,184 @@ const GuestOrderDetails: React.FC<{
                     </div>
                   </div>
 
-                  <div className="lg:col-span-4">
-                    {/*<Label>Dịch vụ thực tế & Chi phí</Label>*/}
-                    <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
-                      <span className="w-1 h-3 bg-vetc-green mr-2 rounded-full"></span>
-                      Dịch vụ thực tế & Chi phí
-                    </h3>
-                    {/*Table detail service*/}
-                    <div className="space-y-3">
-                      <div className="bg-white lg:col-span-4">
-                        <div className="overflow-x-auto">
-                          <table className="w-full border-collapse text-[11px]">
-                            <thead>
-                            <tr className="bg-green-50/50 text-gray-600 border-b">
-                              <th className="p-2 text-center border font-bold w-10">STT</th>
-                              <th className="p-2 text-left border font-bold w-80">Tên dịch vụ</th>
-                              <th className="p-2 text-right border font-bold w-60">KH trả phí</th>
-                              <th className="p-2 text-right border font-bold w-60">Giá NCC</th>
-                              <th className="p-2 text-right border font-bold w-40">Chênh lệch giá</th>
-                              <th className="p-2 text-right border font-bold w-40">Giá cố định</th>
-                              <th className="p-2 text-center border font-bold w-40">Hệ số điều chỉnh</th>
-                              <th className="p-2 text-left border font-bold w-40">Loại điều chỉnh</th>
-                              <th className="p-2 text-center border font-bold w-20">Thao tác</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {adjustmentRows.map((row, idx) => {
-                              const isMax = parseFloat(row.coefficient) === maxCoefficient && maxCoefficient > 1;
-                              return (
-                                  <tr key={row.id} className={`border-b hover:bg-gray-50 transition-colors`}>
-                                    <td className="p-2 border text-center font-medium">{idx + 1}</td>
-                                    <td className="p-2 border font-bold text-gray-800">{row.serviceName}</td>
-                                    <td className="p-2 border text-right font-medium">
-                                      <Input
-                                          value={row.customerPaid}
-                                          readOnly={true}
-                                          className="text-right font-bold text-blue-600 bg-gray-50"
-                                      />
-                                    </td>
-                                    <td className="p-2 border text-right font-medium">
-                                      <Input
-                                          value={row.totalPrice}
-                                          onChange={(val) => handleAdjustmentChange(row.id, 'totalPrice', val)}
-                                          readOnly={!isEditing}
-                                          className="text-right font-bold text-gray-800"
-                                      />
-                                    </td>
-                                    <td className="p-2 border text-right font-medium">
-                                      <div className={`flex items-center justify-end space-x-1 font-bold ${
-                                          row.discount.trim().startsWith('-') 
-                                              ? 'text-red-600' 
-                                              : parseFloat(row.discount.replace(/,/g, '')) > 0 
-                                                  ? 'text-green-600' 
-                                                  : 'text-gray-500'
-                                      }`}>
-                                        {row.discount.trim().startsWith('-') ? (
-                                            <>
-                                              <TrendingUp size={12} />
-                                              <span>+{row.discount.replace('-', '').trim()}</span>
-                                            </>
-                                        ) : parseFloat(row.discount.replace(/,/g, '')) > 0 ? (
-                                            <>
-                                              <TrendingDown size={12} />
-                                              <span>-{row.discount.trim()}</span>
-                                            </>
-                                        ) : (
-                                            <span>0</span>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="p-2 border text-right font-medium text-gray-700">
-                                      {row.fixedPrice}
-                                    </td>
-                                     <td className={`p-2 text-center border font-bold text-gray-700`}>
-                                       {row.coefficient}
-                                    </td>
-                                    <td className="p-2 border">
-                                      <AdjustmentTypeSelect
-                                          value={row.adjustmentType}
-                                          onChange={(val) => handleAdjustmentChange(row.id, 'adjustmentType', val)}
-                                          disabled={true}
-                                      />
-                                    </td>
-                                    <td className="p-2 border text-center">
-                                      <button
-                                          disabled={!isEditing}
-                                          onClick={() => handleRemoveAdjustmentRow(row.id)}
-                                          className={`p-1 text-gray-400 hover:text-red-500 rounded transition-colors ${!isEditing ? 'cursor-not-allowed' : ''}`}
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
-                                    </td>
-                                  </tr>
-                              );
-                            })}
-                            </tbody>
-                          </table>
+                  {/* Doanh nghiệp — hiện khi đã chọn DN ở section 1; chỉ Admin được sửa */}
+                  {selectedEnterprise && (
+                    <div className="space-y-4 pt-4 border-t border-gray-100">
+                      <h4 className="text-[10px] font-black text-blue-700 uppercase tracking-wider flex items-center">
+                        <span className="w-1 h-2.5 bg-blue-500 mr-2 rounded-full"></span>
+                        Doanh nghiệp — {selectedEnterpriseLabel}
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                        <div className="min-w-0">
+                          <Label required>Chi phí tạm tính</Label>
+                          <Input
+                              value={
+                                isGuaranteeActive
+                                  ? Math.round(enterpriseBeforeTax).toLocaleString('en-US')
+                                  : enterpriseEstimatedCost
+                              }
+                              onChange={handleEnterpriseEstimatedCostChange}
+                              className="w-full font-black text-gray-800 text-right"
+                              readOnly={!canEditEnterpriseFees || isGuaranteeActive}
+                          />
                         </div>
-                      </div>
-                      <div className="flex justify-end pt-2">
-                        <button
-                            disabled={!isEditing}
-                            onClick={() => setIsServiceModalOpen(true)}
-                            className={`text-[10px] text-white bg-vetc-green px-4 py-2 rounded-lg font-bold hover:bg-green-700 shadow-md flex items-center transition-all active:scale-95 ${!isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <Plus size={12} className="mr-1.5" /> Thêm dịch vụ thực tế
-                        </button>
+                        <div className="min-w-0">
+                          <Label>Thuế VAT (%)</Label>
+                          <select
+                              value={vat}
+                              disabled={!canEditEnterpriseFees || isGuaranteeActive}
+                              onChange={(e) => setVat(e.target.value)}
+                              className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all bg-white ${!canEditEnterpriseFees || isGuaranteeActive ? 'cursor-not-allowed opacity-60 bg-gray-50' : ''}`}
+                          >
+                            <option value="0">0%</option>
+                            <option value="8">8%</option>
+                            <option value="10">10%</option>
+                          </select>
+                        </div>
+                        <div className="min-w-0">
+                          <Label required>Tổng thanh toán (Sau thuế)</Label>
+                          <Input
+                              value={enterpriseAfterTax.toLocaleString('en-US')}
+                              readOnly
+                              className="w-full font-black text-red-600 text-right bg-red-50"
+                          />
+                        </div>
+                        <div className="hidden lg:block" aria-hidden="true" />
                       </div>
                     </div>
-                  </div>
+                  )}
+                </div>
 
-                  <div className="lg:col-span-4 mt-4 pt-4 border-t border-gray-100">
-                    <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
-                      <span className="w-1 h-3 bg-vetc-green mr-2 rounded-full"></span>
-                      Tạm ứng
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
-                      <div className="lg:col-span-1">
-                        <Label>Tạm ứng</Label>
-                        <Input
-                            value={advanceAmount}
-                            onChange={setAdvanceAmount}
-                            readOnly={!isEditing}
-                            className="text-right font-bold"
-                        />
-                      </div>
-                      <div className="lg:col-span-1">
-                        <Label>Người tạm ứng</Label>
-                        <Input
-                            value={advancePerson}
-                            onChange={setAdvancePerson}
-                            readOnly={!isEditing}
-                        />
-                      </div>
+                {/* Actual Services & Fees */}
+                <div className="pt-4 border-t border-gray-100">
+                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
+                    <span className="w-1 h-3 bg-vetc-green mr-2 rounded-full"></span>
+                    Dịch vụ thực tế & Chi phí
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-[11px]">
+                        <thead>
+                        <tr className="bg-green-50/50 text-gray-600 border-b">
+                          <th className="p-2 text-center border font-bold w-10">STT</th>
+                          <th className="p-2 text-left border font-bold w-80">Tên dịch vụ</th>
+                          <th className="p-2 text-right border font-bold w-60">KH trả phí</th>
+                          <th className="p-2 text-right border font-bold w-60">Giá NCC</th>
+                          <th className="p-2 text-right border font-bold w-40">Chênh lệch giá</th>
+                          <th className="p-2 text-right border font-bold w-40">Giá cố định</th>
+                          <th className="p-2 text-center border font-bold w-40">Hệ số điều chỉnh</th>
+                          <th className="p-2 text-left border font-bold w-40">Loại điều chỉnh</th>
+                          <th className="p-2 text-center border font-bold w-20">Thao tác</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {adjustmentRows.map((row, idx) => {
+                          const isMax = parseFloat(row.coefficient) === maxCoefficient && maxCoefficient > 1;
+                          return (
+                              <tr key={row.id} className={`border-b hover:bg-gray-50 transition-colors`}>
+                                <td className="p-2 border text-center font-medium">{idx + 1}</td>
+                                <td className="p-2 border font-bold text-gray-800">{row.serviceName}</td>
+                                <td className="p-2 border text-right font-medium">
+                                  <Input
+                                      value={row.customerPaid}
+                                      readOnly={true}
+                                      className="text-right font-bold text-blue-600 bg-gray-50"
+                                  />
+                                </td>
+                                <td className="p-2 border text-right font-medium">
+                                  <Input
+                                      value={row.totalPrice}
+                                      onChange={(val) => handleAdjustmentChange(row.id, 'totalPrice', val)}
+                                      readOnly={!isEditing}
+                                      className="text-right font-bold text-gray-800"
+                                  />
+                                </td>
+                                <td className="p-2 border text-right font-medium">
+                                  <div className={`flex items-center justify-end space-x-1 font-bold ${
+                                      row.discount.trim().startsWith('-')
+                                          ? 'text-red-600'
+                                          : parseFloat(row.discount.replace(/,/g, '')) > 0
+                                              ? 'text-green-600'
+                                              : 'text-gray-500'
+                                  }`}>
+                                    {row.discount.trim().startsWith('-') ? (
+                                        <>
+                                          <TrendingUp size={12} />
+                                          <span>+{row.discount.replace('-', '').trim()}</span>
+                                        </>
+                                    ) : parseFloat(row.discount.replace(/,/g, '')) > 0 ? (
+                                        <>
+                                          <TrendingDown size={12} />
+                                          <span>-{row.discount.trim()}</span>
+                                        </>
+                                    ) : (
+                                        <span>0</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-2 border text-right font-medium text-gray-700">
+                                  {row.fixedPrice}
+                                </td>
+                                 <td className={`p-2 text-center border font-bold text-gray-700`}>
+                                   {row.coefficient}
+                                </td>
+                                <td className="p-2 border">
+                                  <AdjustmentTypeSelect
+                                      value={row.adjustmentType}
+                                      onChange={(val) => handleAdjustmentChange(row.id, 'adjustmentType', val)}
+                                      disabled={true}
+                                  />
+                                </td>
+                                <td className="p-2 border text-center">
+                                  <button
+                                      disabled={!isEditing}
+                                      onClick={() => handleRemoveAdjustmentRow(row.id)}
+                                      className={`p-1 text-gray-400 hover:text-red-500 rounded transition-colors ${!isEditing ? 'cursor-not-allowed' : ''}`}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                          );
+                        })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex justify-end pt-2">
+                      <button
+                          disabled={!isEditing}
+                          onClick={() => setIsServiceModalOpen(true)}
+                          className={`text-[10px] text-white bg-vetc-green px-4 py-2 rounded-lg font-bold hover:bg-green-700 shadow-md flex items-center transition-all active:scale-95 ${!isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <Plus size={12} className="mr-1.5" /> Thêm dịch vụ thực tế
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Advance Payment */}
+                <div className="pt-4 border-t border-gray-100">
+                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
+                    <span className="w-1 h-3 bg-vetc-green mr-2 rounded-full"></span>
+                    Tạm ứng
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                    <div className="lg:col-span-1">
+                      <Label>Tạm ứng</Label>
+                      <Input
+                          value={advanceAmount}
+                          onChange={setAdvanceAmount}
+                          readOnly={!isEditing}
+                          className="text-right font-bold"
+                      />
+                    </div>
+                    <div className="lg:col-span-1">
+                      <Label>Người tạm ứng</Label>
+                      <Input
+                          value={advancePerson}
+                          onChange={setAdvancePerson}
+                          readOnly={!isEditing}
+                      />
                     </div>
                   </div>
                 </div>
@@ -1937,10 +2105,10 @@ const GuestOrderDetails: React.FC<{
             </div>
           </div>
 
-          {/* 3. Quá trình cứu hộ (Renumbered from 4) */}
+          {/* 4. Quá trình cứu hộ */}
           <div id="section-process" className={`scroll-mt-40 ${isVisible('process') ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
-              <SectionHeader title="Quá trình cứu hộ" number={3} icon={<Activity size={18} />} />
+              <SectionHeader title="Quá trình cứu hộ" number={4} icon={<Activity size={18} />} />
               <div className="grid grid-cols-1 lg:grid-cols-12 h-[600px]">
                 {/* Map Container */}
                 <div className="lg:col-span-8 bg-gray-100 relative group text-left">
@@ -2031,20 +2199,20 @@ const GuestOrderDetails: React.FC<{
             </div>
           </div>
 
-          {/* 4. Hình ảnh sự cố & Quá trình thực hiện (Renumbered from 5) */}
+          {/* 5. Hình ảnh sự cố & Quá trình thực hiện */}
           <div id="section-images" className={`scroll-mt-40 ${isVisible('images') ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
-              <SectionHeader title="Hình ảnh sự cố & Quá trình thực hiện" number={4} icon={<Camera size={18} />} />
+              <SectionHeader title="Hình ảnh sự cố & Quá trình thực hiện" number={5} icon={<Camera size={18} />} />
               <div className="p-6">
                 <ImageUploadSection readOnly={!isEditing} />
               </div>
             </div>
           </div>
 
-          {/* 5. Thông tin giám sát, thực thi (Renumbered from 6) */}
+          {/* 6. Thông tin giám sát, thực thi */}
           <div id="section-monitoring" className={`scroll-mt-40 ${isVisible('monitoring') ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden text-left">
-              <SectionHeader title="Thông tin giám sát, thực thi" number={5} icon={<ShieldCheck size={18} />} />
+              <SectionHeader title="Thông tin giám sát, thực thi" number={6} icon={<ShieldCheck size={18} />} />
               <div className="p-5 space-y-4">
                 <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3">
                   <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest mb-2">
@@ -2110,10 +2278,10 @@ const GuestOrderDetails: React.FC<{
             </div>
           </div>
 
-          {/* 6. Thông tin hóa đơn (Renumbered from 7) */}
+          {/* 7. Thông tin hóa đơn */}
           <div id="section-invoice" className={`scroll-mt-40 ${isVisible('invoice') ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden text-left">
-              <SectionHeader title="Thông tin hóa đơn" number={6} icon={<FileText size={18} />} />
+              <SectionHeader title="Thông tin hóa đơn" number={7} icon={<FileText size={18} />} />
               <div className="p-5 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                   <div>
@@ -2218,10 +2386,10 @@ const GuestOrderDetails: React.FC<{
             </div>
           </div>
 
-          {/* 7. Đề nghị thanh toán */}
+          {/* 8. Đề nghị thanh toán */}
           <div id="section-payment-request" className={`scroll-mt-40 ${isVisible('payment-request') ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden text-left">
-              <SectionHeader title="Đề nghị thanh toán" number={7} icon={<CreditCard size={18} />} />
+              <SectionHeader title="Đề nghị thanh toán" number={8} icon={<CreditCard size={18} />} />
               <div className="p-5">
                 <PaymentRequestSection disabled={currentStatus !== 'FINISH-COMPLETED'} />
               </div>
@@ -2305,6 +2473,15 @@ const GuestOrderDetails: React.FC<{
             newTotal={pendingFeeChange?.newTotal ?? 0}
             excessRefund={pendingFeeChange?.type === 'decrease' ? Math.max(0, DEPOSIT_AMOUNT - (pendingFeeChange?.newTotal ?? 0)) : 0}
             additionalAmount={pendingFeeChange?.type === 'increase' ? (pendingFeeChange?.newTotal ?? 0) - (pendingFeeChange?.oldTotal ?? 0) : 0}
+        />
+
+        <GuaranteeRateChangeWarningModal
+            isOpen={isGuaranteeRateWarningOpen}
+            onClose={handleCancelGuaranteeRateChange}
+            onConfirm={handleConfirmGuaranteeRateChange}
+            oldRate={guaranteeRate}
+            newRate={pendingGuaranteeRate}
+            enterpriseLabel={selectedEnterpriseLabel}
         />
 
         {/* Cancellation Dialog */}
