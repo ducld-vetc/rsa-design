@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard } from 'lucide-react';
+import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase } from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
@@ -16,6 +16,7 @@ interface SidebarProps {
   onNavigateStationManagement: () => void;
   onNavigateStaffManagement: () => void;
   onNavigatePricingPolicy: () => void;
+  onNavigateBusinessManagement: () => void;
   currentStep: Step;
 }
 
@@ -32,9 +33,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigateStationManagement,
   onNavigateStaffManagement,
   onNavigatePricingPolicy,
+  onNavigateBusinessManagement,
   currentStep 
 }) => {
-  const [openMenus, setOpenMenus] = useState<string[]>(['cskh', 'rescue', 'station']);
+  const [openMenus, setOpenMenus] = useState<string[]>(['admin', 'cskh', 'rescue', 'station']);
 
   if (!isOpen) return null;
 
@@ -82,6 +84,13 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 <DollarSign size={14} />
                 <span>Chính sách giá</span>
+              </div>
+              <div 
+                onClick={onNavigateBusinessManagement}
+                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.BUSINESS_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                <Briefcase size={14} />
+                <span>Quản lý doanh nghiệp</span>
               </div>
             </div>
           )}

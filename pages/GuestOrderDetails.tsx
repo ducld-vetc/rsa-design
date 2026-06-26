@@ -63,6 +63,7 @@ import CustomerFeeChangeWarningModal, {
   CustomerFeeWarningType
 } from '../shared/CustomerFeeChangeWarningModal';
 import GuaranteeRateChangeWarningModal from '../shared/GuaranteeRateChangeWarningModal';
+import UnpaidDepositRemainingWarningModal from '../shared/UnpaidDepositRemainingWarningModal';
 import ProviderPaymentConfirmDialog from '../shared/ProviderPaymentConfirmDialog';
 import UsageHistoryModal from '../shared/UsageHistoryModal';
 import StatusUpdateModal, { STATUS_OPTIONS } from '../shared/StatusUpdateModal';
@@ -632,10 +633,15 @@ const GuestOrderDetails: React.FC<{
   const [depositPaymentSession, setDepositPaymentSession] = useState<CustomerPaymentSession>({ method: null });
   const [remainingPaymentSession, setRemainingPaymentSession] = useState<CustomerPaymentSession>({ method: null });
   const DEPOSIT_AMOUNT = 50_000;
-  const paidAmount = 50_000;
+  const isDepositPaid =
+    depositPaymentSession.pushStatus === 'success' ||
+    depositPaymentSession.paymentCheckStatus === 'paid' ||
+    depositPaymentSession.cashStatus === 'confirmed';
+  const paidAmount = isDepositPaid ? DEPOSIT_AMOUNT : 0;
   const [refundAmount, setRefundAmount] = useState(0);
-  const hasDeposited = DEPOSIT_AMOUNT > 0;
+  const hasDeposited = isDepositPaid;
   const hasPartialPayment = hasDeposited || paidAmount > 0;
+  const [isUnpaidDepositWarningOpen, setIsUnpaidDepositWarningOpen] = useState(false);
   const [isFeeWarningOpen, setIsFeeWarningOpen] = useState(false);
   const [editBaselineTotal, setEditBaselineTotal] = useState(0);
   const [pendingFeeChange, setPendingFeeChange] = useState<{
@@ -645,7 +651,17 @@ const GuestOrderDetails: React.FC<{
   } | null>(null);
 
   const openPaymentModal = (type: CustomerPaymentType) => {
+    if (type === 'remaining' && DEPOSIT_AMOUNT > 0 && !isDepositPaid) {
+      setIsUnpaidDepositWarningOpen(true);
+      return;
+    }
     setActivePaymentType(type);
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleConfirmUnpaidDepositRemaining = () => {
+    setIsUnpaidDepositWarningOpen(false);
+    setActivePaymentType('remaining');
     setIsPaymentModalOpen(true);
   };
   const [isProviderPaymentConfirmOpen, setIsProviderPaymentConfirmOpen] = useState(false);
@@ -2462,6 +2478,15 @@ const GuestOrderDetails: React.FC<{
             session={activePaymentType === 'deposit' ? depositPaymentSession : remainingPaymentSession}
             onSessionChange={activePaymentType === 'deposit' ? setDepositPaymentSession : setRemainingPaymentSession}
             allowCashPayment={role === 'ADMIN'}
+        />
+
+        <UnpaidDepositRemainingWarningModal
+            isOpen={isUnpaidDepositWarningOpen}
+            onClose={() => setIsUnpaidDepositWarningOpen(false)}
+            onConfirm={handleConfirmUnpaidDepositRemaining}
+            depositAmount={DEPOSIT_AMOUNT}
+            totalAmount={individualCustomerPrice}
+            remainingAmount={remainingAmount}
         />
 
         <CustomerFeeChangeWarningModal

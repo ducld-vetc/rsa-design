@@ -23,6 +23,7 @@ import StaffManagement2 from './pages/StaffManagement2';
 import RescueSupervision from './pages/RescueSupervision';
 import RsaDashboardOverview from './pages/RsaDashboardOverview';
 import PricingPolicyCreate from './pages/PricingPolicyCreate';
+import BusinessManagement from './pages/BusinessManagement';
 
 const initialData: FormData = {
   orderId: '',
@@ -85,6 +86,7 @@ const App: React.FC = () => {
   // Helper to map URL path to Step enum for Sidebar/Stepper compatibility
   const getStepFromPath = (path: string): Step => {
     if (path.includes('/pricing-policy')) return Step.PRICING_POLICY;
+    if (path.includes('/business-management')) return Step.BUSINESS_MANAGEMENT;
     if (path.includes('/rsa-dashboard')) return Step.RSA_DASHBOARD;
     if (path.includes('/rescue-supervision')) return Step.RESCUE_SUPERVISION;
     if (path.includes('/monitoring')) return Step.MONITORING;
@@ -275,6 +277,7 @@ const App: React.FC = () => {
   const handleNavigateToStationManagement = () => navigate('/station/management');
   const handleNavigateToStaffManagement = () => navigate('/staff-management');
   const handleNavigateToPricingPolicy = () => navigate('/pricing-policy');
+  const handleNavigateToBusinessManagement = () => navigate('/business-management');
   const handleViewDetails = (orderId: string) => {
     navigate('/details');
   };
@@ -347,6 +350,7 @@ const App: React.FC = () => {
     Step.STATION_MANAGEMENT,
     Step.STAFF_MANAGEMENT,
     Step.PRICING_POLICY,
+    Step.BUSINESS_MANAGEMENT,
   ];
   
   const isStepperVisible = !hideStepperSteps.includes(currentStep);
@@ -362,6 +366,7 @@ const App: React.FC = () => {
     if (currentStep === Step.STATION_ORDERS) return ['Trạm cứu hộ', 'Quản lý đơn'];
     if (currentStep === Step.STAFF_MANAGEMENT) return ['Quản trị hệ thống', 'Quản lý nhân viên'];
     if (currentStep === Step.PRICING_POLICY) return ['Thêm mới chính sách giá VETC'];
+    if (currentStep === Step.BUSINESS_MANAGEMENT) return ['Quản trị hệ thống', 'Quản lý doanh nghiệp'];
     return ['Chăm sóc khách hàng', 'Tạo đơn cứu hộ'];
   };
 
@@ -382,6 +387,7 @@ const App: React.FC = () => {
         onNavigateStationManagement={handleNavigateToStationManagement}
         onNavigateStaffManagement={handleNavigateToStaffManagement}
         onNavigatePricingPolicy={handleNavigateToPricingPolicy}
+        onNavigateBusinessManagement={handleNavigateToBusinessManagement}
         currentStep={currentStep}
       />
 
@@ -510,6 +516,9 @@ const App: React.FC = () => {
                 } />
                 <Route path="/pricing-policy" element={
                   <PricingPolicyCreate />
+                } />
+                <Route path="/business-management" element={
+                  <BusinessManagement />
                 } />
               </Routes>
             </div>

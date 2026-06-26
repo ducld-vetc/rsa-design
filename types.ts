@@ -102,6 +102,7 @@ export enum Step {
   RESCUE_SUPERVISION = 15,
   RSA_DASHBOARD = 16,
   PRICING_POLICY = 40,
+  BUSINESS_MANAGEMENT = 41,
 }
 
 export interface MonitoringOrder {
