@@ -24,6 +24,7 @@ import RescueSupervision from './pages/RescueSupervision';
 import RsaDashboardOverview from './pages/RsaDashboardOverview';
 import PricingPolicyCreate from './pages/PricingPolicyCreate';
 import BusinessManagement from './pages/BusinessManagement';
+import BusinessForm from './pages/BusinessForm';
 
 const initialData: FormData = {
   orderId: '',
@@ -366,7 +367,11 @@ const App: React.FC = () => {
     if (currentStep === Step.STATION_ORDERS) return ['Trạm cứu hộ', 'Quản lý đơn'];
     if (currentStep === Step.STAFF_MANAGEMENT) return ['Quản trị hệ thống', 'Quản lý nhân viên'];
     if (currentStep === Step.PRICING_POLICY) return ['Thêm mới chính sách giá VETC'];
-    if (currentStep === Step.BUSINESS_MANAGEMENT) return ['Quản trị hệ thống', 'Quản lý doanh nghiệp'];
+    if (currentStep === Step.BUSINESS_MANAGEMENT) {
+      if (location.pathname.includes('/create')) return ['Quản trị hệ thống', 'Thêm mới doanh nghiệp'];
+      if (location.pathname.includes('/edit/')) return ['Quản trị hệ thống', 'Chỉnh sửa doanh nghiệp'];
+      return ['Quản trị hệ thống', 'Quản lý doanh nghiệp'];
+    }
     return ['Chăm sóc khách hàng', 'Tạo đơn cứu hộ'];
   };
 
@@ -391,32 +396,32 @@ const App: React.FC = () => {
         currentStep={currentStep}
       />
 
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 w-full overflow-hidden">
         <Header 
           onToggleSidebar={() => setSidebarOpen(!isSidebarOpen)} 
           role={role}
           onRoleChange={setRole}
         />
 
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 min-w-0">
-          <div className="max-w-7xl mx-auto space-y-4">
-            <div className="bg-[#00A859] text-white px-4 py-2 rounded shadow-sm flex justify-between items-center text-sm">
-              <div className="flex items-center space-x-2">
-                <Home size={16} />
-                <ChevronRight size={14} />
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 min-w-0 w-full">
+          <div className="w-full min-w-0 max-w-none space-y-4">
+            <div className="bg-[#00A859] text-white px-4 py-2 rounded shadow-sm flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center text-sm">
+              <div className="flex items-center flex-wrap gap-x-2 gap-y-1 min-w-0">
+                <Home size={16} className="shrink-0" />
+                <ChevronRight size={14} className="shrink-0" />
                 <span>Trang chủ</span>
-                <ChevronRight size={14} />
+                <ChevronRight size={14} className="shrink-0" />
                 <span>{parentLabel}</span>
-                <ChevronRight size={14} />
-                <span>{subLabel}</span>
+                <ChevronRight size={14} className="shrink-0" />
+                <span className="min-w-0">{subLabel}</span>
               </div>
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center flex-wrap gap-x-4 gap-y-1 shrink-0">
                 <span className="font-bold">rsa_test1</span>
                 <span>Thứ hai - 02/02/2026</span>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-md min-h-[calc(100vh-140px)] p-6">
+            <div className="bg-white rounded-lg shadow-md min-h-[calc(100vh-140px)] w-full min-w-0 p-4 sm:p-6">
               {/* TODO Keep for next phase*/}
               {/*{isStepperVisible && (*/}
               {/*  <div className="mb-8">*/}
@@ -434,6 +439,7 @@ const App: React.FC = () => {
               {/*  </div>*/}
               {/*)}*/}
               
+              <div className="w-full min-w-0">
               <Routes>
                 <Route path="/" element={<Navigate to="/create" replace />} />
                 <Route path="/create" element={
@@ -520,7 +526,14 @@ const App: React.FC = () => {
                 <Route path="/business-management" element={
                   <BusinessManagement />
                 } />
+                <Route path="/business-management/create" element={
+                  <BusinessForm />
+                } />
+                <Route path="/business-management/edit/:id" element={
+                  <BusinessForm />
+                } />
               </Routes>
+              </div>
             </div>
           </div>
         </main>
