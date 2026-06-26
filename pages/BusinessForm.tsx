@@ -57,8 +57,11 @@ const EMPTY_FORM: FormState = {
   customerType: 'B2B',
   parentEnterprise: null,
   customerTier: 'Tiêu chuẩn',
+  rescueOrderCustomerTier: 'Tiêu chuẩn',
   status: 'active',
 };
+
+const CUSTOMER_TIER_OPTIONS = ['Tiêu chuẩn', 'VIP', 'Hợp đồng'] as const;
 
 const subSectionClass = 'border-t border-gray-100 pt-4 space-y-4';
 const subSectionTitleClass = 'text-xs font-bold text-gray-500 uppercase tracking-wide';
@@ -332,15 +335,33 @@ const BusinessForm: React.FC = () => {
               </select>
             </div>
             <div className="min-w-0">
-              <label className={labelClass}>Hạng khách hàng</label>
+              <label className={labelClass}>Hạng khách hàng (Gói cứu hộ)</label>
               <select
                 value={form.customerTier}
                 onChange={(e) => updateField('customerTier', e.target.value as FormState['customerTier'])}
                 className={`${inputClass} bg-white`}
               >
-                <option value="Tiêu chuẩn">Tiêu chuẩn</option>
-                <option value="VIP">VIP</option>
-                <option value="Hợp đồng">Hợp đồng</option>
+                {CUSTOMER_TIER_OPTIONS.map((tier) => (
+                  <option key={tier} value={tier}>
+                    {tier}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <label className={labelClass}>Hạng khách hàng (Đơn cứu hộ)</label>
+              <select
+                value={form.rescueOrderCustomerTier}
+                onChange={(e) =>
+                  updateField('rescueOrderCustomerTier', e.target.value as FormState['rescueOrderCustomerTier'])
+                }
+                className={`${inputClass} bg-white`}
+              >
+                {CUSTOMER_TIER_OPTIONS.map((tier) => (
+                  <option key={tier} value={tier}>
+                    {tier}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="min-w-0 sm:col-span-2 lg:col-span-4">

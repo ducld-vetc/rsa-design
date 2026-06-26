@@ -1,3 +1,5 @@
+export type CustomerTier = 'Tiêu chuẩn' | 'VIP' | 'Hợp đồng';
+
 export interface BusinessRecord {
   id: number;
   code: string;
@@ -13,7 +15,8 @@ export interface BusinessRecord {
   customerGroup: 'OEM' | 'Tài chính' | 'Bảo hiểm' | 'Khác';
   customerType: 'B2B' | 'Phân phối' | 'Chiến lược';
   parentEnterprise: string | null;
-  customerTier: 'Tiêu chuẩn' | 'VIP' | 'Hợp đồng';
+  customerTier: CustomerTier;
+  rescueOrderCustomerTier: CustomerTier;
   status: 'active' | 'inactive';
   updatedAt: string;
   updatedBy: string;
@@ -38,6 +41,7 @@ const BASE_MOCK_BUSINESSES: BusinessRecord[] = [
     customerType: 'B2B',
     parentEnterprise: null,
     customerTier: 'VIP',
+    rescueOrderCustomerTier: 'Tiêu chuẩn',
     status: 'active',
     updatedAt: '25/08/2025 14:30:12',
     updatedBy: 'admin_vetc',
@@ -60,6 +64,7 @@ const BASE_MOCK_BUSINESSES: BusinessRecord[] = [
     customerType: 'Chiến lược',
     parentEnterprise: 'FORD MOTOR COMPANY',
     customerTier: 'Hợp đồng',
+    rescueOrderCustomerTier: 'VIP',
     status: 'active',
     updatedAt: '24/08/2025 16:45:00',
     updatedBy: 'rsa_test1',
@@ -82,6 +87,7 @@ const BASE_MOCK_BUSINESSES: BusinessRecord[] = [
     customerType: 'Chiến lược',
     parentEnterprise: 'TOYOTA MOTOR CORPORATION',
     customerTier: 'Hợp đồng',
+    rescueOrderCustomerTier: 'Hợp đồng',
     status: 'active',
     updatedAt: '23/08/2025 11:20:45',
     updatedBy: 'rsa_test1',
@@ -104,6 +110,7 @@ const BASE_MOCK_BUSINESSES: BusinessRecord[] = [
     customerType: 'Phân phối',
     parentEnterprise: 'HONDA MOTOR CO., LTD.',
     customerTier: 'VIP',
+    rescueOrderCustomerTier: 'Tiêu chuẩn',
     status: 'active',
     updatedAt: '22/08/2025 09:10:22',
     updatedBy: 'hieund2',
@@ -126,6 +133,7 @@ const BASE_MOCK_BUSINESSES: BusinessRecord[] = [
     customerType: 'B2B',
     parentEnterprise: null,
     customerTier: 'Tiêu chuẩn',
+    rescueOrderCustomerTier: 'Tiêu chuẩn',
     status: 'inactive',
     updatedAt: '20/08/2025 17:00:00',
     updatedBy: 'admin_vetc',
