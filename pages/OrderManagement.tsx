@@ -54,6 +54,7 @@ type OrderRow = {
   driver: { name: string; phone: string };
   updatedAt: string;
   updatedBy: string;
+  packageUsage?: { packageName: string; used: number; limit: number };
 };
 
 const PAYMENT_STATUS_CONFIG: Record<OrderPaymentStatus, { label: string; className: string }> = {
@@ -89,6 +90,8 @@ const OrderStatusBadges: React.FC<{ status: OrderStatusDisplay }> = ({ status })
   </div>
 );
 
+const isPackageOrder = (order: OrderRow): boolean => order.tags.includes('Đơn gói');
+
 const MOCK_ORDERS: OrderRow[] = [
   {
     id: '3',
@@ -107,7 +110,8 @@ const MOCK_ORDERS: OrderRow[] = [
     partner: 'Garage Thăng Long',
     driver: { name: 'Lê Văn Hùng', phone: '0944555111' },
     updatedAt: '02/02/2026 13:10',
-    updatedBy: 'rsa_test1'
+    updatedBy: 'rsa_test1',
+    packageUsage: { packageName: 'Gói cơ bản 10 dịch vụ', used: 1, limit: 100 }
   },
   {
     id: '4',
@@ -183,7 +187,8 @@ const MOCK_ORDERS: OrderRow[] = [
     partner: 'Carpla Service - CN Hà Nội',
     driver: { name: 'Phạm Đức Anh', phone: '0900111222' },
     updatedAt: '02/02/2026 11:45',
-    updatedBy: 'rsa_test1'
+    updatedBy: 'rsa_test1',
+    packageUsage: { packageName: 'Gói nâng cao Premium', used: 2, limit: 100 }
   },
   {
     id: '6',
@@ -346,12 +351,12 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
       <div className="border rounded-lg shadow-sm bg-white w-full min-w-0">
         <SectionHeader title="Kết quả tìm kiếm" />
         <div className="w-full overflow-x-auto overscroll-x-contain custom-scrollbar">
-          <table className="w-full text-xs border-collapse min-w-[1600px]">
+          <table className="w-full text-xs border-collapse min-w-[1680px]">
             <thead>
               <tr className="bg-gray-50 border-b text-gray-600">
                 <th rowSpan={2} className="px-3 py-2 text-center w-10 font-bold border-r">STT</th>
                 <th rowSpan={2} className="px-3 py-2 text-center w-20 font-bold border-r">Hành động</th>
-                <th colSpan={6} className="px-3 py-1.5 text-center font-bold border-r bg-gray-100/70">Thông tin yêu cầu</th>
+                <th colSpan={7} className="px-3 py-1.5 text-center font-bold border-r bg-gray-100/70">Thông tin yêu cầu</th>
                 <th colSpan={4} className="px-3 py-1.5 text-center font-bold border-r bg-gray-100/70">Thông tin đối tượng cứu hộ</th>
                 <th colSpan={2} className="px-3 py-1.5 text-center font-bold border-r bg-gray-100/70">Thông tin đối tác hỗ trợ</th>
                 <th colSpan={2} className="px-3 py-1.5 text-center font-bold bg-gray-100/70">Thông tin hệ thống</th>
@@ -359,6 +364,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
               <tr className="bg-gray-50 border-b text-gray-500 text-[10px] uppercase">
                 <th className="px-3 py-2 text-left font-bold border-r w-44">Mã đơn</th>
                 <th className="px-3 py-2 text-left font-bold border-r w-40">Dịch vụ chính</th>
+                <th className="px-3 py-2 text-center font-bold border-r w-28">Lượt sử dụng gói</th>
                 <th className="px-3 py-2 text-center font-bold border-r w-28">Thời gian chờ</th>
                 <th className="px-3 py-2 text-center font-bold border-r w-36">Trạng thái đơn</th>
                 <th className="px-3 py-2 text-left font-bold border-r w-32">Trạng thái thanh toán</th>
@@ -438,6 +444,23 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
                       >
                         {order.mainService}
                       </span>
+                    </td>
+                    <td className="px-3 py-3 border-r text-center align-top">
+                      {isPackageOrder(order) && order.packageUsage ? (
+                        <div className="space-y-0.5">
+                          <div className="font-black text-gray-800 tracking-wide">
+                            {order.packageUsage.used}/{order.packageUsage.limit}
+                          </div>
+                          <div
+                            className="text-[9px] text-gray-400 truncate max-w-[6.5rem] mx-auto"
+                            title={order.packageUsage.packageName}
+                          >
+                            {order.packageUsage.packageName}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-3 text-center border-r font-medium text-gray-700 whitespace-nowrap">
                       {order.waitingTime}

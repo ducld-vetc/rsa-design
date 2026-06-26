@@ -25,6 +25,7 @@ import RsaDashboardOverview from './pages/RsaDashboardOverview';
 import PricingPolicyCreate from './pages/PricingPolicyCreate';
 import BusinessManagement from './pages/BusinessManagement';
 import BusinessForm from './pages/BusinessForm';
+import PackagePurchaseManagement from './pages/PackagePurchaseManagement';
 
 const initialData: FormData = {
   orderId: '',
@@ -87,6 +88,7 @@ const App: React.FC = () => {
   // Helper to map URL path to Step enum for Sidebar/Stepper compatibility
   const getStepFromPath = (path: string): Step => {
     if (path.includes('/pricing-policy')) return Step.PRICING_POLICY;
+    if (path.includes('/package-purchase-management')) return Step.PACKAGE_PURCHASE_MANAGEMENT;
     if (path.includes('/business-management')) return Step.BUSINESS_MANAGEMENT;
     if (path.includes('/rsa-dashboard')) return Step.RSA_DASHBOARD;
     if (path.includes('/rescue-supervision')) return Step.RESCUE_SUPERVISION;
@@ -279,6 +281,7 @@ const App: React.FC = () => {
   const handleNavigateToStaffManagement = () => navigate('/staff-management');
   const handleNavigateToPricingPolicy = () => navigate('/pricing-policy');
   const handleNavigateToBusinessManagement = () => navigate('/business-management');
+  const handleNavigateToPackagePurchaseManagement = () => navigate('/package-purchase-management');
   const handleViewDetails = (orderId: string) => {
     navigate('/details');
   };
@@ -352,6 +355,7 @@ const App: React.FC = () => {
     Step.STAFF_MANAGEMENT,
     Step.PRICING_POLICY,
     Step.BUSINESS_MANAGEMENT,
+    Step.PACKAGE_PURCHASE_MANAGEMENT,
   ];
   
   const isStepperVisible = !hideStepperSteps.includes(currentStep);
@@ -371,6 +375,9 @@ const App: React.FC = () => {
       if (location.pathname.includes('/create')) return ['Quản trị hệ thống', 'Thêm mới doanh nghiệp'];
       if (location.pathname.includes('/edit/')) return ['Quản trị hệ thống', 'Chỉnh sửa doanh nghiệp'];
       return ['Quản trị hệ thống', 'Quản lý doanh nghiệp'];
+    }
+    if (currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT) {
+      return ['Quản trị hệ thống', 'Quản lý mua gói'];
     }
     return ['Chăm sóc khách hàng', 'Tạo đơn cứu hộ'];
   };
@@ -393,6 +400,7 @@ const App: React.FC = () => {
         onNavigateStaffManagement={handleNavigateToStaffManagement}
         onNavigatePricingPolicy={handleNavigateToPricingPolicy}
         onNavigateBusinessManagement={handleNavigateToBusinessManagement}
+        onNavigatePackagePurchaseManagement={handleNavigateToPackagePurchaseManagement}
         currentStep={currentStep}
       />
 
@@ -531,6 +539,9 @@ const App: React.FC = () => {
                 } />
                 <Route path="/business-management/edit/:id" element={
                   <BusinessForm />
+                } />
+                <Route path="/package-purchase-management" element={
+                  <PackagePurchaseManagement />
                 } />
               </Routes>
               </div>

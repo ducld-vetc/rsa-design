@@ -103,6 +103,7 @@ export enum Step {
   RSA_DASHBOARD = 16,
   PRICING_POLICY = 40,
   BUSINESS_MANAGEMENT = 41,
+  PACKAGE_PURCHASE_MANAGEMENT = 42,
 }
 
 export interface MonitoringOrder {
