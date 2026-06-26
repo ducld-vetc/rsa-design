@@ -6,6 +6,9 @@ export interface BusinessRecord {
   contactName: string;
   contactPhone: string;
   contactEmail: string;
+  reconciliationContactName: string;
+  reconciliationContactPhone: string;
+  reconciliationContactEmail: string;
   taxId: string;
   customerGroup: 'OEM' | 'Tài chính' | 'Bảo hiểm' | 'Khác';
   customerType: 'B2B' | 'Phân phối' | 'Chiến lược';
@@ -27,6 +30,9 @@ const BASE_MOCK_BUSINESSES: BusinessRecord[] = [
     contactName: 'NGUYỄN VĂN MINH',
     contactPhone: '0243 123 4567',
     contactEmail: 'minh.nv@vetc.com.vn',
+    reconciliationContactName: 'TRẦN THỊ HẠNH',
+    reconciliationContactPhone: '0243 123 4568',
+    reconciliationContactEmail: 'hanh.tt@vetc.com.vn',
     taxId: '0101234567',
     customerGroup: 'OEM',
     customerType: 'B2B',
@@ -46,6 +52,9 @@ const BASE_MOCK_BUSINESSES: BusinessRecord[] = [
     contactName: 'TRẦN THỊ HƯƠNG',
     contactPhone: '0283 456 7890',
     contactEmail: 'huong.tt@ford.com.vn',
+    reconciliationContactName: 'LÊ MINH TUẤN',
+    reconciliationContactPhone: '0283 456 7891',
+    reconciliationContactEmail: 'tuan.lm@ford.com.vn',
     taxId: '0309876543',
     customerGroup: 'OEM',
     customerType: 'Chiến lược',
@@ -65,6 +74,9 @@ const BASE_MOCK_BUSINESSES: BusinessRecord[] = [
     contactName: 'LÊ VĂN ĐỨC',
     contactPhone: '0211 567 8901',
     contactEmail: 'duc.lv@toyota.com.vn',
+    reconciliationContactName: 'NGUYỄN THỊ MAI',
+    reconciliationContactPhone: '0211 567 8902',
+    reconciliationContactEmail: 'mai.nt@toyota.com.vn',
     taxId: '2500123456',
     customerGroup: 'OEM',
     customerType: 'Chiến lược',
@@ -84,6 +96,9 @@ const BASE_MOCK_BUSINESSES: BusinessRecord[] = [
     contactName: 'PHẠM THỊ LAN',
     contactPhone: '0211 678 9012',
     contactEmail: 'lan.pt@honda.com.vn',
+    reconciliationContactName: 'VŨ ĐỨC THẮNG',
+    reconciliationContactPhone: '0211 678 9013',
+    reconciliationContactEmail: 'thang.vd@honda.com.vn',
     taxId: '2500654321',
     customerGroup: 'OEM',
     customerType: 'Phân phối',
@@ -103,6 +118,9 @@ const BASE_MOCK_BUSINESSES: BusinessRecord[] = [
     contactName: 'HOÀNG VĂN NAM',
     contactPhone: '0901 234 567',
     contactEmail: 'nam.hv@abc-logistics.vn',
+    reconciliationContactName: 'PHẠM THỊ HỒNG',
+    reconciliationContactPhone: '0901 234 568',
+    reconciliationContactEmail: 'hong.pt@abc-logistics.vn',
     taxId: '0108765432',
     customerGroup: 'Khác',
     customerType: 'B2B',
@@ -130,3 +148,14 @@ export const MOCK_BUSINESSES: BusinessRecord[] = Array.from({ length: 126 }, (_,
 
 export const getBusinessById = (id: number): BusinessRecord | undefined =>
   MOCK_BUSINESSES.find((b) => b.id === id);
+
+/** Danh sách doanh nghiệp unique (theo mã) cho dropdown doanh nghiệp cha */
+export const getParentEnterpriseOptions = (excludeId?: number): BusinessRecord[] => {
+  const seen = new Set<string>();
+  return MOCK_BUSINESSES.filter((b) => {
+    if (excludeId !== undefined && b.id === excludeId) return false;
+    if (seen.has(b.code)) return false;
+    seen.add(b.code);
+    return true;
+  });
+};

@@ -378,7 +378,7 @@ const App: React.FC = () => {
   const [parentLabel, subLabel] = getBreadcrumbLabels();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-100">
+    <div className="flex h-screen w-full min-w-0 overflow-hidden bg-gray-100">
       <Sidebar 
         isOpen={isSidebarOpen} 
         onNavigateRsaDashboard={handleNavigateToRsaDashboard}

@@ -242,7 +242,7 @@ const BusinessManagement: React.FC = () => {
       <div className="border rounded-lg shadow-sm bg-white w-full min-w-0 overflow-hidden">
         <SectionHeader title="Kết quả tìm kiếm" />
         <div className="w-full overflow-x-auto overscroll-x-contain custom-scrollbar">
-          <table className="w-full text-xs border-collapse min-w-[1480px]">
+          <table className="w-full text-xs border-collapse min-w-[1320px]">
             <thead>
               <tr className="bg-gray-50 border-b text-gray-600">
                 <th className="px-3 py-2 text-center w-10 font-bold border-r">STT</th>
@@ -253,10 +253,8 @@ const BusinessManagement: React.FC = () => {
                 <th className="px-3 py-2 text-left font-bold border-r min-w-[160px]">Doanh nghiệp cha</th>
                 <th className="px-3 py-2 text-left font-bold border-r min-w-[180px]">Liên hệ</th>
                 <th className="px-3 py-2 text-left font-bold border-r w-32">Mã số thuế</th>
-                <th className="px-3 py-2 text-left font-bold border-r w-36">Ngày cập nhật</th>
-                <th className="px-3 py-2 text-left font-bold border-r w-28">Người cập nhật</th>
-                <th className="px-3 py-2 text-left font-bold border-r w-36">Ngày tạo</th>
-                <th className="px-3 py-2 text-left font-bold w-28">Người tạo</th>
+                <th className="px-3 py-2 text-left font-bold border-r w-40">Cập nhật</th>
+                <th className="px-3 py-2 text-left font-bold w-40">Tạo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -300,15 +298,19 @@ const BusinessManagement: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-3 py-3 border-r font-mono text-[11px] text-gray-700 align-top">{b.taxId}</td>
-                  <td className="px-3 py-3 border-r text-[11px] text-gray-600 whitespace-nowrap align-top">{b.updatedAt}</td>
-                  <td className="px-3 py-3 border-r text-[11px] text-gray-600 align-top">{b.updatedBy}</td>
-                  <td className="px-3 py-3 border-r text-[11px] text-gray-600 whitespace-nowrap align-top">{b.createdAt}</td>
-                  <td className="px-3 py-3 text-[11px] text-gray-600 align-top">{b.createdBy}</td>
+                  <td className="px-3 py-3 border-r align-top">
+                    <div className="text-[11px] text-gray-600 whitespace-nowrap">{b.updatedAt}</div>
+                    <div className="text-[11px] text-gray-500 mt-1">{b.updatedBy}</div>
+                  </td>
+                  <td className="px-3 py-3 align-top">
+                    <div className="text-[11px] text-gray-600 whitespace-nowrap">{b.createdAt}</div>
+                    <div className="text-[11px] text-gray-500 mt-1">{b.createdBy}</div>
+                  </td>
                 </tr>
               ))}
               {filteredData.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-3 py-8 text-center text-gray-400 text-sm">
+                  <td colSpan={10} className="px-3 py-8 text-center text-gray-400 text-sm">
                     Không tìm thấy dữ liệu phù hợp
                   </td>
                 </tr>
