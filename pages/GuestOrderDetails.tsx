@@ -206,6 +206,12 @@ type AdjustmentRow = {
 
 const parseMoney = (value: string) => parseFloat(value.replace(/,/g, '')) || 0;
 
+const formatMoneyInput = (value: string): string => {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  return parseInt(digits, 10).toLocaleString('en-US');
+};
+
 const applyVatAfterTax = (beforeTax: number, vatPercent: number) =>
   Math.round(beforeTax * (1 + vatPercent / 100));
 
@@ -214,6 +220,94 @@ const applyVatBeforeTax = (afterTax: number, vatPercent: number) =>
 
 const calculateCustomerTotal = (rows: AdjustmentRow[]) =>
   rows.reduce((sum, row) => sum + parseMoney(row.customerPaid), 0);
+
+const applyTotalPriceToRow = (row: AdjustmentRow, totalPrice: number): AdjustmentRow => {
+  const fixed = parseMoney(row.fixedPrice);
+  const coef = parseFloat(row.coefficient) || 0;
+  const diff = fixed * coef - totalPrice;
+
+  return {
+    ...row,
+    totalPrice: totalPrice.toLocaleString('en-US'),
+    customerPaid: Math.round(totalPrice * 0.1).toLocaleString('en-US'),
+    discount: diff.toLocaleString('en-US'),
+  };
+};
+
+const distributeProviderTotalByWeight = (
+  rows: AdjustmentRow[],
+  targetTotal: number
+): AdjustmentRow[] => {
+  if (rows.length === 0) return rows;
+
+  const safeTotal = Math.max(0, targetTotal);
+  const weights = rows.map((row) => parseMoney(row.totalPrice));
+  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
+
+  if (weightSum === 0) {
+    const evenShare = Math.round(safeTotal / rows.length);
+    let allocated = 0;
+
+    return rows.map((row, index) => {
+      const price = index === rows.length - 1 ? safeTotal - allocated : evenShare;
+      if (index !== rows.length - 1) allocated += price;
+      return applyTotalPriceToRow(row, price);
+    });
+  }
+
+  let allocated = 0;
+
+  return rows.map((row, index) => {
+    if (index === rows.length - 1) {
+      return applyTotalPriceToRow(row, safeTotal - allocated);
+    }
+
+    const price = Math.round(safeTotal * (weights[index] / weightSum));
+    allocated += price;
+    return applyTotalPriceToRow(row, price);
+  });
+};
+
+const recalculateRowsFromFixedPrices = (rows: AdjustmentRow[]): AdjustmentRow[] =>
+  rows.map((row) => {
+    const fixed = parseMoney(row.fixedPrice);
+    const coef = parseFloat(row.coefficient) || 1;
+    return applyTotalPriceToRow(row, Math.round(fixed * coef));
+  });
+
+/** Edit one row's Giá NCC; auto-balance another row so sum stays at providerTotal */
+const updateProviderRowPriceWithinTotal = (
+  rows: AdjustmentRow[],
+  editedId: number,
+  rawValue: string,
+  providerTotal: number
+): AdjustmentRow[] => {
+  if (rows.length === 0) return rows;
+
+  const editedIndex = rows.findIndex((row) => row.id === editedId);
+  if (editedIndex === -1) return rows;
+
+  if (rows.length === 1) {
+    return [applyTotalPriceToRow(rows[0], providerTotal)];
+  }
+
+  const balanceIndex = editedIndex === rows.length - 1 ? rows.length - 2 : rows.length - 1;
+  const fixedSum = rows.reduce((sum, row, index) => {
+    if (index === editedIndex || index === balanceIndex) return sum;
+    return sum + parseMoney(row.totalPrice);
+  }, 0);
+
+  const availableForPair = Math.max(0, providerTotal - fixedSum);
+  let editedPrice = Math.max(0, parseMoney(formatMoneyInput(rawValue)));
+  editedPrice = Math.min(editedPrice, availableForPair);
+  const balancePrice = availableForPair - editedPrice;
+
+  return rows.map((row, index) => {
+    if (index === editedIndex) return applyTotalPriceToRow(row, editedPrice);
+    if (index === balanceIndex) return applyTotalPriceToRow(row, balancePrice);
+    return row;
+  });
+};
 
 const computeUpdatedRows = (
   rows: AdjustmentRow[],
@@ -508,8 +602,7 @@ const GuestOrderDetails: React.FC<{
   const [towingCoords, setTowingCoords] = useState('21.01088443501316, 105.82813622447911');
   const [workshopStation, setWorkshopStation] = useState('Carpla Service Thái Bình');
   const [estimatedDistance, setEstimatedDistance] = useState('2.37');
-  const [trackingUrl, setTrackingUrl] = useState('https://dev-customer-rsa.vetc.com.vn/rescue-order?ref=76e45863-22d7-4ffc-b02b-133f76443543');
-  const [trackingCopied, setTrackingCopied] = useState(false);
+  const [roadsideDistance, setRoadsideDistance] = useState('');
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [advancePerson, setAdvancePerson] = useState('');
 
@@ -610,11 +703,16 @@ const GuestOrderDetails: React.FC<{
   };
 
   // Adjustment Coefficients Data state
-  const [adjustmentRows, setAdjustmentRows] = useState([
+  const INITIAL_ADJUSTMENT_ROWS: AdjustmentRow[] = [
     { id: 1, serviceName: 'Xe hết pin ', fixedPrice: '500,000', adjustmentType: 'Đêm', coefficient: '1.2', ceilingPrice: '1,000,000', discount: '0', totalPrice: '600,000', customerPaid: '60,000' },
     { id: 2, serviceName: 'Kích bình ắc quy', fixedPrice: '1,000,000', adjustmentType: '<10km', coefficient: '1.5', ceilingPrice: '3,000,000', discount: '0', totalPrice: '1,500,000', customerPaid: '150,000' },
     { id: 3, serviceName: 'Đâm, tai nạn, lật', fixedPrice: '1,000,000', adjustmentType: 'Cao tốc', coefficient: '1', ceilingPrice: '3,000,000', discount: '0', totalPrice: '1,000,000', customerPaid: '100,000' }
-  ]);
+  ];
+  const [adjustmentRows, setAdjustmentRows] = useState(INITIAL_ADJUSTMENT_ROWS);
+  const [providerTotal, setProviderTotal] = useState(
+    INITIAL_ADJUSTMENT_ROWS.reduce((sum, row) => sum + parseMoney(row.totalPrice), 0)
+  );
+  const [customerTotalOverride, setCustomerTotalOverride] = useState<string | null>(null);
 
   // Map States
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
@@ -678,6 +776,13 @@ const GuestOrderDetails: React.FC<{
       setIsDistanceWarningOpen(true);
     }
   };
+
+  const handleRoadsideDistanceChange = (value: string) => {
+    const normalized = value.replace(',', '.');
+    if (normalized === '' || /^\d*\.?\d*$/.test(normalized)) {
+      setRoadsideDistance(normalized);
+    }
+  };
   const [isStatusUpdateModalOpen, setIsStatusUpdateModalOpen] = useState(false);
   const [currentStatus, setCurrentStatus] = useState('EXECUTE-RESCUING');
   const [ratingHistories, setRatingHistories] = useState(INITIAL_RATING_HISTORIES);
@@ -737,17 +842,27 @@ const GuestOrderDetails: React.FC<{
   // Calculate Max Coefficient for Highlighting
   const maxCoefficient = adjustmentRows.length > 0 ? Math.max(...adjustmentRows.map(r => parseFloat(r.coefficient))) : 0;
 
-  // Calculate total provider price from adjustmentRows
-  const totalProviderPrice = adjustmentRows.reduce((sum, row) => {
-    const price = parseFloat(row.totalPrice.toString().replace(/,/g, '')) || 0;
-    return sum + price;
-  }, 0);
+  // Provider total is master; table Giá NCC is derived from it
+  const displayProviderTotal = providerTotal;
 
   const providerVatValue = parseFloat(vat) || 0;
-  const totalProviderPriceBeforeTax = totalProviderPrice / (1 + providerVatValue / 100);
+  const totalProviderPriceBeforeTax = displayProviderTotal / (1 + providerVatValue / 100);
 
   // Calculate total customer price from adjustmentRows
   const grossCustomerTotal = calculateCustomerTotal(adjustmentRows);
+  const displayGrossCustomerTotal =
+    customerTotalOverride !== null ? parseMoney(customerTotalOverride) : grossCustomerTotal;
+  const customerTotalMismatch =
+    customerTotalOverride !== null && parseMoney(customerTotalOverride) !== grossCustomerTotal;
+
+  const tableTotals = {
+    customerPaid: grossCustomerTotal,
+    totalPrice: providerTotal,
+    discount: adjustmentRows.reduce((sum, row) => {
+      const d = parseMoney(row.discount);
+      return sum + (row.discount.trim().startsWith('-') ? Math.abs(d) : -d);
+    }, 0),
+  };
   const vatRate = parseFloat(vat) || 0;
   const guaranteeRateNum = parseInt(guaranteeRate, 10) || 0;
   const isGuaranteeActive = hasGuarantee === 'yes' && guaranteeRateNum > 0 && !!selectedEnterprise;
@@ -761,8 +876,8 @@ const GuestOrderDetails: React.FC<{
     : parseMoney(enterpriseEstimatedCost);
 
   const individualCustomerPrice = isGuaranteeActive
-    ? Math.round(grossCustomerTotal * ((100 - guaranteeRateNum) / 100))
-    : grossCustomerTotal;
+    ? Math.round(displayGrossCustomerTotal * ((100 - guaranteeRateNum) / 100))
+    : displayGrossCustomerTotal;
 
   const remainingAmount = refundAmount > 0 ? 0 : Math.max(0, individualCustomerPrice - paidAmount);
   const orderPaymentStatus = resolveOrderPaymentStatus(
@@ -775,7 +890,28 @@ const GuestOrderDetails: React.FC<{
 
   const handleStartEditing = () => {
     setEditBaselineTotal(individualCustomerPrice);
+    setCustomerTotalOverride(null);
     setIsEditing(true);
+  };
+
+  const handleProviderTotalChange = (value: string) => {
+    const formatted = formatMoneyInput(value);
+    const newTotal = parseMoney(formatted);
+    setProviderTotal(newTotal);
+    setAdjustmentRows((prev) => distributeProviderTotalByWeight(prev, newTotal));
+    setCustomerTotalOverride(null);
+  };
+
+  const handleCustomerTotalChange = (value: string) => {
+    setCustomerTotalOverride(formatMoneyInput(value));
+  };
+
+  const handleRefreshProviderTotal = () => {
+    const recalculated = recalculateRowsFromFixedPrices(adjustmentRows);
+    const newTotal = recalculated.reduce((sum, row) => sum + parseMoney(row.totalPrice), 0);
+    setProviderTotal(newTotal);
+    setAdjustmentRows(recalculated);
+    setCustomerTotalOverride(null);
   };
 
   const finalizeSave = () => {
@@ -784,6 +920,7 @@ const GuestOrderDetails: React.FC<{
     } else if (individualCustomerPrice >= paidAmount) {
       setRefundAmount(0);
     }
+    setCustomerTotalOverride(null);
     setIsEditing(false);
   };
 
@@ -882,7 +1019,11 @@ const GuestOrderDetails: React.FC<{
       totalPrice: defaultPrice,
       customerPaid: (parseFloat(defaultPrice.replace(/,/g, '')) * 0.1).toLocaleString('en-US')
     };
-    setAdjustmentRows([...adjustmentRows, newRow]);
+    const newProviderTotal = providerTotal + parseMoney(defaultPrice);
+    const withNewRow = [...adjustmentRows, newRow];
+    setProviderTotal(newProviderTotal);
+    setCustomerTotalOverride(null);
+    setAdjustmentRows(distributeProviderTotalByWeight(withNewRow, newProviderTotal));
     setIsServiceModalOpen(false);
   };
 
@@ -937,12 +1078,24 @@ const GuestOrderDetails: React.FC<{
     setIsCancelModalOpen(true);
   };
 
+  const handleProviderPriceChange = (id: number, value: string) => {
+    setCustomerTotalOverride(null);
+    setAdjustmentRows((prev) => updateProviderRowPriceWithinTotal(prev, id, value, providerTotal));
+  };
+
   const handleRemoveAdjustmentRow = (id: number) => {
     if (!isEditing) return;
-    setAdjustmentRows(adjustmentRows.filter(row => row.id !== id));
+    const removedRow = adjustmentRows.find((row) => row.id === id);
+    const remaining = adjustmentRows.filter((row) => row.id !== id);
+    const newProviderTotal = Math.max(0, providerTotal - (removedRow ? parseMoney(removedRow.totalPrice) : 0));
+    setProviderTotal(newProviderTotal);
+    setCustomerTotalOverride(null);
+    setAdjustmentRows(distributeProviderTotalByWeight(remaining, newProviderTotal));
   };
 
   const handleAdjustmentChange = (id: number, field: string, value: string) => {
+    if (field === 'totalPrice') return;
+    setCustomerTotalOverride(null);
     setAdjustmentRows(computeUpdatedRows(adjustmentRows, id, field, value));
   };
 
@@ -1338,13 +1491,13 @@ const GuestOrderDetails: React.FC<{
                     </div>
                   </div>
                 </div>
-                {/* Vị trí sự cố - compact row */}
+                {/* Vị trí sự cố */}
                 <div className="lg:col-span-4">
-                  <Label required>Vị trí sự cố</Label>
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1 max-w-[55%]">
-                      <div className="flex space-x-2">
-                        <div className="relative flex-1 text-left">
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 items-end">
+                    <div className="lg:col-span-2">
+                      <Label required>Vị trí sự cố</Label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1 min-w-0 text-left">
                           <input
                               readOnly
                               value={mapAddress}
@@ -1362,11 +1515,11 @@ const GuestOrderDetails: React.FC<{
                         </button>
                       </div>
                     </div>
-                    <div className="w-[170px]">
+                    <div className="lg:col-span-1">
                       <Label>Lat</Label>
                       <Input value={mapCoords.split(',')[0].trim()} readOnly />
                     </div>
-                    <div className="w-[170px]">
+                    <div className="lg:col-span-1">
                       <Label>Long</Label>
                       <div className="flex items-center space-x-2">
                         <Input value={mapCoords.split(',')[1]?.trim() || ''} readOnly />
@@ -1387,9 +1540,9 @@ const GuestOrderDetails: React.FC<{
                 </div>
 
                 {/* Điểm xưởng */}
-                <div className="lg:col-span-4">
+                <div className="lg:col-span-1">
                   <Label>Điểm xưởng</Label>
-                  <div className="w-full relative">
+                  <div className="relative">
                     <select
                         value={workshopStation}
                         disabled={!isEditing}
@@ -1407,11 +1560,11 @@ const GuestOrderDetails: React.FC<{
 
                 {/* Điểm kéo về */}
                 <div className="lg:col-span-4">
-                  <Label>Điểm kéo về</Label>
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1 max-w-[55%]">
-                      <div className="flex space-x-2">
-                        <div className="relative flex-1 text-left">
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 items-end">
+                    <div className="lg:col-span-2">
+                      <Label>Điểm kéo xe về</Label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1 min-w-0 text-left">
                           <input
                               readOnly={!isEditing}
                               value={towingDestination}
@@ -1429,11 +1582,11 @@ const GuestOrderDetails: React.FC<{
                         </button>
                       </div>
                     </div>
-                    <div className="w-[170px]">
+                    <div className="lg:col-span-1">
                       <Label>Lat</Label>
                       <Input value={towingCoords.split(',')[0].trim()} readOnly />
                     </div>
-                    <div className="w-[170px]">
+                    <div className="lg:col-span-1">
                       <Label>Long</Label>
                       <div className="flex items-center space-x-2">
                         <Input value={towingCoords.split(',')[1]?.trim() || ''} readOnly />
@@ -1451,8 +1604,8 @@ const GuestOrderDetails: React.FC<{
                   </div>
                 </div>
 
-                {/* Khoảng cách + Trang theo dõi */}
-                <div>
+                {/* Khoảng cách & vị trí mặt đường */}
+                <div className="lg:col-span-2">
                   <Label>Khoảng cách (Ước tính)</Label>
                   <div className="flex items-center space-x-2">
                     <div className="relative flex-1">
@@ -1478,88 +1631,89 @@ const GuestOrderDetails: React.FC<{
                     </button>
                   )}
                 </div>
-                <div className="lg:col-span-2">
-                  <Label required>Trang theo dõi cứu hộ</Label>
-                  <div className="flex items-center space-x-2 bg-gray-50 border rounded px-3 py-1.5">
-                    <span className="text-xs text-blue-600 font-medium truncate flex-1">{trackingUrl}</span>
-                    <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(trackingUrl);
-                          setTrackingCopied(true);
-                          setTimeout(() => setTrackingCopied(false), 2000);
-                        }}
-                        className={`${trackingCopied ? 'text-vetc-green' : 'text-gray-400'} hover:text-vetc-green transition-colors active:scale-90 flex items-center space-x-1 shrink-0`}
-                        title="Copy link"
-                    >
-                      {trackingCopied ? <span className="text-[10px] font-bold">Đã sao chép!</span> : <Copy size={14} />}
-                    </button>
-                  </div>
-                </div>
-                <div className="lg:col-span-1"></div>
 
-                <div className="lg:col-span-1">
-                  <Label>Loại vị trí</Label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {['Vùng núi', 'Cao tốc', 'Đô thị'].map((type) => (
-                        <button
-                            key={type}
-                            disabled={!isEditing}
-                            onClick={() => setLocationType(type)}
-                            className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                                locationType === type
-                                    ? 'bg-vetc-green text-white border-vetc-green shadow-md'
-                                    : 'bg-white text-gray-600 border-gray-200 hover:border-vetc-green hover:bg-green-50'
-                            } ${!isEditing ? 'opacity-60 cursor-not-allowed hover:border-gray-200 hover:bg-white' : 'active:scale-95'}`}
-                        >
-                          {type}
-                        </button>
-                    ))}
+                <div className="lg:col-span-2">
+                  <Label>Vị trí với mặt đường</Label>
+                  <div className="flex items-center space-x-2 max-w-xs">
+                    <Input
+                      value={roadsideDistance}
+                      onChange={handleRoadsideDistanceChange}
+                      readOnly={!isEditing}
+                      placeholder="0"
+                      className="text-right"
+                    />
+                    <span className="text-[10px] text-gray-400 font-bold uppercase shrink-0">Mét</span>
                   </div>
                 </div>
-                <div className="lg:col-span-1">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase whitespace-nowrap">Mức độ nghiêm trọng</label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {[
-                      { label: 'Nhẹ', color: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300', activeColor: 'bg-green-600 text-white border-green-600 shadow-md' },
-                      { label: 'Mắc kẹt', color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300', activeColor: 'bg-amber-500 text-white border-amber-500 shadow-md' },
-                      { label: 'Nguy hiểm', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300', activeColor: 'bg-red-600 text-white border-red-600 shadow-md' }
-                    ].map((level) => (
-                        <button
-                            key={level.label}
-                            disabled={!isEditing}
-                            onClick={() => setSeverityLevel(level.label)}
-                            className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                                severityLevel === level.label
-                                    ? level.activeColor
-                                    : level.color
-                            } ${!isEditing ? 'opacity-60 cursor-not-allowed hover:border-gray-200 hover:bg-white' : 'active:scale-95'}`}
-                        >
-                          {level.label}
-                        </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="lg:col-span-1">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase whitespace-nowrap">Thời tiết</label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {[
-                      { label: 'Bình thường', color: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300', activeColor: 'bg-green-600 text-white border-green-600 shadow-md' },
-                      { label: 'Mưa bão', color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300', activeColor: 'bg-amber-500 text-white border-amber-500 shadow-md' },
-                      { label: 'Thiên tai', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300', activeColor: 'bg-red-600 text-white border-red-600 shadow-md' }
-                    ].map((level) => (
-                        <button
-                            key={level.label}
-                            disabled={!isEditing}
-                            onClick={() => setWeather(level.label)}
-                            className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                                weather === level.label
-                                    ? level.activeColor
-                                    : level.color
-                            } ${!isEditing ? 'opacity-60 cursor-not-allowed hover:border-gray-200 hover:bg-white' : 'active:scale-95'}`}
-                        >
-                          {level.label}
-                        </button>
-                    ))}
+
+                {/* Loại vị trí / Mức độ / Thời tiết — 1 dòng */}
+                <div className="lg:col-span-4 pt-4 border-t border-gray-100">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-6 gap-y-4">
+                    <div>
+                      <Label>Loại vị trí</Label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {['Vùng núi', 'Cao tốc', 'Đô thị'].map((type) => (
+                            <button
+                                key={type}
+                                disabled={!isEditing}
+                                onClick={() => setLocationType(type)}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                    locationType === type
+                                        ? 'bg-vetc-green text-white border-vetc-green shadow-md'
+                                        : 'bg-white text-gray-600 border-gray-200 hover:border-vetc-green hover:bg-green-50'
+                                } ${!isEditing ? 'opacity-60 cursor-not-allowed hover:border-gray-200 hover:bg-white' : 'active:scale-95'}`}
+                            >
+                              {type}
+                            </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Mức độ nghiêm trọng</Label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {[
+                          { label: 'Nhẹ', color: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300', activeColor: 'bg-green-600 text-white border-green-600 shadow-md' },
+                          { label: 'Mắc kẹt', color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300', activeColor: 'bg-amber-500 text-white border-amber-500 shadow-md' },
+                          { label: 'Nguy hiểm', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300', activeColor: 'bg-red-600 text-white border-red-600 shadow-md' }
+                        ].map((level) => (
+                            <button
+                                key={level.label}
+                                disabled={!isEditing}
+                                onClick={() => setSeverityLevel(level.label)}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                    severityLevel === level.label
+                                        ? level.activeColor
+                                        : level.color
+                                } ${!isEditing ? 'opacity-60 cursor-not-allowed hover:border-gray-200 hover:bg-white' : 'active:scale-95'}`}
+                            >
+                              {level.label}
+                            </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Thời tiết</Label>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {[
+                          { label: 'Bình thường', color: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300', activeColor: 'bg-green-600 text-white border-green-600 shadow-md' },
+                          { label: 'Mưa bão', color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300', activeColor: 'bg-amber-500 text-white border-amber-500 shadow-md' },
+                          { label: 'Thiên tai', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300', activeColor: 'bg-red-600 text-white border-red-600 shadow-md' }
+                        ].map((level) => (
+                            <button
+                                key={level.label}
+                                disabled={!isEditing}
+                                onClick={() => setWeather(level.label)}
+                                className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                                    weather === level.label
+                                        ? level.activeColor
+                                        : level.color
+                                } ${!isEditing ? 'opacity-60 cursor-not-allowed hover:border-gray-200 hover:bg-white' : 'active:scale-95'}`}
+                            >
+                              {level.label}
+                            </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1588,7 +1742,7 @@ const GuestOrderDetails: React.FC<{
                   </div>
                 </div>
 
-                <div className="lg:col-span-4">
+                <div className="lg:col-span-4 hidden">
                   <label className="text-[10px] font-bold text-gray-500 uppercase flex items-center mb-2">
                     <MessageSquare size={14} className="mr-1.5 text-amber-600" /> Ghi chú điều phối (Auto-AI)</label>
                   <div className={`rounded-xl border-2 p-3 min-h-[200px] text-[11px] font-bold leading-relaxed transition-all ${
@@ -1725,9 +1879,9 @@ const GuestOrderDetails: React.FC<{
                     />
                   </div>
 
-                  <div className="min-w-0">
+                  <div className="min-w-0 max-w-xs">
                     <Label>Điểm xưởng</Label>
-                    <div className="relative w-full">
+                    <div className="relative">
                       <select
                           value={workshopStation}
                           disabled={!isEditing}
@@ -1814,12 +1968,16 @@ const GuestOrderDetails: React.FC<{
                       <Label>Tổng thanh toán (Sau thuế)</Label>
                       <div className="flex gap-2">
                         <Input
-                            value={totalProviderPrice.toLocaleString('en-US')}
+                            value={displayProviderTotal.toLocaleString('en-US')}
+                            onChange={handleProviderTotalChange}
                             readOnly={!isEditing}
                             className="flex-1 min-w-0 font-black text-red-600 text-right bg-red-50"
                         />
                         <button
+                            type="button"
                             disabled={!isEditing}
+                            onClick={handleRefreshProviderTotal}
+                            title="Tính lại theo giá cố định × hệ số"
                             className={`shrink-0 bg-green-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center transition-all hover:bg-green-700 active:scale-95 ${!isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <RefreshCw size={12} />
@@ -1864,10 +2022,20 @@ const GuestOrderDetails: React.FC<{
                       <div className="min-w-0">
                         <Label>Tổng thanh toán (Sau thuế)</Label>
                         <Input
-                            value={individualCustomerPrice.toLocaleString('en-US')}
-                            readOnly
-                            className="w-full font-black text-red-600 text-right bg-red-50"
+                            value={
+                              customerTotalOverride !== null
+                                ? customerTotalOverride
+                                : displayGrossCustomerTotal.toLocaleString('en-US')
+                            }
+                            onChange={handleCustomerTotalChange}
+                            readOnly={!isEditing}
+                            className={`w-full font-black text-red-600 text-right bg-red-50 ${customerTotalMismatch ? 'border-red-400 ring-1 ring-red-200' : ''}`}
                         />
+                        {customerTotalMismatch && isEditing && (
+                          <p className="text-[9px] text-red-600 font-medium mt-1">
+                            Tổng KH trả phí trong bảng ({grossCustomerTotal.toLocaleString('en-US')}) chưa khớp
+                          </p>
+                        )}
                       </div>
                       <div className="hidden lg:block" aria-hidden="true" />
                     </div>
@@ -2023,9 +2191,9 @@ const GuestOrderDetails: React.FC<{
                                 <td className="p-2 border text-right font-medium">
                                   <Input
                                       value={row.totalPrice}
-                                      onChange={(val) => handleAdjustmentChange(row.id, 'totalPrice', val)}
-                                      readOnly={!isEditing}
-                                      className="text-right font-bold text-gray-800"
+                                      onChange={(val) => handleProviderPriceChange(row.id, val)}
+                                      readOnly={!isEditing || adjustmentRows.length === 1}
+                                      className={`text-right font-bold text-gray-800 ${!isEditing || adjustmentRows.length === 1 ? 'bg-gray-50' : ''}`}
                                   />
                                 </td>
                                 <td className="p-2 border text-right font-medium">
@@ -2077,6 +2245,33 @@ const GuestOrderDetails: React.FC<{
                           );
                         })}
                         </tbody>
+                        <tfoot>
+                        <tr className="bg-gray-50 border-t-2 border-gray-300 font-bold">
+                          <td className="p-2 border text-center" colSpan={2}>
+                            <span className="text-[10px] uppercase tracking-wider text-gray-600">Tổng cộng</span>
+                          </td>
+                          <td className="p-2 border text-right text-blue-600">
+                            {tableTotals.customerPaid.toLocaleString('en-US')}
+                          </td>
+                          <td className="p-2 border text-right text-gray-800">
+                            {tableTotals.totalPrice.toLocaleString('en-US')}
+                          </td>
+                          <td className={`p-2 border text-right ${
+                            tableTotals.discount > 0
+                              ? 'text-green-600'
+                              : tableTotals.discount < 0
+                                ? 'text-red-600'
+                                : 'text-gray-500'
+                          }`}>
+                            {tableTotals.discount === 0
+                              ? '0'
+                              : tableTotals.discount > 0
+                                ? `-${Math.abs(tableTotals.discount).toLocaleString('en-US')}`
+                                : `+${Math.abs(tableTotals.discount).toLocaleString('en-US')}`}
+                          </td>
+                          <td className="p-2 border" colSpan={4} />
+                        </tr>
+                        </tfoot>
                       </table>
                     </div>
                     <div className="flex justify-end pt-2">
