@@ -440,6 +440,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
                               {tag}
                             </span>
                           ))}
+                          {order.isFlooded && <FloodWarningBadge compact />}
                         </div>
                         <span className="block text-[9px] text-gray-400 font-medium">{order.dispatchType}</span>
                       </div>
@@ -502,7 +503,6 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
                           <PriorityCustomerBadge compact />
                         )}
                         {order.hasOrderWarning && <OrderWarningBadge compact />}
-                        {order.isFlooded && <FloodWarningBadge compact />}
                       </div>
                     </td>
                     <td className="px-3 py-3 border-r max-w-[8rem]">
