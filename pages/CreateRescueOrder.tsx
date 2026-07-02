@@ -27,6 +27,7 @@ import RescueHistoryModal from '../shared/RescueHistoryModal';
 import UsageHistoryModal from '../shared/UsageHistoryModal';
 import DuplicateRescueWarningModal from '../shared/DuplicateRescueWarningModal';
 import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
+import { FloodWarningBadge } from '../shared/OrderAlertBadges';
 import { isPriorityCustomerPhone, normalizePhone } from '../shared/priorityCustomer';
 import {analyzeIncident} from '../data/aiDataMock';
 
@@ -461,12 +462,15 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
                 <div className="flex items-center space-x-2">
                   <label className="w-36 text-[10px] font-bold text-gray-500 uppercase shrink-0">Vị trí sự cố <span className="text-red-500">*</span></label>
                   <div className="flex-1 flex items-center space-x-2 overflow-x-auto custom-scrollbar pb-1">
-                    <input 
-                      value={data.assistance.address} 
-                      onChange={(e) => onUpdateAssistance({ address: e.target.value })} 
-                      className="w-[600px] border rounded px-2 py-1.5 text-xs font-medium shrink-0"
-                      placeholder="Vị trí sự cố"
-                    />
+                    <div className="relative w-[600px] shrink-0">
+                      <input 
+                        value={data.assistance.address} 
+                        onChange={(e) => onUpdateAssistance({ address: e.target.value })} 
+                        className="w-full border rounded px-2 py-1.5 pr-24 text-xs font-medium"
+                        placeholder="Vị trí sự cố"
+                      />
+                      <FloodWarningBadge compact className="absolute right-2 top-1/2 -translate-y-1/2" />
+                    </div>
                     <button onClick={() => setIsMapModalOpen(true)} className="bg-vetc-green text-white px-4 py-1.5 rounded text-[11px] font-bold flex items-center justify-center hover:bg-green-700 transition-all active:scale-95 shadow-sm shrink-0" title="Bản đồ">
                       <MapPin size={14} />
                       <span>&nbsp;Bản đồ</span>
@@ -524,12 +528,15 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
                 <div className="flex items-center space-x-2">
                   <label className="w-36 text-[10px] font-bold text-gray-500 uppercase shrink-0">Điểm kéo về</label>
                   <div className="flex-1 flex items-center space-x-2 overflow-x-auto custom-scrollbar pb-1">
-                    <input
-                        value={towingDestination}
-                        onChange={(e) => setTowingDestination(e.target.value)}
-                        className="w-[600px] border rounded px-2 py-1.5 text-xs font-medium shrink-0"
-                        placeholder="Địa chỉ điểm kéo về"
-                    />
+                    <div className="relative w-[600px] shrink-0">
+                      <input
+                          value={towingDestination}
+                          onChange={(e) => setTowingDestination(e.target.value)}
+                          className="w-full border rounded px-2 py-1.5 pr-24 text-xs font-medium"
+                          placeholder="Địa chỉ điểm kéo về"
+                      />
+                      <FloodWarningBadge compact className="absolute right-2 top-1/2 -translate-y-1/2" />
+                    </div>
                     <button onClick={() => setIsMapModalOpen(true)} className="bg-vetc-green text-white px-4 py-1.5 rounded text-[11px] font-bold flex items-center justify-center hover:bg-green-700 transition-all active:scale-95 shadow-sm shrink-0" title="Bản đồ">
                       <MapPin size={14} />
                       <span>&nbsp;Bản đồ</span>

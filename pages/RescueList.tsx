@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Timer, CheckCircle2, XCircle, Clock, ChevronRight, AlertCircle, Edit3, ArrowLeft, Maximize2, Search, X, Compass, MessageSquareQuote, RotateCcw, Bell } from 'lucide-react';
 import { RescueUnit, FormData } from '../types';
 import NotificationModal, { NotificationRecipient } from '../components/NotificationModal';
+import { OverloadBadge } from '../shared/OrderAlertBadges';
 
 interface RescueListProps {
   data: FormData;
@@ -23,7 +24,8 @@ const mockUnits: RescueUnit[] = [
     address: 'Phường Việt Hưng, Hà Nội, 11810, Việt Nam',
     contact1: 'LÊ VŨ LONG - 1900998865',
     contact2: 'Mr. Hoàn - 936499296',
-    vehicleType: '<= 1.4 tấn'
+    vehicleType: '<= 1.4 tấn',
+    overloaded: true
   },
   {
     id: '2',
@@ -47,7 +49,8 @@ const mockUnits: RescueUnit[] = [
     address: 'Quận Ba Đình, Hà Nội',
     contact1: 'NGUYỄN ANH DŨNG - 0988888888',
     contact2: 'CSKH - 0988111222',
-    vehicleType: '<= 1.4 tấn'
+    vehicleType: '<= 1.4 tấn',
+    overloaded: true
   },
   {
     id: '4',
@@ -232,7 +235,10 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
                   {unit.contact1}
                 </td>
                 <td className="px-4 py-4">
-                  {getStatusBadge(unit.status)}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {getStatusBadge(unit.status)}
+                    {unit.overloaded && <OverloadBadge compact />}
+                  </div>
                 </td>
                 <td className="px-4 py-4 text-center font-medium text-gray-600">
                   {unit.distance} km

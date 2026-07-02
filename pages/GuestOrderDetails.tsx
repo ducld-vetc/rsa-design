@@ -70,6 +70,7 @@ import StatusUpdateModal, { STATUS_OPTIONS } from '../shared/StatusUpdateModal';
 import DetailedRatingCard from '../shared/DetailedRatingCard';
 import RatingHistoryModal from '../shared/RatingHistoryModal';
 import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
+import { OrderWarningBadge, FloodWarningBadge } from '../shared/OrderAlertBadges';
 import { isPriorityCustomerPhone } from '../shared/priorityCustomer';
 import { RatingType, RATING_TYPE_LABELS } from '../shared/ratingTypes';
 import { INITIAL_RATING_HISTORIES, RATING_DEMO_CASES } from '../data/ratingMockData';
@@ -1193,6 +1194,8 @@ const GuestOrderDetails: React.FC<{
 
   const customerPhone = mockFormData.customer.phone;
   const isPriorityCustomer = isPriorityCustomerPhone(customerPhone);
+  const hasOrderWarning = true;
+  const isFloodedArea = true;
 
   return (
       <div className="space-y-6 animate-in fade-in duration-700 max-w-[1600px] mx-auto pb-20">
@@ -1209,6 +1212,8 @@ const GuestOrderDetails: React.FC<{
                     {selectedPackage === 'Không có' ? 'Đơn Lẻ' : 'Đơn gói'}
                   </span>
                   {isPriorityCustomer && <PriorityCustomerBadge />}
+                  {hasOrderWarning && <OrderWarningBadge />}
+                  {isFloodedArea && <FloodWarningBadge />}
                 </div>
               </div>
 
@@ -1495,7 +1500,10 @@ const GuestOrderDetails: React.FC<{
                 <div className="lg:col-span-4">
                   <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 items-end">
                     <div className="lg:col-span-2">
-                      <Label required>Vị trí sự cố</Label>
+                      <div className="flex items-center gap-2">
+                        <Label required>Vị trí sự cố</Label>
+                        {isFloodedArea && <FloodWarningBadge compact />}
+                      </div>
                       <div className="flex gap-2">
                         <div className="relative flex-1 min-w-0 text-left">
                           <input
@@ -1562,7 +1570,10 @@ const GuestOrderDetails: React.FC<{
                 <div className="lg:col-span-4">
                   <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 items-end">
                     <div className="lg:col-span-2">
-                      <Label>Điểm kéo xe về</Label>
+                      <div className="flex items-center gap-2">
+                        <Label>Điểm kéo xe về</Label>
+                        {isFloodedArea && <FloodWarningBadge compact />}
+                      </div>
                       <div className="flex gap-2">
                         <div className="relative flex-1 min-w-0 text-left">
                           <input
@@ -1697,6 +1708,7 @@ const GuestOrderDetails: React.FC<{
                         {[
                           { label: 'Bình thường', color: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300', activeColor: 'bg-green-600 text-white border-green-600 shadow-md' },
                           { label: 'Mưa bão', color: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300', activeColor: 'bg-amber-500 text-white border-amber-500 shadow-md' },
+                          { label: 'Ngập lụt', color: 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100 hover:border-sky-300', activeColor: 'bg-sky-600 text-white border-sky-600 shadow-md' },
                           { label: 'Thiên tai', color: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300', activeColor: 'bg-red-600 text-white border-red-600 shadow-md' }
                         ].map((level) => (
                             <button

@@ -12,6 +12,7 @@ import {
   Pin
 } from 'lucide-react';
 import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
+import { OrderWarningBadge, FloodWarningBadge } from '../shared/OrderAlertBadges';
 import { isPriorityCustomerPhone } from '../shared/priorityCustomer';
 
 interface OrderManagementProps {
@@ -55,6 +56,8 @@ type OrderRow = {
   updatedAt: string;
   updatedBy: string;
   packageUsage?: { packageName: string; used: number; limit: number };
+  hasOrderWarning?: boolean;
+  isFlooded?: boolean;
 };
 
 const PAYMENT_STATUS_CONFIG: Record<OrderPaymentStatus, { label: string; className: string }> = {
@@ -130,7 +133,8 @@ const MOCK_ORDERS: OrderRow[] = [
     partner: 'Cứu hộ ABC',
     driver: { name: '-', phone: '-' },
     updatedAt: '02/02/2026 12:00',
-    updatedBy: 'QuynhOSA'
+    updatedBy: 'QuynhOSA',
+    hasOrderWarning: true
   },
   {
     id: '1',
@@ -149,7 +153,9 @@ const MOCK_ORDERS: OrderRow[] = [
     partner: 'CARPLA - CARPLA SERVICE',
     driver: { name: 'Nguyễn Văn Tài', phone: '0911222333' },
     updatedAt: '02/02/2026 14:30',
-    updatedBy: 'rsa_test1'
+    updatedBy: 'rsa_test1',
+    hasOrderWarning: true,
+    isFlooded: true
   },
   {
     id: '2',
@@ -168,7 +174,8 @@ const MOCK_ORDERS: OrderRow[] = [
     partner: 'Cứu hộ 116 Hà Nội',
     driver: { name: 'Trần Minh Quang', phone: '0988777666' },
     updatedAt: '02/02/2026 14:25',
-    updatedBy: 'hieund2'
+    updatedBy: 'hieund2',
+    isFlooded: true
   },
   {
     id: '5',
@@ -494,6 +501,8 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
                         {isPriorityCustomerPhone(order.customer.phone) && (
                           <PriorityCustomerBadge compact />
                         )}
+                        {order.hasOrderWarning && <OrderWarningBadge compact />}
+                        {order.isFlooded && <FloodWarningBadge compact />}
                       </div>
                     </td>
                     <td className="px-3 py-3 border-r max-w-[8rem]">
