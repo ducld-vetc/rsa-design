@@ -26,6 +26,8 @@ import PricingPolicyCreate from './pages/PricingPolicyCreate';
 import BusinessManagement from './pages/BusinessManagement';
 import BusinessForm from './pages/BusinessForm';
 import PackagePurchaseManagement from './pages/PackagePurchaseManagement';
+import PaymentRequestManagement from './pages/PaymentRequestManagement';
+import PaymentRequestDetail from './pages/PaymentRequestDetail';
 
 const initialData: FormData = {
   orderId: '',
@@ -88,6 +90,7 @@ const App: React.FC = () => {
   // Helper to map URL path to Step enum for Sidebar/Stepper compatibility
   const getStepFromPath = (path: string): Step => {
     if (path.includes('/pricing-policy')) return Step.PRICING_POLICY;
+    if (path.includes('/payment-request-management')) return Step.PAYMENT_REQUEST_MANAGEMENT;
     if (path.includes('/package-purchase-management')) return Step.PACKAGE_PURCHASE_MANAGEMENT;
     if (path.includes('/business-management')) return Step.BUSINESS_MANAGEMENT;
     if (path.includes('/rsa-dashboard')) return Step.RSA_DASHBOARD;
@@ -282,6 +285,7 @@ const App: React.FC = () => {
   const handleNavigateToPricingPolicy = () => navigate('/pricing-policy');
   const handleNavigateToBusinessManagement = () => navigate('/business-management');
   const handleNavigateToPackagePurchaseManagement = () => navigate('/package-purchase-management');
+  const handleNavigateToPaymentRequestManagement = () => navigate('/payment-request-management');
   const handleViewDetails = (orderId: string) => {
     navigate('/details');
   };
@@ -356,6 +360,7 @@ const App: React.FC = () => {
     Step.PRICING_POLICY,
     Step.BUSINESS_MANAGEMENT,
     Step.PACKAGE_PURCHASE_MANAGEMENT,
+    Step.PAYMENT_REQUEST_MANAGEMENT,
   ];
   
   const isStepperVisible = !hideStepperSteps.includes(currentStep);
@@ -379,10 +384,16 @@ const App: React.FC = () => {
     if (currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT) {
       return ['Quản trị hệ thống', 'Quản lý mua gói'];
     }
+    if (currentStep === Step.PAYMENT_REQUEST_MANAGEMENT) {
+      if (location.pathname.includes('/payment-request-management/')) {
+        return ['Quản trị hệ thống', 'Quản lý thanh toán', 'Tạo đề nghị thanh toán'];
+      }
+      return ['Quản trị hệ thống', 'Quản lý thanh toán', 'Đề nghị thanh toán'];
+    }
     return ['Chăm sóc khách hàng', 'Tạo đơn cứu hộ'];
   };
 
-  const [parentLabel, subLabel] = getBreadcrumbLabels();
+  const breadcrumbLabels = getBreadcrumbLabels();
 
   return (
     <div className="flex h-screen w-full min-w-0 overflow-hidden bg-gray-100">
@@ -401,6 +412,7 @@ const App: React.FC = () => {
         onNavigatePricingPolicy={handleNavigateToPricingPolicy}
         onNavigateBusinessManagement={handleNavigateToBusinessManagement}
         onNavigatePackagePurchaseManagement={handleNavigateToPackagePurchaseManagement}
+        onNavigatePaymentRequestManagement={handleNavigateToPaymentRequestManagement}
         currentStep={currentStep}
       />
 
@@ -418,10 +430,12 @@ const App: React.FC = () => {
                 <Home size={16} className="shrink-0" />
                 <ChevronRight size={14} className="shrink-0" />
                 <span>Trang chủ</span>
-                <ChevronRight size={14} className="shrink-0" />
-                <span>{parentLabel}</span>
-                <ChevronRight size={14} className="shrink-0" />
-                <span className="min-w-0">{subLabel}</span>
+                {breadcrumbLabels.map((label) => (
+                  <React.Fragment key={label}>
+                    <ChevronRight size={14} className="shrink-0" />
+                    <span className="min-w-0">{label}</span>
+                  </React.Fragment>
+                ))}
               </div>
               <div className="flex items-center flex-wrap gap-x-4 gap-y-1 shrink-0">
                 <span className="font-bold">rsa_test1</span>
@@ -542,6 +556,12 @@ const App: React.FC = () => {
                 } />
                 <Route path="/package-purchase-management" element={
                   <PackagePurchaseManagement />
+                } />
+                <Route path="/payment-request-management" element={
+                  <PaymentRequestManagement />
+                } />
+                <Route path="/payment-request-management/:orderId" element={
+                  <PaymentRequestDetail />
                 } />
               </Routes>
               </div>

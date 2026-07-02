@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package } from 'lucide-react';
+import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText } from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
@@ -18,6 +18,7 @@ interface SidebarProps {
   onNavigatePricingPolicy: () => void;
   onNavigateBusinessManagement: () => void;
   onNavigatePackagePurchaseManagement: () => void;
+  onNavigatePaymentRequestManagement: () => void;
   currentStep: Step;
 }
 
@@ -36,9 +37,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigatePricingPolicy,
   onNavigateBusinessManagement,
   onNavigatePackagePurchaseManagement,
+  onNavigatePaymentRequestManagement,
   currentStep 
 }) => {
-  const [openMenus, setOpenMenus] = useState<string[]>(['admin', 'cskh', 'rescue', 'station']);
+  const [openMenus, setOpenMenus] = useState<string[]>(['admin', 'payment', 'cskh', 'rescue', 'station']);
 
   if (!isOpen) return null;
 
@@ -100,6 +102,29 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Package size={14} />
                 <span>Quản lý mua gói</span>
+              </div>
+              <div>
+                <div
+                  onClick={() => toggleMenu('payment')}
+                  className="flex items-center justify-between text-sm p-2 rounded cursor-pointer text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Wallet size={14} />
+                    <span>Quản lý thanh toán</span>
+                  </div>
+                  <ChevronDown size={12} className={`transition-transform duration-200 ${isMenuOpen('payment') ? 'rotate-180' : ''}`} />
+                </div>
+                {isMenuOpen('payment') && (
+                  <div className="ml-4 mt-1 space-y-1">
+                    <div
+                      onClick={onNavigatePaymentRequestManagement}
+                      className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.PAYMENT_REQUEST_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <FileText size={14} />
+                      <span>Đề nghị thanh toán</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

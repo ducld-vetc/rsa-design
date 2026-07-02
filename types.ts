@@ -104,6 +104,7 @@ export enum Step {
   PRICING_POLICY = 40,
   BUSINESS_MANAGEMENT = 41,
   PACKAGE_PURCHASE_MANAGEMENT = 42,
+  PAYMENT_REQUEST_MANAGEMENT = 43,
 }
 
 export interface MonitoringOrder {
