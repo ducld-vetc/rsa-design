@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText } from 'lucide-react';
+import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin } from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
@@ -19,6 +19,7 @@ interface SidebarProps {
   onNavigateBusinessManagement: () => void;
   onNavigatePackagePurchaseManagement: () => void;
   onNavigatePaymentRequestManagement: () => void;
+  onNavigateLocationSearch: () => void;
   currentStep: Step;
 }
 
@@ -38,6 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigateBusinessManagement,
   onNavigatePackagePurchaseManagement,
   onNavigatePaymentRequestManagement,
+  onNavigateLocationSearch,
   currentStep 
 }) => {
   const [openMenus, setOpenMenus] = useState<string[]>(['admin', 'payment', 'cskh', 'rescue', 'station']);
@@ -157,6 +159,13 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 <ClipboardList size={14} />
                 <span>Quản lý đơn hàng</span>
+              </div>
+              <div 
+                onClick={onNavigateLocationSearch}
+                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.LOCATION_SEARCH ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                <MapPin size={14} />
+                <span>Tìm kiếm vị trí</span>
               </div>
             </div>
           )}

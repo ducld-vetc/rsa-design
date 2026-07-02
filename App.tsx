@@ -28,6 +28,7 @@ import BusinessForm from './pages/BusinessForm';
 import PackagePurchaseManagement from './pages/PackagePurchaseManagement';
 import PaymentRequestManagement from './pages/PaymentRequestManagement';
 import PaymentRequestDetail from './pages/PaymentRequestDetail';
+import LocationSearch from './pages/LocationSearch';
 
 const initialData: FormData = {
   orderId: '',
@@ -89,6 +90,7 @@ const App: React.FC = () => {
 
   // Helper to map URL path to Step enum for Sidebar/Stepper compatibility
   const getStepFromPath = (path: string): Step => {
+    if (path.includes('/location-search')) return Step.LOCATION_SEARCH;
     if (path.includes('/pricing-policy')) return Step.PRICING_POLICY;
     if (path.includes('/payment-request-management')) return Step.PAYMENT_REQUEST_MANAGEMENT;
     if (path.includes('/package-purchase-management')) return Step.PACKAGE_PURCHASE_MANAGEMENT;
@@ -286,6 +288,7 @@ const App: React.FC = () => {
   const handleNavigateToBusinessManagement = () => navigate('/business-management');
   const handleNavigateToPackagePurchaseManagement = () => navigate('/package-purchase-management');
   const handleNavigateToPaymentRequestManagement = () => navigate('/payment-request-management');
+  const handleNavigateToLocationSearch = () => navigate('/location-search');
   const handleViewDetails = (orderId: string) => {
     navigate('/details');
   };
@@ -361,6 +364,7 @@ const App: React.FC = () => {
     Step.BUSINESS_MANAGEMENT,
     Step.PACKAGE_PURCHASE_MANAGEMENT,
     Step.PAYMENT_REQUEST_MANAGEMENT,
+    Step.LOCATION_SEARCH,
   ];
   
   const isStepperVisible = !hideStepperSteps.includes(currentStep);
@@ -383,6 +387,9 @@ const App: React.FC = () => {
     }
     if (currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT) {
       return ['Quản trị hệ thống', 'Quản lý mua gói'];
+    }
+    if (currentStep === Step.LOCATION_SEARCH) {
+      return ['Chăm sóc khách hàng', 'Tìm kiếm vị trí'];
     }
     if (currentStep === Step.PAYMENT_REQUEST_MANAGEMENT) {
       if (location.pathname.includes('/payment-request-management/')) {
@@ -413,6 +420,7 @@ const App: React.FC = () => {
         onNavigateBusinessManagement={handleNavigateToBusinessManagement}
         onNavigatePackagePurchaseManagement={handleNavigateToPackagePurchaseManagement}
         onNavigatePaymentRequestManagement={handleNavigateToPaymentRequestManagement}
+        onNavigateLocationSearch={handleNavigateToLocationSearch}
         currentStep={currentStep}
       />
 
@@ -562,6 +570,9 @@ const App: React.FC = () => {
                 } />
                 <Route path="/payment-request-management/:orderId" element={
                   <PaymentRequestDetail />
+                } />
+                <Route path="/location-search" element={
+                  <LocationSearch />
                 } />
               </Routes>
               </div>
