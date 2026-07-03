@@ -63,6 +63,16 @@ export interface BotResponse {
   route?: RouteResult;
   warnings?: AreaWarning[];
   selectedStationId?: string;
+  /** Yêu cầu mở bảng "Xem đường đi" trên màn hình (thay vì thao tác trong chat) */
+  openDirections?: boolean;
+}
+
+/** Điểm xuất phát của tuyến đường: có thể là trạm cứu hộ hoặc một vị trí tuỳ chọn */
+export interface RouteOrigin {
+  name: string;
+  address?: string;
+  position: LatLngTuple;
+  kind: 'station' | 'custom';
 }
 
 export const MAP_DEFAULT_CENTER: LatLngTuple = [16.2, 106.5];
@@ -74,7 +84,11 @@ export const VIETNAM_BOUNDS: [LatLngTuple, LatLngTuple] = [
   [24.5, 111.5],
 ];
 
-export const STATION_SEARCH_RADIUS_KM = 10;
+export const DEFAULT_STATION_RADIUS_KM = 10;
+export const MIN_STATION_RADIUS_KM = 1;
+export const MAX_STATION_RADIUS_KM = 50;
+// Giữ lại tên cũ để tương thích
+export const STATION_SEARCH_RADIUS_KM = DEFAULT_STATION_RADIUS_KM;
 
 export const RESCUE_STATIONS: RescueStationPoint[] = [
   {
@@ -273,7 +287,7 @@ const WARNINGS_ALT: AreaWarning[] = [
   },
 ];
 
-const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+export const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const toRad = (v: number) => (v * Math.PI) / 180;
 
@@ -302,23 +316,84 @@ const buildMockPath = (from: LatLngTuple, to: LatLngTuple): LatLngTuple[] => {
   ];
 };
 
-export const buildRoute = (
-  station: RescueStationPoint,
+/** Vẽ tuyến đường từ 1 điểm xuất phát bất kỳ (trạm hoặc vị trí tuỳ chọn) tới vị trí đã xác định */
+export const buildRouteFrom = (
+  origin: { name: string; position: LatLngTuple },
   location: IdentifiedLocation
 ): RouteResult => {
-  const straight = haversineKm(station.position, location.position);
+  const straight = haversineKm(origin.position, location.position);
   const distanceKm = Math.round(straight * 1.35 * 10) / 10; // hệ số đường thực tế
   const durationMin = Math.max(3, Math.round((distanceKm / 28) * 60));
   return {
-    fromName: station.name,
+    fromName: origin.name,
     toName: location.address,
     distanceKm,
     durationMin,
-    path: buildMockPath(station.position, location.position),
+    path: buildMockPath(origin.position, location.position),
   };
 };
 
-const KW_ROUTE = [
+export const buildRoute = (
+  station: RescueStationPoint,
+  location: IdentifiedLocation
+): RouteResult => buildRouteFrom(station, location);
+
+// Một số mốc quen thuộc để giả lập tìm kiếm vị trí xuất phát tuỳ ý
+const CUSTOM_LANDMARKS: { keywords: string[]; name: string; address: string; position: LatLngTuple }[] = [
+  {
+    keywords: ['hồ gươm', 'hoàn kiếm', 'bờ hồ'],
+    name: 'Hồ Hoàn Kiếm',
+    address: 'Q. Hoàn Kiếm, Hà Nội',
+    position: [21.0287, 105.8524],
+  },
+  {
+    keywords: ['mỹ đình', 'my dinh', 'bến xe mỹ đình'],
+    name: 'Bến xe Mỹ Đình',
+    address: 'Phạm Hùng, Nam Từ Liêm, Hà Nội',
+    position: [21.0288, 105.7757],
+  },
+  {
+    keywords: ['nội bài', 'sân bay', 'noi bai'],
+    name: 'Sân bay Nội Bài',
+    address: 'Sóc Sơn, Hà Nội',
+    position: [21.2212, 105.807],
+  },
+  {
+    keywords: ['times city', 'timescity'],
+    name: 'Times City',
+    address: '458 Minh Khai, Hai Bà Trưng, Hà Nội',
+    position: [20.9942, 105.8676],
+  },
+  {
+    keywords: ['keangnam', 'landmark 72'],
+    name: 'Keangnam Landmark 72',
+    address: 'Phạm Hùng, Nam Từ Liêm, Hà Nội',
+    position: [21.0175, 105.7838],
+  },
+];
+
+/**
+ * Giả lập geocode 1 vị trí xuất phát tuỳ ý từ câu tìm kiếm.
+ * Ưu tiên khớp mốc quen thuộc; nếu không, sinh 1 điểm ổn định (theo hash) quanh vị trí đích.
+ */
+export const geocodeOrigin = (query: string, near: LatLngTuple): RouteOrigin => {
+  const q = query.toLowerCase().trim();
+  const found = CUSTOM_LANDMARKS.find((l) => l.keywords.some((k) => q.includes(k)));
+  if (found) {
+    return { name: found.name, address: found.address, position: found.position, kind: 'custom' };
+  }
+  const h = Array.from(q).reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const dLat = (((h % 100) / 100) - 0.5) * 0.07; // lệch ~ vài km
+  const dLng = ((((h * 7) % 100) / 100) - 0.5) * 0.07;
+  return {
+    name: query.trim() || 'Vị trí tuỳ chọn',
+    address: 'Vị trí do người dùng nhập',
+    position: [Math.round((near[0] + dLat) * 1e5) / 1e5, Math.round((near[1] + dLng) * 1e5) / 1e5],
+    kind: 'custom',
+  };
+};
+
+export const KW_ROUTE = [
   'đường đi',
   'chỉ đường',
   'từ trạm',
@@ -330,6 +405,25 @@ const KW_ROUTE = [
   'định tuyến',
   'route',
   'quãng đường',
+];
+
+export const KW_STATION_LIST = [
+  'danh sách trạm',
+  'ds trạm',
+  'trạm gần',
+  'liệt kê trạm',
+  'các trạm',
+  'xem trạm',
+];
+
+export const KW_TOW = [
+  'kéo xe tới',
+  'kéo xe đến',
+  'vị trí kéo',
+  'kéo về',
+  'điểm kéo',
+  'garage',
+  'xưởng',
 ];
 
 const KW_ALT = ['địa điểm khác', 'vị trí khác', 'tìm lại', 'không đúng', 'sai vị trí', 'chỗ khác'];
@@ -358,13 +452,12 @@ const KW_LOCATION = [
   'chợ',
 ];
 
-const hasKeyword = (text: string, keywords: string[]) =>
+export const hasKeyword = (text: string, keywords: string[]) =>
   keywords.some((kw) => text.includes(kw));
 
 interface ConversationContext {
   location: IdentifiedLocation | null;
   places: NearbyPlace[];
-  selectedStation: RescueStationPoint;
 }
 
 const confidencePct = (c: number) => `${Math.round(c * 100)}%`;
@@ -372,13 +465,11 @@ const confidencePct = (c: number) => `${Math.round(c * 100)}%`;
 /**
  * Engine giả lập: dựa vào từ khóa trong câu chat để trả lời.
  * Trả về các message của bot + side-effect (vị trí, điểm gần, tuyến đường).
+ * Lưu ý: cảnh báo & địa điểm gần đó KHÔNG hiển thị trong chat mà chỉ hiển thị trên bản đồ;
+ * chat chỉ trả lời xác nhận đã hiển thị.
  */
-const warningsMessage = (warnings: AreaWarning[]): ChatMessageData => ({
-  id: uid(),
-  role: 'bot',
-  text: 'Cảnh báo tại khu vực này, anh/chị lưu ý khi điều phối:',
-  warnings,
-});
+const displayedInfoText = (warnings: AreaWarning[], places: NearbyPlace[]): string =>
+  `Mình đã hiển thị ${warnings.length} cảnh báo khu vực và ${places.length} địa điểm gần đó trên bản đồ để anh/chị đối chiếu với khách hàng.`;
 
 export const respondToMessage = (
   rawText: string,
@@ -386,79 +477,10 @@ export const respondToMessage = (
 ): BotResponse => {
   const text = rawText.toLowerCase().trim();
 
-  // 0) Chọn trạm xuất phát (output đi từ chat) -> vẽ tuyến
-  const pickedStation = RESCUE_STATIONS.find((s) => text.includes(s.name.toLowerCase()));
-  if (pickedStation) {
-    if (!ctx.location) {
-      return {
-        selectedStationId: pickedStation.id,
-        messages: [
-          {
-            id: uid(),
-            role: 'bot',
-            text: `Đã chọn trạm "${pickedStation.name}". Anh/chị mô tả vị trí khách hàng để mình vẽ đường đi nhé.`,
-            quickReplies: ['Gần cây xăng Petrolimex Nguyễn Trãi', 'Đối diện Vincom Nguyễn Trãi'],
-          },
-        ],
-      };
-    }
-    const route = buildRoute(pickedStation, ctx.location);
-    return {
-      selectedStationId: pickedStation.id,
-      route,
-      messages: [
-        {
-          id: uid(),
-          role: 'bot',
-          text: `Tuyến đường từ "${pickedStation.name}" tới vị trí khách hàng đã được vẽ trên bản đồ.`,
-          route,
-          quickReplies: ['Xác nhận vị trí này', 'Tìm địa điểm khác'],
-        },
-      ],
-    };
-  }
+  // Danh sách action sau khi đã xác định được vị trí sự cố
+  const identifiedReplies = ['Xem danh sách trạm', 'Xem đường đi', 'Tìm địa điểm khác'];
 
-  // 1) Yêu cầu chỉ đường -> hỏi chọn trạm ngay trong chat
-  if (hasKeyword(text, KW_ROUTE)) {
-    if (!ctx.location) {
-      return {
-        messages: [
-          {
-            id: uid(),
-            role: 'bot',
-            text: 'Mình chưa có vị trí khách hàng để tính đường đi. Anh/chị mô tả vị trí trước giúp mình nhé (ví dụ: gần cây xăng, ngã tư, tòa nhà...).',
-            quickReplies: ['Gần cây xăng Petrolimex Nguyễn Trãi', 'Đối diện Vincom Nguyễn Trãi'],
-          },
-        ],
-      };
-    }
-    const within = stationsWithinRadius(ctx.location.position, STATION_SEARCH_RADIUS_KM);
-    if (within.length > 0) {
-      return {
-        messages: [
-          {
-            id: uid(),
-            role: 'bot',
-            text: `Có ${within.length} trạm trong bán kính ${STATION_SEARCH_RADIUS_KM} km quanh vị trí khách hàng. Anh/chị chọn trạm xuất phát:`,
-            stations: within,
-          },
-        ],
-      };
-    }
-    const nearest = nearestStations(ctx.location.position, 3);
-    return {
-      messages: [
-        {
-          id: uid(),
-          role: 'bot',
-          text: `Không có trạm nào trong bán kính ${STATION_SEARCH_RADIUS_KM} km. Đây là ${nearest.length} trạm gần nhất để anh/chị cân nhắc:`,
-          stations: nearest,
-        },
-      ],
-    };
-  }
-
-  // 2) Yêu cầu tìm địa điểm khác
+  // 1) Yêu cầu tìm địa điểm khác
   if (hasKeyword(text, KW_ALT)) {
     return {
       location: IDENTIFIED_ALT,
@@ -468,24 +490,22 @@ export const respondToMessage = (
         {
           id: uid(),
           role: 'bot',
-          text: `Mình xác định lại vị trí khả năng cao là: ${IDENTIFIED_ALT.address} (độ tin cậy ${confidencePct(
+          text: `Mình xác định lại vị trí sự cố khả năng cao là: ${IDENTIFIED_ALT.address} (độ tin cậy ${confidencePct(
             IDENTIFIED_ALT.confidence
           )}).`,
           location: IDENTIFIED_ALT,
         },
-        warningsMessage(WARNINGS_ALT),
         {
           id: uid(),
           role: 'bot',
-          text: 'Các địa điểm gần đó để đối chiếu với khách hàng:',
-          places: NEARBY_ALT,
-          quickReplies: ['Xác nhận vị trí này', 'Xem đường đi từ trạm'],
+          text: displayedInfoText(WARNINGS_ALT, NEARBY_ALT),
+          quickReplies: identifiedReplies,
         },
       ],
     };
   }
 
-  // 3) Xác nhận vị trí
+  // 2) Xác nhận vị trí sự cố
   if (hasKeyword(text, ['xác nhận', 'chốt', 'đồng ý'])) {
     if (!ctx.location) {
       return {
@@ -493,7 +513,7 @@ export const respondToMessage = (
           {
             id: uid(),
             role: 'bot',
-            text: 'Chưa có vị trí nào được xác định để chốt. Anh/chị mô tả vị trí khách hàng giúp mình nhé.',
+            text: 'Chưa có vị trí sự cố nào được xác định. Anh/chị mô tả vị trí khách hàng giúp mình nhé.',
           },
         ],
       };
@@ -503,14 +523,14 @@ export const respondToMessage = (
         {
           id: uid(),
           role: 'bot',
-          text: `Đã ghim vị trí sự cố: ${ctx.location.address}. Anh/chị có thể tạo đơn cứu hộ hoặc xem đường đi từ trạm.`,
-          quickReplies: ['Xem đường đi từ trạm', 'Tìm địa điểm khác'],
+          text: `Đã ghim vị trí sự cố: ${ctx.location.address}. Anh/chị chọn tiếp bước dưới đây.`,
+          quickReplies: ['Xem danh sách trạm', 'Xem đường đi'],
         },
       ],
     };
   }
 
-  // 4) Có dấu hiệu mô tả vị trí -> xác định vị trí + cảnh báo + gợi ý điểm gần
+  // 3) Có dấu hiệu mô tả vị trí -> xác định vị trí sự cố (cảnh báo & địa điểm gần chỉ hiển thị trên bản đồ)
   if (hasKeyword(text, KW_LOCATION) || text.length >= 12) {
     return {
       location: IDENTIFIED_DEFAULT,
@@ -520,24 +540,22 @@ export const respondToMessage = (
         {
           id: uid(),
           role: 'bot',
-          text: `Từ mô tả của khách, mình xác định vị trí khả năng cao là: ${IDENTIFIED_DEFAULT.address} (độ tin cậy ${confidencePct(
+          text: `Từ mô tả của khách, mình xác định vị trí sự cố khả năng cao là: ${IDENTIFIED_DEFAULT.address} (độ tin cậy ${confidencePct(
             IDENTIFIED_DEFAULT.confidence
           )}).`,
           location: IDENTIFIED_DEFAULT,
         },
-        warningsMessage(WARNINGS_DEFAULT),
         {
           id: uid(),
           role: 'bot',
-          text: 'Các địa điểm gần đó kèm hình ảnh để anh/chị đối chiếu với khách hàng:',
-          places: NEARBY_DEFAULT,
-          quickReplies: ['Xác nhận vị trí này', 'Xem đường đi từ trạm', 'Tìm địa điểm khác'],
+          text: displayedInfoText(WARNINGS_DEFAULT, NEARBY_DEFAULT),
+          quickReplies: identifiedReplies,
         },
       ],
     };
   }
 
-  // 5) Fallback: hỏi làm rõ
+  // 4) Fallback: hỏi làm rõ
   return {
     messages: [
       {
@@ -568,5 +586,5 @@ export const INITIAL_BOT_MESSAGE: ChatMessageData = {
 export const SAMPLE_PROMPTS = [
   'Khách nói đang đứng gần cây xăng Petrolimex trên đường Nguyễn Trãi, đối diện có Vincom',
   'Xe nằm ở ngã tư sở, gần cầu vượt',
-  'Xem đường đi từ trạm tới vị trí khách',
+  'Xem đường đi tới vị trí khách',
 ];

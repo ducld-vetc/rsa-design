@@ -28,7 +28,7 @@ import BusinessForm from './pages/BusinessForm';
 import PackagePurchaseManagement from './pages/PackagePurchaseManagement';
 import PaymentRequestManagement from './pages/PaymentRequestManagement';
 import PaymentRequestDetail from './pages/PaymentRequestDetail';
-import LocationSearch from './pages/LocationSearch';
+import LocationSearch, { LocationSearchPrefill } from './pages/LocationSearch';
 
 const initialData: FormData = {
   orderId: '',
@@ -289,6 +289,30 @@ const App: React.FC = () => {
   const handleNavigateToPackagePurchaseManagement = () => navigate('/package-purchase-management');
   const handleNavigateToPaymentRequestManagement = () => navigate('/payment-request-management');
   const handleNavigateToLocationSearch = () => navigate('/location-search');
+
+  const handleCreateOrderFromLocation = (p: LocationSearchPrefill) => {
+    setFormData(prev => ({
+      ...prev,
+      assistance: {
+        ...prev.assistance,
+        address: p.incidentAddress,
+        lat: String(p.lat),
+        lng: String(p.lng),
+      },
+      station: {
+        ...prev.station,
+        ...(p.originIsStation && p.originName
+          ? { station: p.originName, address: p.originAddress ?? prev.station.address }
+          : {}),
+        ...(p.towDestinationName ? { towingDestination: p.towDestinationName } : {}),
+      },
+      pricing: {
+        ...prev.pricing,
+        ...(p.distanceKm ? { distance: p.distanceKm } : {}),
+      },
+    }));
+    navigate('/create');
+  };
   const handleViewDetails = (orderId: string) => {
     navigate('/details');
   };
@@ -572,7 +596,7 @@ const App: React.FC = () => {
                   <PaymentRequestDetail />
                 } />
                 <Route path="/location-search" element={
-                  <LocationSearch />
+                  <LocationSearch onCreateOrder={handleCreateOrderFromLocation} />
                 } />
               </Routes>
               </div>
