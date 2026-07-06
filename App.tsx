@@ -16,6 +16,7 @@ import PaymentQR from './pages/PaymentQR';
 import Supporting from './pages/Supporting';
 import OrderManagement from './pages/OrderManagement';
 import GuestOrderDetails from './pages/GuestOrderDetails';
+import type { OrderDetailsNavState } from './data/orderListDemoData';
 import StationCreateOrder from './pages/StationCreateOrder';
 import StationOrderDetail from './pages/StationOrderDetail';
 import StationManagement from './pages/StationManagement';
@@ -313,8 +314,8 @@ const App: React.FC = () => {
     }));
     navigate('/create');
   };
-  const handleViewDetails = (orderId: string) => {
-    navigate('/details');
+  const handleViewDetails = (nav: OrderDetailsNavState) => {
+    navigate('/details', { state: nav });
   };
 
   const handleCoordinateOrder = (order: MonitoringOrder) => {
@@ -557,7 +558,7 @@ const App: React.FC = () => {
                   <OrderManagement onViewDetails={handleViewDetails} />
                 } />
                 <Route path="/details" element={
-                  <GuestOrderDetails role={role} />
+                  <GuestOrderDetails key={location.key} role={role} />
                 } />
                 <Route path="/station/create" element={
                   <StationCreateOrder />

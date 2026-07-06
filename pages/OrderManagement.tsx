@@ -14,51 +14,21 @@ import {
 import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
 import { OrderWarningBadge, FloodWarningBadge } from '../shared/OrderAlertBadges';
 import { isPriorityCustomerPhone } from '../shared/priorityCustomer';
+import {
+  DEMO_ORDERS,
+  orderRowToNavState,
+  type DemoOrderRow,
+  type OrderDetailsNavState,
+  type OrderPaymentStatus,
+  type OrderStatusDisplay,
+  type StatusBadgeStyle,
+} from '../data/orderListDemoData';
 
 interface OrderManagementProps {
-  onViewDetails?: (orderId: string) => void;
+  onViewDetails?: (nav: OrderDetailsNavState) => void;
 }
 
-type OrderPaymentStatus = 'PENDING' | 'DEPOSITED' | 'PAID';
-
-type StatusBadgeStyle =
-  | 'outline-blue'
-  | 'outline-orange'
-  | 'outline-green'
-  | 'solid-red'
-  | 'solid-green'
-  | 'solid-blue'
-  | 'solid-orange';
-
-type OrderStatusDisplay = {
-  primary: string;
-  primaryStyle: StatusBadgeStyle;
-  secondary?: string;
-  secondaryStyle?: StatusBadgeStyle;
-};
-
-type OrderRow = {
-  id: string;
-  orderId: string;
-  tags: string[];
-  dispatchType: string;
-  mainService: string;
-  waitingTime: string;
-  orderStatus: OrderStatusDisplay;
-  paymentStatus: OrderPaymentStatus;
-  supporter: { role: string; name: string; roleClass: string };
-  invoiceCode: string;
-  customer: { name: string; phone: string };
-  vehicle: { plate: string; model: string };
-  address: string;
-  partner: string;
-  driver: { name: string; phone: string };
-  updatedAt: string;
-  updatedBy: string;
-  packageUsage?: { packageName: string; used: number; limit: number };
-  hasOrderWarning?: boolean;
-  isFlooded?: boolean;
-};
+type OrderRow = DemoOrderRow;
 
 const PAYMENT_STATUS_CONFIG: Record<OrderPaymentStatus, { label: string; className: string }> = {
   PENDING: { label: 'Chờ thanh toán', className: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -95,129 +65,6 @@ const OrderStatusBadges: React.FC<{ status: OrderStatusDisplay }> = ({ status })
 
 const isPackageOrder = (order: OrderRow): boolean => order.tags.includes('Đơn gói');
 
-const MOCK_ORDERS: OrderRow[] = [
-  {
-    id: '3',
-    orderId: 'RS12602020003',
-    tags: ['Đơn gói', 'PORTAL'],
-    dispatchType: 'Điều phối: Thủ công',
-    mainService: 'Kích bình ắc quy',
-    waitingTime: '1 giờ 5 phút',
-    orderStatus: { primary: 'Hoàn thành', primaryStyle: 'outline-green', secondary: 'Hoàn thành', secondaryStyle: 'solid-green' },
-    paymentStatus: 'PAID',
-    supporter: { role: 'SUPPORT', name: 'rsa_test1', roleClass: 'bg-purple-50 text-purple-600 border-purple-100' },
-    invoiceCode: 'INV-20260202-003',
-    customer: { name: 'LÊ VĂN C', phone: '0903456789' },
-    vehicle: { plate: '30H-555.66', model: 'Mazda CX-5' },
-    address: 'Hầm Kim Liên, Hai Bà Trưng, Hà Nội',
-    partner: 'Garage Thăng Long',
-    driver: { name: 'Lê Văn Hùng', phone: '0944555111' },
-    updatedAt: '02/02/2026 13:10',
-    updatedBy: 'rsa_test1',
-    packageUsage: { packageName: 'Gói cơ bản 10 dịch vụ', used: 1, limit: 100 }
-  },
-  {
-    id: '4',
-    orderId: 'RS12602020004',
-    tags: ['Đơn lẻ', 'PORTAL'],
-    dispatchType: 'Điều phối: Tự động',
-    mainService: 'Cứu hộ kéo xe',
-    waitingTime: '2 giờ 30 phút',
-    orderStatus: { primary: 'Hủy', primaryStyle: 'outline-blue', secondary: 'Khách hủy', secondaryStyle: 'solid-red' },
-    paymentStatus: 'DEPOSITED',
-    supporter: { role: 'OPERATOR', name: 'QuynhOSA', roleClass: 'bg-green-50 text-green-600 border-green-100' },
-    invoiceCode: '-',
-    customer: { name: 'PHẠM VĂN D', phone: '0944556677' },
-    vehicle: { plate: '51G-111.22', model: 'Hyundai Accent' },
-    address: 'Đường vành đai 3, Thanh Xuân, Hà Nội',
-    partner: 'Cứu hộ ABC',
-    driver: { name: '-', phone: '-' },
-    updatedAt: '02/02/2026 12:00',
-    updatedBy: 'QuynhOSA',
-    hasOrderWarning: true
-  },
-  {
-    id: '1',
-    orderId: 'RS12602020001',
-    tags: ['Đơn lẻ', 'PORTAL'],
-    dispatchType: 'Điều phối: Thủ công',
-    mainService: 'Cung cấp nhiên liệu khẩn cấp',
-    waitingTime: '0 giờ 6 phút',
-    orderStatus: { primary: 'Điều phối', primaryStyle: 'outline-blue' },
-    paymentStatus: 'PENDING',
-    supporter: { role: 'SUPPORT', name: 'rsa_test1', roleClass: 'bg-purple-50 text-purple-600 border-purple-100' },
-    invoiceCode: '-',
-    customer: { name: 'NGUYỄN VĂN A', phone: '0909888777' },
-    vehicle: { plate: '30A-123.45', model: 'Toyota Vios' },
-    address: '210 Phố Xã Đàn, Đống Đa, Hà Nội',
-    partner: 'CARPLA - CARPLA SERVICE',
-    driver: { name: 'Nguyễn Văn Tài', phone: '0911222333' },
-    updatedAt: '02/02/2026 14:30',
-    updatedBy: 'rsa_test1',
-    hasOrderWarning: true,
-    isFlooded: true
-  },
-  {
-    id: '2',
-    orderId: 'RS12602020002',
-    tags: ['Đơn lẻ', 'PORTAL'],
-    dispatchType: 'Điều phối: Tự động',
-    mainService: 'Thay lốp dự phòng',
-    waitingTime: '0 giờ 12 phút',
-    orderStatus: { primary: 'Chờ đối tác tiếp nhận', primaryStyle: 'outline-orange' },
-    paymentStatus: 'DEPOSITED',
-    supporter: { role: 'OPERATOR', name: 'hieund2', roleClass: 'bg-green-50 text-green-600 border-green-100' },
-    invoiceCode: '-',
-    customer: { name: 'TRẦN THỊ B', phone: '0967419411' },
-    vehicle: { plate: '29B-888.88', model: 'Honda City' },
-    address: 'Cầu Chương Dương, Long Biên, Hà Nội',
-    partner: 'Cứu hộ 116 Hà Nội',
-    driver: { name: 'Trần Minh Quang', phone: '0988777666' },
-    updatedAt: '02/02/2026 14:25',
-    updatedBy: 'hieund2',
-    isFlooded: true
-  },
-  {
-    id: '5',
-    orderId: 'RS12602020005',
-    tags: ['Đơn gói', 'PORTAL'],
-    dispatchType: 'Điều phối: Thủ công',
-    mainService: 'Sửa chữa tại chỗ',
-    waitingTime: '0 giờ 45 phút',
-    orderStatus: { primary: 'Hoàn thành', primaryStyle: 'outline-green', secondary: 'Hoàn thành bởi CSA', secondaryStyle: 'solid-green' },
-    paymentStatus: 'PAID',
-    supporter: { role: 'SUPPORT', name: 'rsa_test1', roleClass: 'bg-purple-50 text-purple-600 border-purple-100' },
-    invoiceCode: 'INV-20260202-005',
-    customer: { name: 'HOÀNG THỊ E', phone: '0922334455' },
-    vehicle: { plate: '30G-777.88', model: 'Kia Seltos' },
-    address: 'Trần Duy Hưng, Cầu Giấy, Hà Nội',
-    partner: 'Carpla Service - CN Hà Nội',
-    driver: { name: 'Phạm Đức Anh', phone: '0900111222' },
-    updatedAt: '02/02/2026 11:45',
-    updatedBy: 'rsa_test1',
-    packageUsage: { packageName: 'Gói nâng cao Premium', used: 2, limit: 100 }
-  },
-  {
-    id: '6',
-    orderId: 'RS12602020006',
-    tags: ['Đơn lẻ', 'PORTAL'],
-    dispatchType: 'Điều phối: Tự động',
-    mainService: 'Mở khóa xe',
-    waitingTime: '0 giờ 20 phút',
-    orderStatus: { primary: 'Hủy', primaryStyle: 'outline-blue', secondary: 'Khách hủy', secondaryStyle: 'solid-red' },
-    paymentStatus: 'PENDING',
-    supporter: { role: 'OPERATOR', name: 'hieund2', roleClass: 'bg-green-50 text-green-600 border-green-100' },
-    invoiceCode: '-',
-    customer: { name: 'VŨ ĐỨC F', phone: '0933445566' },
-    vehicle: { plate: '29C-333.44', model: 'Ford Ranger' },
-    address: 'Nguyễn Trãi, Thanh Xuân, Hà Nội',
-    partner: '-',
-    driver: { name: '-', phone: '-' },
-    updatedAt: '02/02/2026 10:30',
-    updatedBy: 'hieund2'
-  }
-];
-
 const isOrderClosed = (status: OrderStatusDisplay): boolean => {
   const primary = status.primary.trim().toLowerCase();
   return primary === 'hoàn thành' || primary === 'hủy';
@@ -238,7 +85,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [supportFilter, setSupportFilter] = useState<'supporting' | 'not-supporting' | 'all'>('all');
 
-  const displayOrders = useMemo(() => sortOrdersForDisplay(MOCK_ORDERS), []);
+  const displayOrders = useMemo(() => sortOrdersForDisplay(DEMO_ORDERS), []);
 
   const SectionHeader = ({ title, icon }: { title: string; icon?: React.ReactNode }) => (
     <div className="bg-vetc-green text-white px-4 py-2 flex items-center space-x-2 font-bold text-sm uppercase tracking-wide">
@@ -257,6 +104,14 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
   return (
     <div className="space-y-4 animate-in fade-in duration-500 w-full min-w-0 max-w-full">
       <h1 className="text-lg font-black text-gray-800 uppercase tracking-tight">Quản lý yêu cầu cứu hộ</h1>
+
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <span className="font-bold uppercase tracking-wide text-[11px] text-amber-700">Demo trạng thái</span>
+        <p className="mt-1">
+          Danh sách có <strong>{DEMO_ORDERS.length} đơn mẫu</strong> — mỗi dòng tương ứng một trạng thái portal.
+          Bấm <strong>Xem chi tiết</strong> để mở đơn đúng trạng thái (Webview, cập nhật trạng thái, v.v.).
+        </p>
+      </div>
 
       {/* Search Section */}
       <div className="border rounded-lg shadow-sm overflow-hidden bg-white">
@@ -409,9 +264,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
                           <ArrowRightLeft size={15} />
                         </button>
                         <button
-                          onClick={() => onViewDetails?.(order.orderId)}
+                          onClick={() => onViewDetails?.(orderRowToNavState(order))}
                           className="text-orange-500 hover:bg-orange-50 p-1 rounded transition-colors"
-                          title="Xem chi tiết"
+                          title={`Xem chi tiết — ${order.orderStatus.primary}${order.orderStatus.secondary ? ` / ${order.orderStatus.secondary}` : ''}`}
                         >
                           <Info size={15} />
                         </button>
@@ -434,7 +289,9 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewDetails }) => {
                               className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
                                 tag === 'Đơn gói'
                                   ? 'bg-green-50 text-green-600 border-green-100'
-                                  : 'bg-blue-50 text-blue-600 border-blue-100'
+                                  : tag === 'DEMO'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-blue-50 text-blue-600 border-blue-100'
                               }`}
                             >
                               {tag}

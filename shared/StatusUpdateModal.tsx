@@ -6,6 +6,8 @@ export const STATUS_OPTIONS = [
   {
     group: 'Tiếp nhận',
     items: [
+      { id: 'WAITING_CONFIRM', label: 'Chờ xác nhận', color: 'bg-sky-50 text-sky-600 border-sky-100', dot: 'bg-sky-500' },
+      { id: 'CONFIRMED', label: 'Đã xác nhận', color: 'bg-teal-50 text-teal-600 border-teal-100', dot: 'bg-teal-500' },
       { id: 'RECEIVE-NEW', label: 'Mới', color: 'bg-blue-50 text-blue-600 border-blue-100', dot: 'bg-blue-500' },
       { id: 'RECEIVE-PROCESSING', label: 'Đang xử lý', color: 'bg-indigo-50 text-indigo-600 border-indigo-100', dot: 'bg-indigo-500' },
     ]
@@ -13,6 +15,8 @@ export const STATUS_OPTIONS = [
   {
     group: 'Điều phối',
     items: [
+      { id: 'WAITING_PROVIDER_ACCEPT', label: 'Điều phối (chờ NCC)', color: 'bg-orange-50 text-orange-600 border-orange-100', dot: 'bg-orange-500' },
+      { id: 'WAITING_DRIVER_ACCEPT', label: 'Điều phối (chờ tài xế)', color: 'bg-amber-50 text-amber-600 border-amber-100', dot: 'bg-amber-500' },
       { id: 'DISPATCH-SEARCHING', label: 'Đang tìm trạm', color: 'bg-amber-50 text-amber-600 border-amber-100', dot: 'bg-amber-500' },
       { id: 'DISPATCH-ASSIGNED', label: 'Đã gán trạm', color: 'bg-orange-50 text-orange-600 border-orange-100', dot: 'bg-orange-500' },
     ]

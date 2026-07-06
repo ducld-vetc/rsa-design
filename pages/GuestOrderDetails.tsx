@@ -1,4 +1,5 @@
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
+import { useLocation } from 'react-router-dom';
 import {AnimatePresence, motion} from 'framer-motion';
 import {
   Activity,
@@ -33,6 +34,7 @@ import {
   Settings,
   ShieldCheck,
   Shuffle,
+  Smartphone,
   Sparkles,
   Star,
   Pencil,
@@ -67,6 +69,8 @@ import UnpaidDepositRemainingWarningModal from '../shared/UnpaidDepositRemaining
 import ProviderPaymentConfirmDialog from '../shared/ProviderPaymentConfirmDialog';
 import UsageHistoryModal from '../shared/UsageHistoryModal';
 import StatusUpdateModal, { STATUS_OPTIONS } from '../shared/StatusUpdateModal';
+import type { OrderDetailsNavState } from '../data/orderListDemoData';
+import ShareLocationWebviewModal from '../shared/ShareLocationWebviewModal';
 import DetailedRatingCard from '../shared/DetailedRatingCard';
 import RatingHistoryModal from '../shared/RatingHistoryModal';
 import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
@@ -557,6 +561,9 @@ const Input = ({
 const GuestOrderDetails: React.FC<{
   role?: 'OSA' | 'ADMIN' | 'CSKH' | 'STATION' | 'DRIVER';
 }> = ({ role = 'CSKH' }) => {
+  const location = useLocation();
+  const navState = (location.state ?? null) as OrderDetailsNavState | null;
+
   const [viewMode, setViewMode] = useState<'list' | 'tabs'>('list');
   const [activeTab, setActiveTab] = useState('general');
 
@@ -717,7 +724,14 @@ const GuestOrderDetails: React.FC<{
 
   // Map States
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
-  const [mapAddress, setMapAddress] = useState("Hanoi Metro Cafe & Canteen, 192, Phố Hào Nam, Phường Ô Chợ Dừa, Quận Đống Đa, Thành phố Hà Nội, 10060, Việt Nam");
+  const [mapAddress, setMapAddress] = useState(
+    navState?.address ??
+      'Hanoi Metro Cafe & Canteen, 192, Phố Hào Nam, Phường Ô Chợ Dừa, Quận Đống Đa, Thành phố Hà Nội, 10060, Việt Nam'
+  );
+  const [displayOrderId, setDisplayOrderId] = useState(navState?.orderId ?? 'RS12602020002');
+  const [customerName, setCustomerName] = useState(navState?.customerName ?? 'Vương Đăng Minh');
+  const [customerPhone, setCustomerPhone] = useState(navState?.customerPhone ?? '0967419411');
+  const [vehiclePlate, setVehiclePlate] = useState(navState?.plate ?? '29E366666');
   const [mapCoords, setMapCoords] = useState("21.0277350565601, 105.827792697257");
 
   // Cancellation States
@@ -785,7 +799,18 @@ const GuestOrderDetails: React.FC<{
     }
   };
   const [isStatusUpdateModalOpen, setIsStatusUpdateModalOpen] = useState(false);
-  const [currentStatus, setCurrentStatus] = useState('EXECUTE-RESCUING');
+  const [isShareLocationWebviewOpen, setIsShareLocationWebviewOpen] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState(navState?.portalStatusId ?? 'EXECUTE-RESCUING');
+
+  useEffect(() => {
+    if (!navState) return;
+    setDisplayOrderId(navState.orderId);
+    setCurrentStatus(navState.portalStatusId);
+    setCustomerName(navState.customerName);
+    setCustomerPhone(navState.customerPhone);
+    setVehiclePlate(navState.plate);
+    setMapAddress(navState.address);
+  }, [navState]);
   const [ratingHistories, setRatingHistories] = useState(INITIAL_RATING_HISTORIES);
   const [ratingHistoryModal, setRatingHistoryModal] = useState<{
     isOpen: boolean;
@@ -1147,11 +1172,11 @@ const GuestOrderDetails: React.FC<{
 
   // Mock data for Searching/RescueList component
   const mockFormData: FormData = {
-    orderId: 'RS12602020002',
+    orderId: displayOrderId,
     customer: {
-      phone: '0967419411',
-      plate: '29E366666',
-      name: 'Vương Đăng Minh',
+      phone: customerPhone,
+      plate: vehiclePlate,
+      name: customerName,
       vin: 'R7C2X9M4A8',
       vehicleBrand: 'Toyota',
       vehicleLine: 'Sedan',
@@ -1160,8 +1185,8 @@ const GuestOrderDetails: React.FC<{
       servicePackage: selectedPackage
     },
     assistance: {
-      rescueName: 'Vương Đăng Minh',
-      rescuePhone: '0967419411',
+      rescueName: customerName,
+      rescuePhone: customerPhone,
       address: mapAddress,
       lng: mapCoords.split(',')[1]?.trim() || '',
       lat: mapCoords.split(',')[0].trim() || '',
@@ -1192,10 +1217,19 @@ const GuestOrderDetails: React.FC<{
     }
   };
 
-  const customerPhone = mockFormData.customer.phone;
   const isPriorityCustomer = isPriorityCustomerPhone(customerPhone);
   const hasOrderWarning = true;
   const isFloodedArea = true;
+
+  const shareLocationUrl = `https://vetc.com.vn/share-location/${mockFormData.orderId}`;
+  const parseCoords = (raw: string): { lat?: number; lng?: number } => {
+    const [latStr, lngStr] = raw.split(',').map((s) => s.trim());
+    const lat = Number(latStr);
+    const lng = Number(lngStr);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : {};
+  };
+  const rescueCoords = parseCoords(mapCoords);
+  const towCoords = parseCoords(towingCoords);
 
   return (
       <div className="space-y-6 animate-in fade-in duration-700 max-w-[1600px] mx-auto pb-20">
@@ -1207,7 +1241,7 @@ const GuestOrderDetails: React.FC<{
               <div className="flex flex-col">
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Mã đơn hàng (Cố định)</span>
                 <div className="flex items-center space-x-2">
-                  <span className="text-xl font-black text-gray-900 tracking-tight">RS12602020002</span>
+                  <span className="text-xl font-black text-gray-900 tracking-tight">{displayOrderId}</span>
                   <span className={`${selectedPackage === 'Không có' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'} px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-tight`}>
                     {selectedPackage === 'Không có' ? 'Đơn Lẻ' : 'Đơn gói'}
                   </span>
@@ -1328,14 +1362,23 @@ const GuestOrderDetails: React.FC<{
                 <div className="lg:col-span-2">
                   <Label>Thu thập vị trí</Label>
                   <div className="flex items-center space-x-2 bg-gray-50 border rounded px-3 py-1.5">
-                    <span className="text-xs text-blue-600 font-medium truncate flex-1">https://vetc.com.vn/share-location/RS12602020002</span>
+                    <span className="text-xs text-blue-600 font-medium truncate flex-1">{shareLocationUrl}</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsShareLocationWebviewOpen(true)}
+                      className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded border border-vetc-green text-vetc-green text-[10px] font-bold hover:bg-green-50 transition-colors"
+                      title="Xem trước giao diện Webview khách hàng"
+                    >
+                      <Smartphone size={12} />
+                      Webview
+                    </button>
                     <button 
                       onClick={() => {
-                        navigator.clipboard.writeText('https://vetc.com.vn/share-location/RS12602020002');
+                        navigator.clipboard.writeText(shareLocationUrl);
                         setCopied(true);
                         setTimeout(() => setCopied(false), 2000);
                       }}
-                      className={`${copied ? 'text-vetc-green' : 'text-gray-400'} hover:text-vetc-green transition-colors active:scale-90 flex items-center space-x-1`}
+                      className={`${copied ? 'text-vetc-green' : 'text-gray-400'} hover:text-vetc-green transition-colors active:scale-90 flex items-center space-x-1 shrink-0`}
                       title="Copy link"
                     >
                       {copied ? <span className="text-[10px] font-bold">Đã sao chép!</span> : <Copy size={14} />}
@@ -1345,7 +1388,7 @@ const GuestOrderDetails: React.FC<{
                 <div className="lg:col-span-2"></div>
                 <div>
                   <Label required>Người yêu cầu</Label>
-                  <Input defaultValue="Vương Đăng Minh" readOnly={true} />
+                  <Input defaultValue={customerName} readOnly={true} />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
@@ -1356,7 +1399,7 @@ const GuestOrderDetails: React.FC<{
                 </div>
                 <div>
                   <Label>Người liên hệ</Label>
-                  <Input defaultValue="Vương Đăng Minh" readOnly={!isEditing} />
+                  <Input defaultValue={customerName} readOnly={!isEditing} />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
@@ -1426,7 +1469,7 @@ const GuestOrderDetails: React.FC<{
                 <div className="lg:col-span-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 pt-4 border-t border-gray-100">
                   <div>
                     <Label required>Biển số xe</Label>
-                    <Input defaultValue="29E366666" readOnly={true} />
+                    <Input defaultValue={vehiclePlate} readOnly={true} />
                   </div>
                   <div>
                     <Label>Số khung (Vin)</Label>
@@ -2809,7 +2852,7 @@ const GuestOrderDetails: React.FC<{
           isOpen={ratingHistoryModal.isOpen}
           onClose={() => setRatingHistoryModal({ isOpen: false, type: null })}
           title={ratingHistoryModal.type ? RATING_TYPE_LABELS[ratingHistoryModal.type] : ''}
-          orderCode="RS12602020002"
+          orderCode={displayOrderId}
           versions={ratingHistoryModal.type ? ratingHistories[ratingHistoryModal.type] : []}
         />
 
@@ -2820,6 +2863,32 @@ const GuestOrderDetails: React.FC<{
           onUpdate={(newStatus) => {
             setCurrentStatus(newStatus);
             setIsStatusUpdateModalOpen(false);
+          }}
+        />
+
+        <ShareLocationWebviewModal
+          isOpen={isShareLocationWebviewOpen}
+          onClose={() => setIsShareLocationWebviewOpen(false)}
+          data={{
+            orderId: mockFormData.orderId ?? displayOrderId,
+            plate: mockFormData.customer.plate,
+            orderTypeLabel: selectedPackage === 'Không có' ? 'Đơn lẻ' : 'Đơn gói',
+            customerName: mockFormData.assistance.rescueName,
+            customerPhone: mockFormData.assistance.rescuePhone,
+            rescueAddress: mapAddress,
+            towingDestination,
+            rescueLat: rescueCoords.lat,
+            rescueLng: rescueCoords.lng,
+            towingLat: towCoords.lat,
+            towingLng: towCoords.lng,
+            currentStatus,
+            services: selectedServices,
+            createdAt: '15:26 - 03/07/2026',
+            customerRatings: {
+              customer_vetc: ratingHistories.customer_vetc,
+              customer_driver: ratingHistories.customer_driver,
+              customer_workshop: ratingHistories.customer_workshop,
+            },
           }}
         />
 
