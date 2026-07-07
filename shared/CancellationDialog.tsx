@@ -10,6 +10,8 @@ interface CancellationDialogProps {
   otherReason: string;
   setOtherReason: (reason: string) => void;
   cancelReasons: string[];
+  /** cancel: hủy đơn mới | editReason: chỉnh sửa lý do đơn đã hủy */
+  variant?: 'cancel' | 'editReason';
 }
 
 const CancellationDialog: React.FC<CancellationDialogProps> = ({
@@ -20,21 +22,33 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
   setSelectedReason,
   otherReason,
   setOtherReason,
-  cancelReasons
+  cancelReasons,
+  variant = 'cancel',
 }) => {
   if (!isOpen) return null;
+
+  const isEditReason = variant === 'editReason';
+  const title = isEditReason ? 'Chỉnh sửa lý do hủy đơn' : 'Xác nhận hủy đơn hàng';
+  const notice = isEditReason
+    ? 'Cập nhật lý do hủy đơn để đồng bộ nhật ký hành trình và báo cáo cho khách hàng.'
+    : 'Hành động này sẽ hủy yêu cầu cứu hộ hiện tại của khách hàng. Vui lòng chọn lý do cụ thể.';
+  const confirmLabel = isEditReason ? 'Lưu lý do' : 'Xác nhận hủy đơn';
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
       <div className="bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 w-full max-w-md">
-        <div className="bg-red-500 p-4 text-white flex items-center space-x-3">
+        <div className={`${isEditReason ? 'bg-amber-500' : 'bg-red-500'} p-4 text-white flex items-center space-x-3`}>
           <AlertTriangle size={22} />
-          <h3 className="font-bold">Xác nhận hủy đơn hàng</h3>
+          <h3 className="font-bold">{title}</h3>
         </div>
         <div className="p-6 space-y-4 text-left">
-          <div className="flex items-start space-x-3 p-3 bg-red-50 border border-red-100 rounded-lg text-red-800 text-xs text-left">
+          <div className={`flex items-start space-x-3 p-3 border rounded-lg text-xs text-left ${
+            isEditReason
+              ? 'bg-amber-50 border-amber-100 text-amber-900'
+              : 'bg-red-50 border-red-100 text-red-800'
+          }`}>
             <AlertTriangle size={18} className="shrink-0 mt-0.5" />
-            <p>Hành động này sẽ hủy yêu cầu cứu hộ hiện tại của khách hàng. Vui lòng chọn lý do cụ thể.</p>
+            <p>{notice}</p>
           </div>
 
           <div className="space-y-2 text-left">
@@ -81,9 +95,13 @@ const CancellationDialog: React.FC<CancellationDialogProps> = ({
             <button
               disabled={!selectedReason || (selectedReason === 'Lý do khác' && !otherReason.trim())}
               onClick={onConfirm}
-              className="flex-1 bg-red-500 text-white px-4 py-2.5 rounded-xl font-bold shadow-lg hover:bg-red-600 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`flex-1 text-white px-4 py-2.5 rounded-xl font-bold shadow-lg active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                isEditReason
+                  ? 'bg-amber-500 hover:bg-amber-600'
+                  : 'bg-red-500 hover:bg-red-600'
+              }`}
             >
-              Xác nhận hủy đơn
+              {confirmLabel}
             </button>
           </div>
         </div>

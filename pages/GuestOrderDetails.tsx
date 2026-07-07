@@ -736,8 +736,10 @@ const GuestOrderDetails: React.FC<{
 
   // Cancellation States
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isEditCancelReasonModalOpen, setIsEditCancelReasonModalOpen] = useState(false);
   const [selectedCancelReason, setSelectedCancelReason] = useState<string>('');
   const [cancelReason, setCancelReason] = useState('');
+  const [orderCancelReason, setOrderCancelReason] = useState('Không còn cần dịch vụ');
 
   const [severityLevel, setSeverityLevel] = useState('Nhẹ');
   const [weather, setWeather] = useState('Bình thường');
@@ -1092,8 +1094,9 @@ const GuestOrderDetails: React.FC<{
   const handleConfirmCancel = () => {
     const finalReason = selectedCancelReason === 'Lý do khác' ? cancelReason : selectedCancelReason;
     console.log("Order cancelled for reason:", finalReason);
+    setOrderCancelReason(finalReason);
+    setCurrentStatus('FINISH-CANCELLED');
     setIsCancelModalOpen(false);
-    // Reset states
     setSelectedCancelReason('');
     setCancelReason('');
   };
@@ -1103,6 +1106,37 @@ const GuestOrderDetails: React.FC<{
     setCancelReason('');
     setIsCancelModalOpen(true);
   };
+
+  const handleOpenEditCancelReasonModal = () => {
+    if (CANCEL_REASONS.includes(orderCancelReason)) {
+      setSelectedCancelReason(orderCancelReason);
+      setCancelReason('');
+    } else if (orderCancelReason) {
+      setSelectedCancelReason('Lý do khác');
+      setCancelReason(orderCancelReason);
+    } else {
+      setSelectedCancelReason('');
+      setCancelReason('');
+    }
+    setIsEditCancelReasonModalOpen(true);
+  };
+
+  const handleConfirmEditCancelReason = () => {
+    const finalReason = selectedCancelReason === 'Lý do khác' ? cancelReason.trim() : selectedCancelReason;
+    setOrderCancelReason(finalReason);
+    setIsEditCancelReasonModalOpen(false);
+    setSelectedCancelReason('');
+    setCancelReason('');
+  };
+
+  const handleCloseCancelDialog = () => {
+    setIsCancelModalOpen(false);
+    setIsEditCancelReasonModalOpen(false);
+    setSelectedCancelReason('');
+    setCancelReason('');
+  };
+
+  const isOrderCancelled = currentStatus === 'FINISH-CANCELLED';
 
   const handleProviderPriceChange = (id: number, value: string) => {
     setCustomerTotalOverride(null);
@@ -2419,6 +2453,33 @@ const GuestOrderDetails: React.FC<{
                   </div>
                   <div className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar text-left">
                     <div className="relative border-l-2 border-gray-100 ml-3 pl-8 space-y-8">
+                      {isOrderCancelled && (
+                        <div className="relative">
+                          <div className="absolute -left-[44px] top-0 w-6 h-6 rounded-full bg-red-500 border-4 border-white shadow-md flex items-center justify-center">
+                            <X size={12} className="text-white" strokeWidth={3} />
+                          </div>
+                          <div className="text-left">
+                            <p className="text-xs font-black text-red-600 uppercase">Hủy đơn</p>
+                            <p className="text-xs text-gray-700 font-medium mt-1">
+                              Lý do: <span className="text-gray-900">{orderCancelReason || '—'}</span>
+                            </p>
+                            <p className="text-[10px] text-gray-400 mt-2 flex items-center">
+                              <Clock size={10} className="mr-1" /> 02/02/2026 14:20:00
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleOpenEditCancelReasonModal}
+                              className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 text-[11px] font-bold hover:bg-red-100 transition-colors"
+                            >
+                              <Pencil size={12} />
+                              Chỉnh sửa lý do hủy
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {!isOrderCancelled && (
+                        <>
                       <div className="relative">
                         <div className="absolute -left-[44px] top-0 w-6 h-6 rounded-full bg-green-500 border-4 border-white shadow-md flex items-center justify-center">
                           <div className="w-1 h-1 bg-white rounded-full"></div>
@@ -2449,9 +2510,12 @@ const GuestOrderDetails: React.FC<{
                           <p className="text-[10px] text-gray-400 mt-2">02/02/2026 13:55:12</p>
                         </div>
                       </div>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="p-4 bg-gray-50 border-t">
+                    {!isOrderCancelled && (
                     <button 
                       onClick={() => setIsStatusUpdateModalOpen(true)}
                       className="w-full bg-vetc-green text-white py-2.5 rounded-xl font-bold text-xs shadow-lg hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center space-x-2"
@@ -2459,6 +2523,7 @@ const GuestOrderDetails: React.FC<{
                       <Pencil size={14} />
                       <span>Cập nhật trạng thái thủ công</span>
                     </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2761,14 +2826,15 @@ const GuestOrderDetails: React.FC<{
 
         {/* Cancellation Dialog */}
         <CancellationDialog
-            isOpen={isCancelModalOpen}
-            onClose={() => setIsCancelModalOpen(false)}
-            onConfirm={handleConfirmCancel}
+            isOpen={isCancelModalOpen || isEditCancelReasonModalOpen}
+            onClose={handleCloseCancelDialog}
+            onConfirm={isEditCancelReasonModalOpen ? handleConfirmEditCancelReason : handleConfirmCancel}
             selectedReason={selectedCancelReason}
             setSelectedReason={setSelectedCancelReason}
             otherReason={cancelReason}
             setOtherReason={setCancelReason}
             cancelReasons={CANCEL_REASONS}
+            variant={isEditCancelReasonModalOpen ? 'editReason' : 'cancel'}
         />
 
         {/* Map Selection Modal */}

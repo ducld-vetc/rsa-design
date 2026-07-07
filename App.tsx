@@ -30,6 +30,9 @@ import PackagePurchaseManagement from './pages/PackagePurchaseManagement';
 import PaymentRequestManagement from './pages/PaymentRequestManagement';
 import PaymentRequestDetail from './pages/PaymentRequestDetail';
 import LocationSearch, { LocationSearchPrefill } from './pages/LocationSearch';
+import ShiftDefinitionManagement from './pages/ShiftDefinitionManagement';
+import ShiftMonthlySchedule from './pages/ShiftMonthlySchedule';
+import { ShiftConfigProvider } from './context/ShiftConfigContext';
 
 const initialData: FormData = {
   orderId: '',
@@ -91,6 +94,8 @@ const App: React.FC = () => {
 
   // Helper to map URL path to Step enum for Sidebar/Stepper compatibility
   const getStepFromPath = (path: string): Step => {
+    if (path.includes('/shift-definition-management')) return Step.SHIFT_DEFINITION_MANAGEMENT;
+    if (path.includes('/shift-monthly-schedule')) return Step.SHIFT_MONTHLY_SCHEDULE;
     if (path.includes('/location-search')) return Step.LOCATION_SEARCH;
     if (path.includes('/pricing-policy')) return Step.PRICING_POLICY;
     if (path.includes('/payment-request-management')) return Step.PAYMENT_REQUEST_MANAGEMENT;
@@ -290,6 +295,8 @@ const App: React.FC = () => {
   const handleNavigateToPackagePurchaseManagement = () => navigate('/package-purchase-management');
   const handleNavigateToPaymentRequestManagement = () => navigate('/payment-request-management');
   const handleNavigateToLocationSearch = () => navigate('/location-search');
+  const handleNavigateToShiftDefinition = () => navigate('/shift-definition-management');
+  const handleNavigateToShiftMonthlySchedule = () => navigate('/shift-monthly-schedule');
 
   const handleCreateOrderFromLocation = (p: LocationSearchPrefill) => {
     setFormData(prev => ({
@@ -390,6 +397,8 @@ const App: React.FC = () => {
     Step.PACKAGE_PURCHASE_MANAGEMENT,
     Step.PAYMENT_REQUEST_MANAGEMENT,
     Step.LOCATION_SEARCH,
+    Step.SHIFT_DEFINITION_MANAGEMENT,
+    Step.SHIFT_MONTHLY_SCHEDULE,
   ];
   
   const isStepperVisible = !hideStepperSteps.includes(currentStep);
@@ -415,6 +424,12 @@ const App: React.FC = () => {
     }
     if (currentStep === Step.LOCATION_SEARCH) {
       return ['Chăm sóc khách hàng', 'Tìm kiếm vị trí'];
+    }
+    if (currentStep === Step.SHIFT_DEFINITION_MANAGEMENT) {
+      return ['Quản trị hệ thống', 'Cấu hình ca làm việc'];
+    }
+    if (currentStep === Step.SHIFT_MONTHLY_SCHEDULE) {
+      return ['Quản trị hệ thống', 'Lịch ca theo tháng'];
     }
     if (currentStep === Step.PAYMENT_REQUEST_MANAGEMENT) {
       if (location.pathname.includes('/payment-request-management/')) {
@@ -446,6 +461,8 @@ const App: React.FC = () => {
         onNavigatePackagePurchaseManagement={handleNavigateToPackagePurchaseManagement}
         onNavigatePaymentRequestManagement={handleNavigateToPaymentRequestManagement}
         onNavigateLocationSearch={handleNavigateToLocationSearch}
+        onNavigateShiftDefinition={handleNavigateToShiftDefinition}
+        onNavigateShiftMonthlySchedule={handleNavigateToShiftMonthlySchedule}
         currentStep={currentStep}
       />
 
@@ -495,6 +512,7 @@ const App: React.FC = () => {
               {/*)}*/}
               
               <div className="w-full min-w-0">
+              <ShiftConfigProvider>
               <Routes>
                 <Route path="/" element={<Navigate to="/create" replace />} />
                 <Route path="/create" element={
@@ -599,7 +617,14 @@ const App: React.FC = () => {
                 <Route path="/location-search" element={
                   <LocationSearch onCreateOrder={handleCreateOrderFromLocation} />
                 } />
+                <Route path="/shift-definition-management" element={
+                  <ShiftDefinitionManagement />
+                } />
+                <Route path="/shift-monthly-schedule" element={
+                  <ShiftMonthlySchedule />
+                } />
               </Routes>
+              </ShiftConfigProvider>
               </div>
             </div>
           </div>

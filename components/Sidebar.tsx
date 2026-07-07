@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin } from 'lucide-react';
+import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays } from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
@@ -20,6 +20,8 @@ interface SidebarProps {
   onNavigatePackagePurchaseManagement: () => void;
   onNavigatePaymentRequestManagement: () => void;
   onNavigateLocationSearch: () => void;
+  onNavigateShiftDefinition: () => void;
+  onNavigateShiftMonthlySchedule: () => void;
   currentStep: Step;
 }
 
@@ -40,6 +42,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigatePackagePurchaseManagement,
   onNavigatePaymentRequestManagement,
   onNavigateLocationSearch,
+  onNavigateShiftDefinition,
+  onNavigateShiftMonthlySchedule,
   currentStep 
 }) => {
   const [openMenus, setOpenMenus] = useState<string[]>(['admin', 'payment', 'cskh', 'rescue', 'station']);
@@ -104,6 +108,20 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Package size={14} />
                 <span>Quản lý mua gói</span>
+              </div>
+              <div 
+                onClick={onNavigateShiftDefinition}
+                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.SHIFT_DEFINITION_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                <Calendar size={14} />
+                <span>Cấu hình ca làm việc</span>
+              </div>
+              <div 
+                onClick={onNavigateShiftMonthlySchedule}
+                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.SHIFT_MONTHLY_SCHEDULE ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                <CalendarDays size={14} />
+                <span>Lịch ca theo tháng</span>
               </div>
               <div>
                 <div
