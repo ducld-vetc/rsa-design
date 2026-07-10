@@ -609,7 +609,7 @@ export const respondToMessage = (
 export const INITIAL_BOT_MESSAGE: ChatMessageData = {
   id: 'welcome',
   role: 'bot',
-  text: 'Xin chào! Nhập vị trí sự cố trên bản đồ trước, sau đó chọn trạm và thêm điểm kéo xe (nếu cần). Chat tại đây nếu cần hỗ trợ thêm.',
+  text: 'Xin chào! Mô tả vị trí sự cố ở panel bên trái hoặc chat tại đây — kết quả hiển thị chung trên panel. Sau đó chọn trạm và thêm điểm kéo xe (nếu cần).',
   quickReplies: [
     'Gần cây xăng Petrolimex Nguyễn Trãi',
     'Đối diện Vincom Nguyễn Trãi',

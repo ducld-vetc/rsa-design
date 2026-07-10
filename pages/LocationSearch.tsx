@@ -22,12 +22,11 @@ import {
   Wrench,
   Building2,
   Truck,
-  Flag,
   List,
   ChevronDown,
   ClipboardList,
-  Trash2,
   GripVertical,
+  RotateCcw,
 } from 'lucide-react';
 import {
   AreaWarning,
@@ -251,23 +250,6 @@ const PlaceCard: React.FC<{ place: NearbyPlace; onFocus: (p: NearbyPlace) => voi
   </button>
 );
 
-const LocationBubble: React.FC<{ location: IdentifiedLocation }> = ({ location }) => (
-  <div className="mt-2 rounded-lg border border-[#00A859] bg-green-50 p-2.5">
-    <div className="flex items-center gap-1.5 text-[#00A859]">
-      <MapPin size={13} />
-      <span className="text-[10px] font-black uppercase tracking-wide">Vị trí sự cố</span>
-      <span className="ml-auto text-[10px] font-bold bg-[#00A859] text-white px-1.5 py-0.5 rounded-full">
-        {Math.round(location.confidence * 100)}%
-      </span>
-    </div>
-    <p className="text-xs font-semibold text-gray-700 mt-1.5">{location.address}</p>
-    <p className="text-[10px] text-gray-400 mt-0.5">
-      {location.position[0].toFixed(5)}, {location.position[1].toFixed(5)}
-    </p>
-  </div>
-);
-
-/** Thẻ danh sách trạm trong chat: chọn 1 trạm làm vị trí trạm xuất phát */
 const StationPickList: React.FC<{
   stations: StationDistance[];
   activeName?: string;
@@ -471,19 +453,15 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
     setMapResetToken((t) => t + 1);
   };
 
-  const switchToPanelSearch = () => {
-    if (!chatOpen) return;
+  const clearSearchSession = () => {
     resetMapToDefault();
-    setChatOpen(false);
+    setMessages([INITIAL_BOT_MESSAGE]);
+    setInput('');
   };
 
-  const switchToChatSearch = () => {
-    if (chatOpen) return;
-    resetMapToDefault();
-    setChatOpen(true);
+  const closeChatPanel = () => {
+    if (chatOpen) setChatOpen(false);
   };
-
-  const hideChatForPanelSearch = () => switchToPanelSearch();
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -507,6 +485,28 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
     setMessages((prev) => [...prev, { id: `${uid()}-u`, role: 'osa', text }]);
 
   const hasJourneyPoint = Boolean(location || routeOrigin || towDestination);
+
+  const hasClearableSession =
+    hasJourneyPoint ||
+    Boolean(pointInput.trim()) ||
+    places.length > 0 ||
+    warnings.length > 0 ||
+    messages.length > 1;
+
+  const applyLocationSearchResult = (
+    result: { location: IdentifiedLocation; places: NearbyPlace[]; warnings: AreaWarning[] },
+    options?: { resetJourneyFirst?: boolean }
+  ) => {
+    if (options?.resetJourneyFirst !== false) resetJourney();
+    setLocation(result.location);
+    setPointInput(result.location.address);
+    setIncidentStepInput(result.location.address);
+    setPrimaryPointRole('incident');
+    setPlaces(result.places);
+    setWarnings(result.warnings);
+    setPlacesExpanded(false);
+    setWarningsOpen(true);
+  };
 
   const getReferencePosition = (): LatLngTuple => {
     if (location) return location.position;
@@ -599,10 +599,12 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
     );
   };
 
-  const applyStation = (origin: RouteOrigin) => {
+  const applyStation = (origin: RouteOrigin, options?: { clearStationList?: boolean }) => {
     setRouteOrigin(origin);
     setStationInput(origin.name);
-    setStationList([]);
+    if (options?.clearStationList !== false) {
+      setStationList([]);
+    }
     if (location) {
       setRoute(buildRouteFrom(origin, location));
     } else {
@@ -690,6 +692,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
       return;
     }
     setPending(null);
+    setStationSearchMode('nearby');
     const list = nearestStations(location.position, 5);
     setStationList(list);
     botSay([
@@ -717,6 +720,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
     if (!location) return;
     const origin = geocodeOrigin(text, location.position);
     applyStation(origin);
+    setStationSearchMode('address');
     setPending(null);
     const r = buildRouteFrom(origin, location);
     botSay([
@@ -732,8 +736,14 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
       position: s.position,
       kind: 'station',
     };
-    applyStation(origin);
+    applyStation(origin, { clearStationList: false });
+    setStationSearchMode('nearby');
     setPending(null);
+    if (stationList.length === 0) {
+      setStationList(
+        location ? nearestStations(location.position, 5) : [s]
+      );
+    }
     const r = location ? buildRouteFrom(origin, location) : null;
     pushUser(`Chọn trạm: ${s.name}`);
     botSay([
@@ -764,6 +774,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
   const resolveTow = (text: string) => {
     if (!location) return;
     const dest = geocodeOrigin(text, location.position);
+    setShowTowStep(true);
     applyTow(dest);
     setPending(null);
     const r2 = buildRouteFrom({ name: location.address, position: location.position }, {
@@ -813,7 +824,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
   const handleUserSend = (raw: string) => {
     const text = raw.trim();
     if (!text || isTyping) return;
-    if (!chatOpen) switchToChatSearch();
+    if (!chatOpen) setChatOpen(true);
     pushUser(text);
     setInput('');
 
@@ -848,11 +859,15 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
     setTimeout(() => {
       const res = respondToMessage(text, { location, places });
       if (res.location) {
-        setLocation(res.location);
-        resetJourney();
+        applyLocationSearchResult({
+          location: res.location,
+          places: res.places ?? places,
+          warnings: res.warnings ?? warnings,
+        });
+      } else {
+        if (res.places) setPlaces(res.places);
+        if (res.warnings) setWarnings(res.warnings);
       }
-      if (res.places) setPlaces(res.places);
-      if (res.warnings) setWarnings(res.warnings);
       setMessages((prev) => [...prev, ...res.messages]);
       setIsTyping(false);
     }, 750);
@@ -891,7 +906,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
     const q = pointInput.trim();
     if (!q) return;
 
-    hideChatForPanelSearch();
+    closeChatPanel();
     setSearchError(null);
     setIsSearching(true);
 
@@ -902,15 +917,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
         setIsSearching(false);
         return;
       }
-      resetJourney();
-      setLocation(result.location);
-      setPlaces(result.places);
-      setWarnings(result.warnings);
-      setPointInput(result.location.address);
-      setIncidentStepInput(result.location.address);
-      setPrimaryPointRole('incident');
-      setPlacesExpanded(false);
-      setWarningsOpen(true);
+      applyLocationSearchResult(result);
       setIsSearching(false);
     }, 400);
   };
@@ -919,7 +926,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
     e?.preventDefault();
     const q = incidentStepInput.trim();
     if (!q) return;
-    hideChatForPanelSearch();
+    closeChatPanel();
     setSearchError(null);
     setIsSearching(true);
     setTimeout(() => {
@@ -929,14 +936,15 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
         setIsSearching(false);
         return;
       }
-      setLocation(result.location);
-      setIncidentStepInput(result.location.address);
+      applyLocationSearchResult(result, { resetJourneyFirst: false });
       rebuildAllRoutes();
       setIsSearching(false);
     }, 400);
   };
 
-  const clearPoint = () => resetMapToDefault();
+  const clearPoint = () => {
+    resetMapToDefault();
+  };
 
   const visiblePlaces = placesExpanded ? places : places.slice(0, 2);
 
@@ -956,7 +964,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
 
   const handleSearchStationByAddress = () => {
     if (!stationInput.trim()) return;
-    hideChatForPanelSearch();
+    closeChatPanel();
     setSearchError(null);
     setIsSearching(true);
     setTimeout(() => {
@@ -992,7 +1000,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
               setIncidentStepInput(e.target.value);
               setSearchError(null);
             }}
-            onFocus={hideChatForPanelSearch}
+            onFocus={closeChatPanel}
             placeholder={meta.placeholder}
             className="flex-1 min-w-0 py-1.5 px-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#00A859]"
           />
@@ -1010,6 +1018,18 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
     if (stepId === 'station') {
       return (
         <div className="space-y-2">
+          {routeOrigin && (
+            <div className="flex items-start gap-2 text-[10px] text-gray-600 bg-blue-50 border border-blue-100 rounded px-2 py-1.5">
+              <Building2 size={12} className="text-blue-600 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="font-bold text-blue-800">Đã chọn: {routeOrigin.name}</p>
+                {routeOrigin.address && routeOrigin.address !== routeOrigin.name && (
+                  <p className="text-gray-500 truncate mt-0.5">{routeOrigin.address}</p>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
             <button
               type="button"
@@ -1090,7 +1110,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
                     setStationInput(e.target.value);
                     setSearchError(null);
                   }}
-                  onFocus={hideChatForPanelSearch}
+                  onFocus={closeChatPanel}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -1109,11 +1129,6 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
                   Tìm
                 </button>
               </div>
-              {routeOrigin && stationSearchMode === 'address' && (
-                <p className="text-[10px] text-gray-600 bg-blue-50 border border-blue-100 rounded px-2 py-1.5">
-                  Đã chọn: <strong>{routeOrigin.name}</strong>
-                </p>
-              )}
             </>
           )}
         </div>
@@ -1129,7 +1144,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
             setTowInput(e.target.value);
             setSearchError(null);
           }}
-          onFocus={hideChatForPanelSearch}
+          onFocus={closeChatPanel}
           placeholder={meta.placeholder}
           disabled={!location && primaryPointRole !== 'station'}
           className="w-full py-1.5 px-2 pr-7 text-sm border border-gray-200 rounded-lg outline-none focus:border-orange-500 disabled:bg-gray-50 disabled:text-gray-400"
@@ -1277,6 +1292,17 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
 
       {/* Cột trái: tìm kiếm + cảnh báo + địa điểm gần (xếp dọc, không scroll) */}
       <div className="absolute top-3 left-3 z-[500] w-[min(380px,calc(100%-24px))] flex flex-col gap-2 pointer-events-none">
+        {hasClearableSession && (
+          <button
+            type="button"
+            onClick={clearSearchSession}
+            className="pointer-events-auto self-end flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/95 backdrop-blur border border-gray-200 shadow-sm text-[10px] font-bold text-gray-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50/80 transition-colors"
+            title="Xóa toàn bộ phiên tìm kiếm và đưa bản đồ về mặc định"
+          >
+            <RotateCcw size={12} />
+            Xóa phiên tìm kiếm
+          </button>
+        )}
         {!hasJourneyPoint ? (
           <form
             onSubmit={handlePointSearch}
@@ -1294,7 +1320,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
                   setPointInput(e.target.value);
                   setSearchError(null);
                 }}
-                onFocus={hideChatForPanelSearch}
+                onFocus={closeChatPanel}
                 placeholder="Mô tả / tìm địa chỉ..."
                 className="w-full bg-white shadow-md border border-gray-200 rounded-full py-2.5 pl-10 pr-4 text-sm outline-none focus:border-[#00A859] transition-colors"
               />
@@ -1555,72 +1581,6 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
         )}
       </div>
 
-      {/* Overlay: tóm tắt hành trình (góc dưới bên trái) */}
-      {(route || location) && (
-        <div className="absolute bottom-3 left-3 z-[500] w-[min(360px,calc(100%-24px))]">
-          {route ? (
-            <div className="bg-white/95 backdrop-blur rounded-xl shadow-md border border-gray-200 overflow-hidden">
-              <div className="flex items-center gap-1.5 px-3 py-2 bg-[#00A859] text-white">
-                <RouteIcon size={14} />
-                <span className="text-[11px] font-black uppercase tracking-wide flex-1">Hành trình</span>
-                <button
-                  type="button"
-                  onClick={resetJourney}
-                  className="flex items-center gap-1 text-[10px] font-bold text-white/90 hover:text-white transition-colors"
-                  title="Xoá hành trình"
-                >
-                  <Trash2 size={12} /> Xoá
-                </button>
-              </div>
-              <div className="p-2.5 space-y-2">
-                <div className="flex items-center gap-2 text-[11px]">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: routeOrigin?.kind === 'custom' ? '#7C3AED' : '#2563EB' }} />
-                  <span className="text-gray-500 font-bold uppercase text-[9px] w-20 shrink-0">
-                    {routeOrigin?.kind === 'custom' ? 'Điểm xuất phát' : 'Vị trí trạm'}
-                  </span>
-                  <span className="text-gray-800 font-semibold truncate">{route.fromName}</span>
-                </div>
-                <div className="flex items-center gap-2 text-[11px]">
-                  <MapPin size={12} className="text-[#00A859] shrink-0" />
-                  <span className="text-gray-500 font-bold uppercase text-[9px] w-20 shrink-0">Vị trí sự cố</span>
-                  <span className="text-gray-800 font-semibold truncate">{location?.address}</span>
-                </div>
-                {towDestination && (
-                  <div className="flex items-center gap-2 text-[11px]">
-                    <Flag size={12} className="text-orange-600 shrink-0" />
-                    <span className="text-gray-500 font-bold uppercase text-[9px] w-20 shrink-0">Kéo xe tới</span>
-                    <span className="text-gray-800 font-semibold truncate">{towDestination.name}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-3 pt-1.5 border-t border-gray-100 text-[11px] font-black text-blue-700">
-                  <span className="flex items-center gap-1">
-                    <Navigation size={12} /> {route.distanceKm} km
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock size={12} /> {route.durationMin} phút
-                  </span>
-                  {towRoute && (
-                    <span className="flex items-center gap-1 text-orange-600">
-                      <Truck size={12} /> +{towRoute.distanceKm} km
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            location && (
-              <div className="bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2 flex items-center gap-2">
-                <MapPin size={16} className="text-[#00A859] shrink-0" />
-                <p className="text-xs font-semibold text-gray-700 truncate flex-1">{location.address}</p>
-                <span className="flex items-center gap-1 text-[10px] font-bold text-[#00A859] whitespace-nowrap">
-                  <CheckCircle2 size={13} /> Vị trí sự cố
-                </span>
-              </div>
-            )
-          )}
-        </div>
-      )}
-
       {/* CHATBOT nổi trên map */}
       {chatOpen && (
         <div className="absolute top-3 right-3 bottom-20 z-[600] w-[min(380px,calc(100%-24px))] flex flex-col rounded-2xl overflow-hidden border border-gray-200 shadow-2xl bg-white animate-in fade-in slide-in-from-right-4 duration-300">
@@ -1636,7 +1596,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
             </div>
             <button
               type="button"
-              onClick={switchToPanelSearch}
+              onClick={() => setChatOpen(false)}
               className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
               title="Thu gọn"
             >
@@ -1669,8 +1629,6 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
                       {msg.text}
                     </div>
                   )}
-
-                  {msg.location && <LocationBubble location={msg.location} />}
 
                   {msg.stations && msg.stations.length > 0 && isLast && (
                     <StationPickList
@@ -1785,10 +1743,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
       {/* FAB bật/tắt chat */}
       <button
         type="button"
-        onClick={() => {
-          if (chatOpen) switchToPanelSearch();
-          else switchToChatSearch();
-        }}
+        onClick={() => setChatOpen((v) => !v)}
         className={`absolute bottom-4 right-4 z-[600] w-12 h-12 rounded-full shadow-xl flex items-center justify-center transition-all active:scale-95 ${
           chatOpen ? 'bg-[#00A859] text-white hover:bg-green-700' : 'bg-white border border-gray-200 hover:shadow-2xl'
         }`}
