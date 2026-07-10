@@ -50,6 +50,112 @@ export type MonthlyEmployee = {
   assignments: Record<number, string | null>;
 };
 
+/** Trạng thái làm việc thực tế theo đơn — chỉ áp dụng ngày đã qua */
+export type EmployeeActualWorkStatus = 'WORKED' | 'NO_ORDERS' | 'OFF';
+
+export type EmployeeDayWorkFact = {
+  employeeId: string;
+  day: number;
+  status: EmployeeActualWorkStatus;
+  orderCount: number;
+};
+
+export const ACTUAL_WORK_META: Record<
+  EmployeeActualWorkStatus,
+  { label: string; cell: string; dot: string; badge: string }
+> = {
+  WORKED: {
+    label: 'Có đơn',
+    cell: 'border-l-2 border-l-emerald-500',
+    dot: 'bg-emerald-500',
+    badge: 'bg-emerald-600 text-white',
+  },
+  NO_ORDERS: {
+    label: 'Không có đơn',
+    cell: 'border-l-2 border-l-red-500 ring-1 ring-amber-200',
+    dot: 'bg-red-500',
+    badge: 'bg-amber-600 text-white',
+  },
+  OFF: {
+    label: 'Nghỉ',
+    cell: '',
+    dot: 'bg-slate-300',
+    badge: 'bg-slate-400 text-white',
+  },
+};
+
+export function actualWorkFactKey(employeeId: string, day: number): string {
+  return `${employeeId}-${day}`;
+}
+
+export function isStrictPastDay(
+  yearMonth: string,
+  day: number,
+  refDate: Date = new Date()
+): boolean {
+  const currentYearMonth = `${refDate.getFullYear()}-${String(refDate.getMonth() + 1).padStart(2, '0')}`;
+  if (yearMonth < currentYearMonth) return true;
+  if (yearMonth > currentYearMonth) return false;
+  return day < refDate.getDate();
+}
+
+/** Mock kiểm tra đơn thực tế theo ngày đã qua (BE sẽ thay bằng API) */
+export function buildMockActualWorkFacts(
+  employees: MonthlyEmployee[],
+  yearMonth: string
+): Map<string, EmployeeDayWorkFact> {
+  const map = new Map<string, EmployeeDayWorkFact>();
+  const now = new Date();
+  const [y, m] = yearMonth.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  let pastDays: number[] = [];
+  if (yearMonth < currentYearMonth) {
+    pastDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  } else if (yearMonth === currentYearMonth) {
+    const today = now.getDate();
+    pastDays = Array.from({ length: Math.max(0, today - 1) }, (_, i) => i + 1);
+  } else {
+    return map;
+  }
+
+  employees.forEach((emp) => {
+    pastDays.forEach((day) => {
+      const shiftKey = emp.assignments[day];
+      const key = actualWorkFactKey(emp.id, day);
+
+      if (!shiftKey) {
+        if (emp.id === 'e2' && day === 5) {
+          map.set(key, { employeeId: emp.id, day, status: 'WORKED', orderCount: 1 });
+        } else if (emp.id === 'c2' && day === 4) {
+          map.set(key, { employeeId: emp.id, day, status: 'WORKED', orderCount: 2 });
+        } else {
+          map.set(key, { employeeId: emp.id, day, status: 'OFF', orderCount: 0 });
+        }
+        return;
+      }
+
+      const noOrderDemo =
+        (emp.id === 'e1' && (day === 2 || day === 4)) ||
+        (emp.id === 'e2' && day === 3) ||
+        (emp.id === 'e3' && day === 6) ||
+        (emp.id === 'e5' && day === 8) ||
+        (emp.id === 'c1' && day === 2) ||
+        (emp.id === 'c3' && day === 6);
+
+      if (noOrderDemo) {
+        map.set(key, { employeeId: emp.id, day, status: 'NO_ORDERS', orderCount: 0 });
+      } else {
+        const orderCount = 1 + ((day + emp.code.length) % 4);
+        map.set(key, { employeeId: emp.id, day, status: 'WORKED', orderCount });
+      }
+    });
+  });
+
+  return map;
+}
+
 export type ShiftDayWarning = {
   date: string;
   shiftKey: string;
@@ -347,10 +453,42 @@ const buildAssignments = (
   return result;
 };
 
+const applyFutureUnconfiguredDemo = (
+  employees: MonthlyEmployee[],
+  role: ShiftRole,
+  daysInMonth: number,
+  yearMonth: string
+) => {
+  const now = new Date();
+  const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  if (yearMonth !== currentYearMonth) return;
+
+  const today = now.getDate();
+  const fullyUnconfiguredIds =
+    role === 'OSA' ? ['e3', 'e4', 'e8', 'e10'] : ['c3', 'c4', 'c9', 'c11'];
+  const partiallyUnconfiguredIds =
+    role === 'OSA' ? ['e5', 'e6', 'e7'] : ['c5', 'c6', 'c7'];
+
+  employees.forEach((emp) => {
+    if (fullyUnconfiguredIds.includes(emp.id)) {
+      for (let d = today + 1; d <= daysInMonth; d += 1) {
+        emp.assignments[d] = null;
+      }
+      return;
+    }
+    if (partiallyUnconfiguredIds.includes(emp.id)) {
+      for (let d = today + 1; d <= daysInMonth; d += 2) {
+        emp.assignments[d] = null;
+      }
+    }
+  });
+};
+
 export const buildMockMonthlyEmployees = (
   role: ShiftRole,
   daysInMonth: number,
-  config?: ShiftScheduleConfig
+  config?: ShiftScheduleConfig,
+  yearMonth?: string
 ): MonthlyEmployee[] => {
   const keys = getShiftDefinitionsForRole(role, config).map((s) => s.shiftKey);
   const workKeys = keys.filter((k) => k !== 'OT');
@@ -413,6 +551,7 @@ export const buildMockMonthlyEmployees = (
       e6: null, e7: null, e8: null, e9: null, e10: null,
     });
 
+    if (yearMonth) applyFutureUnconfiguredDemo(employees, role, daysInMonth, yearMonth);
     return employees;
   }
 
@@ -460,6 +599,7 @@ export const buildMockMonthlyEmployees = (
     c7: null, c8: null, c9: null, c10: null, c11: null,
   });
 
+  if (yearMonth) applyFutureUnconfiguredDemo(employees, role, daysInMonth, yearMonth);
   return employees;
 };
 

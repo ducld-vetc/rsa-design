@@ -471,6 +471,40 @@ const confidencePct = (c: number) => `${Math.round(c * 100)}%`;
 const displayedInfoText = (warnings: AreaWarning[], places: NearbyPlace[]): string =>
   `Mình đã hiển thị ${warnings.length} cảnh báo khu vực và ${places.length} địa điểm gần đó trên bản đồ để anh/chị đối chiếu với khách hàng.`;
 
+/** Kết quả tìm vị trí trực tiếp (không qua chat) */
+export interface LocationIdentifyResult {
+  location: IdentifiedLocation;
+  places: NearbyPlace[];
+  warnings: AreaWarning[];
+}
+
+/**
+ * Xác định vị trí sự cố từ mô tả địa chỉ — dùng cho ô tìm kiếm trên bản đồ.
+ * Trả về null nếu không đủ dữ kiện để geocode.
+ */
+export const identifyLocationFromQuery = (
+  rawText: string,
+  ctx: ConversationContext
+): LocationIdentifyResult | null => {
+  const text = rawText.toLowerCase().trim();
+  if (!text) return null;
+
+  if (hasKeyword(text, KW_ALT)) {
+    return { location: IDENTIFIED_ALT, places: NEARBY_ALT, warnings: WARNINGS_ALT };
+  }
+
+  if (hasKeyword(text, KW_LOCATION) || text.length >= 12) {
+    return { location: IDENTIFIED_DEFAULT, places: NEARBY_DEFAULT, warnings: WARNINGS_DEFAULT };
+  }
+
+  // Fallback: vẫn cố gắng geocode nếu đủ dài hoặc có từ khóa địa điểm
+  if (text.length >= 6) {
+    return { location: IDENTIFIED_DEFAULT, places: NEARBY_DEFAULT, warnings: WARNINGS_DEFAULT };
+  }
+
+  return null;
+};
+
 export const respondToMessage = (
   rawText: string,
   ctx: ConversationContext
@@ -575,7 +609,7 @@ export const respondToMessage = (
 export const INITIAL_BOT_MESSAGE: ChatMessageData = {
   id: 'welcome',
   role: 'bot',
-  text: 'Xin chào! Mình là trợ lý xác định vị trí. Anh/chị dán/nhập nguyên văn mô tả vị trí của khách hàng, mình sẽ xác định vị trí trên bản đồ và gợi ý các địa điểm gần đó.',
+  text: 'Xin chào! Nhập vị trí sự cố trên bản đồ trước, sau đó chọn trạm và thêm điểm kéo xe (nếu cần). Chat tại đây nếu cần hỗ trợ thêm.',
   quickReplies: [
     'Gần cây xăng Petrolimex Nguyễn Trãi',
     'Đối diện Vincom Nguyễn Trãi',

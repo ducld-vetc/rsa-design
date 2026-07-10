@@ -169,7 +169,7 @@ export const ShiftConfigProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const buildEmployees = useCallback(
     (role: ShiftRole, yearMonth: string) =>
-      buildMockMonthlyEmployees(role, getDaysInMonth(yearMonth), scheduleConfig),
+      buildMockMonthlyEmployees(role, getDaysInMonth(yearMonth), scheduleConfig, yearMonth),
     [scheduleConfig]
   );
 

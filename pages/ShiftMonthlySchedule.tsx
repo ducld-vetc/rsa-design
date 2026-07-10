@@ -3,19 +3,28 @@ import {
   AlertTriangle,
   Check,
   Download,
+  Eye,
   Loader2,
+  Pencil,
+  RotateCcw,
+  Save,
   Settings2,
   Sparkles,
   Upload,
   X,
 } from 'lucide-react';
 import {
+  ACTUAL_WORK_META,
+  actualWorkFactKey,
+  buildMockActualWorkFacts,
   computeDailySummaryStats,
   computeSessionSummaryStats,
+  isStrictPastDay,
   MOCK_EXCEL_IMPORT_PREVIEW,
   formatShiftTimeLabel,
   getDaysInMonth,
   getStaffingShiftsForRole,
+  type EmployeeDayWorkFact,
   type MonthlyEmployee,
   type ShiftDayWarning,
   type ShiftDefinition,
@@ -53,6 +62,11 @@ const WARNING_META: Record<
   },
 };
 
+type ScheduleScreenMode = 'view' | 'edit';
+
+const cloneEmployees = (list: MonthlyEmployee[]): MonthlyEmployee[] =>
+  list.map((emp) => ({ ...emp, assignments: { ...emp.assignments } }));
+
 const primaryWarning = (warnings: ShiftDayWarning[]): ShiftDayWarning | null => {
   if (warnings.some((w) => w.type === 'UNDERSTAFFED')) {
     return warnings.find((w) => w.type === 'UNDERSTAFFED') ?? null;
@@ -81,9 +95,10 @@ const ShiftMonthlySchedule: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [role, setRole] = useState<ShiftRole>('OSA');
   const [yearMonth, setYearMonth] = useState('2026-07');
-  const [employees, setEmployees] = useState<MonthlyEmployee[]>(() =>
+  const [savedEmployees, setSavedEmployees] = useState<MonthlyEmployee[]>(() =>
     buildEmployees('OSA', '2026-07')
   );
+  const [draftEmployees, setDraftEmployees] = useState<MonthlyEmployee[] | null>(null);
   const [previewEmployees, setPreviewEmployees] = useState<MonthlyEmployee[] | null>(null);
   const [previewFileName, setPreviewFileName] = useState('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -100,7 +115,19 @@ const ShiftMonthlySchedule: React.FC = () => {
   const [isPrefModalOpen, setIsPrefModalOpen] = useState(false);
   const [autoStep, setAutoStep] = useState<'idle' | 'action1_done' | 'action2_done'>('idle');
   const [pendingAutoAction, setPendingAutoAction] = useState<1 | 2 | null>(null);
+  const [screenMode, setScreenMode] = useState<ScheduleScreenMode>('view');
+  const [pastEditPrompt, setPastEditPrompt] = useState<{
+    employeeId: string;
+    day: number;
+    anchorTop: number;
+    anchorLeft: number;
+  } | null>(null);
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isDiscardModalOpen, setIsDiscardModalOpen] = useState(false);
+  const [pendingModeChange, setPendingModeChange] = useState<ScheduleScreenMode | null>(null);
 
+  const isEditMode = screenMode === 'edit';
+  const employees = isEditMode && draftEmployees ? draftEmployees : savedEmployees;
   const minShiftUnits = getMinShiftUnitsFromBe(role);
 
   const daysInMonth = getDaysInMonth(yearMonth);
@@ -140,6 +167,18 @@ const ShiftMonthlySchedule: React.FC = () => {
     [shiftDefinitions]
   );
 
+  const isPastOrTodayDay = (day: number) => isCurrentMonth && day <= now.getDate();
+  const isFutureDay = (day: number) => isCurrentMonth && day > now.getDate();
+  const isPastDay = (day: number) => isStrictPastDay(yearMonth, day, now);
+
+  const actualWorkFacts = useMemo(
+    () => buildMockActualWorkFacts(savedEmployees, yearMonth),
+    [savedEmployees, yearMonth]
+  );
+
+  const getActualWorkFact = (employeeId: string, day: number): EmployeeDayWorkFact | null =>
+    actualWorkFacts.get(actualWorkFactKey(employeeId, day)) ?? null;
+
   const countEmployeeUnits = (emp: MonthlyEmployee) => {
     let total = 0;
     Object.values(emp.assignments).forEach((key) => {
@@ -150,18 +189,229 @@ const ShiftMonthlySchedule: React.FC = () => {
     return total;
   };
 
-  const getShiftCellClass = (shiftKey: string | null, warn: ShiftDayWarning | null) => {
-    if (!shiftKey) return 'text-gray-300 hover:bg-gray-100 border border-transparent';
-    if (warn) return WARNING_META[warn.type].cell;
+  const getShiftCellClass = (
+    shiftKey: string | null,
+    warn: ShiftDayWarning | null,
+    editable = false,
+    day?: number,
+    actualWork?: EmployeeDayWorkFact | null
+  ) => {
+    const past = day !== undefined && isPastDay(day);
+    const pastBase = past ? 'bg-slate-100/90 border-slate-300 text-slate-700' : '';
+    const actualWorkClass = past && actualWork ? ACTUAL_WORK_META[actualWork.status].cell : '';
+
+    if (!shiftKey) {
+      if (day !== undefined && isFutureDay(day)) {
+        return editable
+          ? 'bg-slate-50 text-slate-400 border border-dashed border-slate-300 hover:bg-slate-100'
+          : 'bg-slate-50 text-slate-400 border border-dashed border-slate-300';
+      }
+      if (past) {
+        const offClass =
+          actualWork?.status === 'WORKED'
+            ? 'bg-violet-50 text-violet-800 border-violet-200 border-l-2 border-l-violet-500'
+            : `${pastBase} text-slate-400`;
+        return `${offClass} border ${actualWorkClass}`.trim();
+      }
+      return editable
+        ? 'text-gray-300 hover:bg-gray-100 border border-transparent'
+        : 'text-gray-300 border border-transparent';
+    }
+    if (warn) return `${WARNING_META[warn.type].cell} ${past ? 'opacity-90' : ''}`.trim();
     const primaryKey = shiftKey.split('+')[0]?.trim();
     const def = primaryKey ? shiftByKey.get(primaryKey) : undefined;
+
+    if (past) {
+      if (actualWork?.status === 'NO_ORDERS') {
+        return `bg-amber-50/90 text-amber-900 border border-amber-300 ${actualWorkClass} ${
+          editable ? 'hover:bg-amber-100' : ''
+        }`.trim();
+      }
+      if (actualWork?.status === 'WORKED') {
+        return `bg-slate-100 text-slate-800 border border-slate-300 ${actualWorkClass} ${
+          editable ? 'hover:bg-slate-200/80' : ''
+        }`.trim();
+      }
+      return `${pastBase} border ${actualWorkClass} ${editable ? 'hover:bg-slate-200/70' : ''}`.trim();
+    }
+
     if (isOvertimeShift(def)) {
-      return 'bg-orange-100 text-orange-900 border border-orange-300 hover:bg-orange-200 ring-1 ring-orange-200';
+      return editable
+        ? 'bg-orange-100 text-orange-900 border border-orange-300 hover:bg-orange-200 ring-1 ring-orange-200'
+        : 'bg-orange-100 text-orange-900 border border-orange-300 ring-1 ring-orange-200';
     }
     if (def?.isNightShift) {
-      return 'bg-indigo-100 text-indigo-900 border border-indigo-200 hover:bg-indigo-200';
+      return editable
+        ? 'bg-indigo-100 text-indigo-900 border border-indigo-200 hover:bg-indigo-200'
+        : 'bg-indigo-100 text-indigo-900 border border-indigo-200';
     }
-    return 'bg-emerald-50 text-emerald-800 border border-emerald-100 hover:bg-emerald-100';
+    return editable
+      ? 'bg-emerald-50 text-emerald-800 border border-emerald-100 hover:bg-emerald-100'
+      : 'bg-emerald-50 text-emerald-800 border border-emerald-100';
+  };
+
+  const buildCellTitle = (
+    shiftKey: string | null,
+    day: number,
+    isUnconfiguredFuture: boolean,
+    actualWork: EmployeeDayWorkFact | null
+  ) => {
+    const parts: string[] = [];
+    if (isPastDay(day) && actualWork) {
+      parts.push(
+        actualWork.status === 'WORKED'
+          ? `Thực tế: có ${actualWork.orderCount} đơn`
+          : actualWork.status === 'NO_ORDERS'
+            ? 'Thực tế: xếp ca nhưng không có đơn'
+            : 'Thực tế: nghỉ (không có đơn)'
+      );
+    }
+    if (shiftKey) {
+      const first = shiftByKey.get(shiftKey.split('+')[0]?.trim() ?? '');
+      const prefix = `${first?.isOvertime ? 'Ca OT — ' : ''}${first?.isNightShift ? 'Ca đêm — ' : ''}`;
+      parts.push(`${prefix}Ca ${shiftKey}${isEditMode ? ' — bấm để sửa' : ''}`);
+    } else if (isUnconfiguredFuture) {
+      parts.push('Chưa cấu hình ca — ngày tương lai');
+    } else if (isEditMode) {
+      parts.push('Bấm để gán ca');
+    } else {
+      parts.push('Không có ca');
+    }
+    return parts.join('\n');
+  };
+
+  const renderActualWorkBadge = (actualWork: EmployeeDayWorkFact | null, shiftKey: string | null) => {
+    if (!actualWork) return null;
+    if (actualWork.status === 'WORKED') {
+      return (
+        <span
+          className={`absolute bottom-0.5 right-0.5 px-0.5 rounded text-[6px] font-black leading-none ${ACTUAL_WORK_META.WORKED.badge}`}
+        >
+          {actualWork.orderCount}đ
+        </span>
+      );
+    }
+    if (actualWork.status === 'NO_ORDERS' && shiftKey) {
+      return (
+        <span
+          className={`absolute bottom-0.5 right-0.5 px-0.5 rounded text-[6px] font-black leading-none ${ACTUAL_WORK_META.NO_ORDERS.badge}`}
+        >
+          0đ
+        </span>
+      );
+    }
+    if (actualWork.status === 'WORKED' && !shiftKey) {
+      return (
+        <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-violet-500 ring-1 ring-white" />
+      );
+    }
+    return null;
+  };
+
+  const handleScreenModeChange = (mode: ScheduleScreenMode) => {
+    if (mode === 'view' && isEditMode && hasUnsavedChanges) {
+      setPendingModeChange('view');
+      setIsDiscardModalOpen(true);
+      return;
+    }
+    if (mode === 'edit') {
+      setDraftEmployees(cloneEmployees(savedEmployees));
+    } else {
+      setDraftEmployees(null);
+    }
+    setScreenMode(mode);
+    setEditingCell(null);
+    setPastEditPrompt(null);
+  };
+
+  const commitDraftToSaved = () => {
+    if (draftEmployees) setSavedEmployees(cloneEmployees(draftEmployees));
+    setIsSaveModalOpen(false);
+    setEditingCell(null);
+    setPastEditPrompt(null);
+  };
+
+  const discardDraftChanges = () => {
+    setDraftEmployees(cloneEmployees(savedEmployees));
+    setIsDiscardModalOpen(false);
+    setEditingCell(null);
+    setPastEditPrompt(null);
+    setAutoStep('idle');
+    if (pendingModeChange === 'view') {
+      setDraftEmployees(null);
+      setScreenMode('view');
+      setPendingModeChange(null);
+    }
+  };
+
+  const updateDraftEmployees = (
+    updater: MonthlyEmployee[] | ((prev: MonthlyEmployee[]) => MonthlyEmployee[])
+  ) => {
+    const apply = (prev: MonthlyEmployee[]) =>
+      typeof updater === 'function' ? updater(prev) : updater;
+    if (isEditMode) {
+      setDraftEmployees((prev) => apply(prev ?? savedEmployees));
+      return;
+    }
+    setSavedEmployees((prev) => apply(prev));
+  };
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!draftEmployees) return false;
+    return savedEmployees.some((saved) => {
+      const draft = draftEmployees.find((d) => d.id === saved.id);
+      if (!draft) return true;
+      return dayNumbers.some(
+        (day) => (saved.assignments[day] ?? null) !== (draft.assignments[day] ?? null)
+      );
+    });
+  }, [draftEmployees, savedEmployees, dayNumbers]);
+
+  const saveImpact = useMemo(() => {
+    if (!draftEmployees) {
+      return { changedEmployees: 0, changedCells: 0, changedPastOrToday: 0 };
+    }
+    let changedEmployees = 0;
+    let changedCells = 0;
+    let changedPastOrToday = 0;
+    savedEmployees.forEach((saved) => {
+      const draft = draftEmployees.find((d) => d.id === saved.id);
+      if (!draft) return;
+      let empChanged = false;
+      dayNumbers.forEach((day) => {
+        const before = saved.assignments[day] ?? null;
+        const after = draft.assignments[day] ?? null;
+        if (before !== after) {
+          changedCells += 1;
+          empChanged = true;
+          if (isPastOrTodayDay(day)) changedPastOrToday += 1;
+        }
+      });
+      if (empChanged) changedEmployees += 1;
+    });
+    return { changedEmployees, changedCells, changedPastOrToday };
+  }, [draftEmployees, savedEmployees, dayNumbers, isCurrentMonth, now]);
+
+  const tryOpenCellEditor = (
+    employeeId: string,
+    day: number,
+    anchorTop: number,
+    anchorLeft: number
+  ) => {
+    if (isPastOrTodayDay(day)) {
+      setPastEditPrompt({ employeeId, day, anchorTop, anchorLeft });
+      return;
+    }
+    setEditingCell({ employeeId, day, anchorTop, anchorLeft });
+  };
+
+  const handleSaveClick = () => {
+    if (!hasUnsavedChanges) return;
+    setIsSaveModalOpen(true);
+  };
+
+  const handleConfirmSave = () => {
+    commitDraftToSaved();
   };
 
   const warnings = useMemo(
@@ -204,16 +454,22 @@ const ShiftMonthlySchedule: React.FC = () => {
   }, [dayNumbers, sessionSummaryStats]);
 
   const handleRoleChange = (r: ShiftRole) => {
+    const next = buildEmployees(r, yearMonth);
     setRole(r);
-    setEmployees(buildEmployees(r, yearMonth));
+    setSavedEmployees(next);
+    setDraftEmployees(isEditMode ? cloneEmployees(next) : null);
     setEditingCell(null);
+    setPastEditPrompt(null);
     setAutoStep('idle');
   };
 
   const handleMonthChange = (value: string) => {
+    const next = buildEmployees(role, value);
     setYearMonth(value);
-    setEmployees(buildEmployees(role, value));
+    setSavedEmployees(next);
+    setDraftEmployees(isEditMode ? cloneEmployees(next) : null);
     setEditingCell(null);
+    setPastEditPrompt(null);
     setAutoStep('idle');
   };
 
@@ -230,7 +486,7 @@ const ShiftMonthlySchedule: React.FC = () => {
   };
 
   const handleConfirmAutoSchedule = () => {
-    if (autoResult) setEmployees(autoResult.employees);
+    if (autoResult) updateDraftEmployees(autoResult.employees);
     if (pendingAutoAction === 1) setAutoStep('action1_done');
     if (pendingAutoAction === 2) setAutoStep('action2_done');
     setIsAutoModalOpen(false);
@@ -276,7 +532,7 @@ const ShiftMonthlySchedule: React.FC = () => {
       const ok = window.confirm(`${baseWarning}\nBạn có chắc muốn xác nhận import?`);
       if (!ok) return;
     }
-    if (previewEmployees) setEmployees(previewEmployees);
+    if (previewEmployees) updateDraftEmployees(previewEmployees);
     setIsPreviewOpen(false);
     setPreviewEmployees(null);
     setAutoStep('idle');
@@ -288,13 +544,7 @@ const ShiftMonthlySchedule: React.FC = () => {
     shiftKey: string | null,
     closeEditor = true
   ) => {
-    if (isCurrentMonth && day <= now.getDate()) {
-      const ok = window.confirm(
-        `Ngày ${day} là ngày đã/đang diễn ra. Bạn có chắc muốn điều chỉnh ca?`
-      );
-      if (!ok) return;
-    }
-    setEmployees((prev) =>
+    updateDraftEmployees((prev) =>
       prev.map((e) =>
         e.id === employeeId
           ? { ...e, assignments: { ...e.assignments, [day]: shiftKey || null } }
@@ -455,8 +705,11 @@ const ShiftMonthlySchedule: React.FC = () => {
   const monthLabel = `${yearMonth.slice(5, 7)}/${yearMonth.slice(0, 4)}`;
 
   const handleReloadDemo = () => {
-    setEmployees(buildEmployees(role, yearMonth));
+    const next = buildEmployees(role, yearMonth);
+    setSavedEmployees(next);
+    setDraftEmployees(isEditMode ? cloneEmployees(next) : null);
     setEditingCell(null);
+    setPastEditPrompt(null);
     setAutoStep('idle');
   };
 
@@ -472,7 +725,33 @@ const ShiftMonthlySchedule: React.FC = () => {
             Tổng hợp theo buổi: ca gãy = 0.5, ca nguyên = 1
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
+            <button
+              type="button"
+              onClick={() => handleScreenModeChange('view')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                screenMode === 'view'
+                  ? 'bg-slate-700 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Eye size={13} />
+              Xem
+            </button>
+            <button
+              type="button"
+              onClick={() => handleScreenModeChange('edit')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                screenMode === 'edit'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Pencil size={13} />
+              Cập nhật
+            </button>
+          </div>
           <button
             type="button"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-bold text-gray-600 hover:border-vetc-green"
@@ -480,19 +759,21 @@ const ShiftMonthlySchedule: React.FC = () => {
             <Download size={13} />
             Tải mẫu
           </button>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploadProcessing}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm ${
-              isUploadProcessing
-                ? 'bg-green-400 text-white cursor-not-allowed'
-                : 'bg-vetc-green text-white hover:bg-green-700'
-            }`}
-          >
-            {isUploadProcessing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-            {isUploadProcessing ? 'Đang xử lý...' : 'Upload Excel'}
-          </button>
+          {isEditMode && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadProcessing}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm ${
+                isUploadProcessing
+                  ? 'bg-green-400 text-white cursor-not-allowed'
+                  : 'bg-vetc-green text-white hover:bg-green-700'
+              }`}
+            >
+              {isUploadProcessing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+              {isUploadProcessing ? 'Đang xử lý...' : 'Upload Excel'}
+            </button>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -523,9 +804,17 @@ const ShiftMonthlySchedule: React.FC = () => {
       />
 
       {/* Main grid card */}
-      <div className="border rounded-lg shadow-sm overflow-hidden bg-white">
+      <div
+        className={`border rounded-lg shadow-sm overflow-hidden bg-white ${
+          isEditMode ? 'ring-2 ring-amber-200' : ''
+        }`}
+      >
         {/* Toolbar: filters + compact stats */}
-        <div className="px-3 py-2 border-b bg-gray-50 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div
+          className={`px-3 py-2 border-b flex flex-wrap items-center gap-x-4 gap-y-2 ${
+            isEditMode ? 'bg-amber-50/70' : 'bg-gray-50'
+          }`}
+        >
           <div className="flex items-center gap-1.5">
             {(['OSA', 'CSKH'] as ShiftRole[]).map((r) => (
               <button
@@ -550,36 +839,79 @@ const ShiftMonthlySchedule: React.FC = () => {
             className="border rounded px-2 py-1 text-xs outline-none focus:border-vetc-green bg-white"
           />
 
-          <button
-            type="button"
-            onClick={() => setIsPrefModalOpen(true)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black border border-gray-200 bg-white text-gray-600 hover:border-vetc-green hover:text-vetc-green transition-all"
-          >
-            <Settings2 size={11} />
-            Mong muốn theo ca
-          </button>
-          <button
-            type="button"
-            onClick={() => handleRunAutoSchedule(1)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
-          >
-            <Sparkles size={11} />
-            Sắp xếp ca mặc định
-          </button>
-          <button
-            type="button"
-            onClick={() => handleRunAutoSchedule(2)}
-            disabled={autoStep !== 'action1_done'}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black transition-all ${
-              autoStep === 'action1_done'
-                ? 'bg-amber-600 text-white hover:bg-amber-700'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-            title={autoStep === 'action1_done' ? 'Bù ca gãy cho phần còn thiếu' : 'Cần áp dụng Action 1 trước'}
-          >
-            <Sparkles size={11} />
-            Bổ sung ca gãy
-          </button>
+          {isEditMode ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsPrefModalOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black border border-gray-200 bg-white text-gray-600 hover:border-vetc-green hover:text-vetc-green transition-all"
+              >
+                <Settings2 size={11} />
+                Mong muốn theo ca
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRunAutoSchedule(1)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
+              >
+                <Sparkles size={11} />
+                Sắp xếp ca mặc định
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRunAutoSchedule(2)}
+                disabled={autoStep !== 'action1_done'}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black transition-all ${
+                  autoStep === 'action1_done'
+                    ? 'bg-amber-600 text-white hover:bg-amber-700'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+                title={autoStep === 'action1_done' ? 'Bù ca gãy cho phần còn thiếu' : 'Cần áp dụng Action 1 trước'}
+              >
+                <Sparkles size={11} />
+                Bổ sung ca gãy
+              </button>
+              <div className="h-4 w-px bg-gray-300 hidden sm:block" />
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingModeChange(null);
+                  setIsDiscardModalOpen(true);
+                }}
+                disabled={!hasUnsavedChanges}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black border transition-all ${
+                  hasUnsavedChanges
+                    ? 'border-gray-300 bg-white text-gray-600 hover:border-red-300 hover:text-red-600'
+                    : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                <RotateCcw size={11} />
+                Hủy thay đổi
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveClick}
+                disabled={!hasUnsavedChanges}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black transition-all ${
+                  hasUnsavedChanges
+                    ? 'bg-vetc-green text-white hover:bg-green-700 shadow-sm'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                <Save size={11} />
+                Lưu lịch ca
+                {hasUnsavedChanges && (
+                  <span className="ml-0.5 px-1 py-px rounded-full bg-white/20 text-[9px]">
+                    {saveImpact.changedCells}
+                  </span>
+                )}
+              </button>
+            </>
+          ) : (
+            <span className="text-[10px] text-slate-500 font-medium">
+              Chế độ xem — bấm ô ca hoặc công cụ chỉnh sửa khi chuyển sang <strong>Cập nhật</strong>
+            </span>
+          )}
 
           <div className="h-4 w-px bg-gray-300 hidden sm:block ml-auto" />
 
@@ -601,7 +933,17 @@ const ShiftMonthlySchedule: React.FC = () => {
         </div>
 
         {/* Legend */}
-        <div className="px-3 py-1.5 border-b flex flex-wrap items-center gap-3 text-[9px] text-gray-500">
+        <div
+          className={`px-3 py-1.5 border-b flex flex-wrap items-center gap-3 text-[9px] ${
+            isEditMode ? 'text-amber-800 bg-amber-50/40' : 'text-gray-500'
+          }`}
+        >
+          {isEditMode && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 border border-amber-200 font-bold text-amber-800">
+              <Pencil size={9} />
+              Đang chỉnh sửa — thay đổi chỉ có hiệu lực sau khi bấm <strong className="mx-0.5">Lưu lịch ca</strong>
+            </span>
+          )}
           <span className="flex items-center gap-1">
             <span className={`w-2 h-2 rounded-sm ${WARNING_META.UNDERSTAFFED.summary}`} /> Thiếu người
           </span>
@@ -616,6 +958,18 @@ const ShiftMonthlySchedule: React.FC = () => {
               <span className="w-2 h-2 rounded-sm bg-orange-200 border border-orange-300" /> Ca OT
             </span>
           )}
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-sm bg-slate-50 border border-dashed border-slate-300" /> Chưa cấu hình (tương lai)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-sm bg-slate-200 border border-slate-400" /> Ngày đã qua
+          </span>
+          <span className="flex items-center gap-1">
+            <span className={`w-2 h-2 rounded-full ${ACTUAL_WORK_META.WORKED.dot}`} /> Có đơn (thực tế)
+          </span>
+          <span className="flex items-center gap-1">
+            <span className={`w-2 h-2 rounded-full ${ACTUAL_WORK_META.NO_ORDERS.dot}`} /> Xếp ca · không có đơn
+          </span>
           <span className="text-gray-400">| Tổng buổi = ca gãy x 0.5 + ca nguyên x 1</span>
         </div>
 
@@ -626,14 +980,24 @@ const ShiftMonthlySchedule: React.FC = () => {
                 <th className="sticky left-0 z-40 bg-gray-100 border-b border-r px-3 py-2 min-w-[160px] text-left">
                   Nhân viên
                 </th>
-                {dayNumbers.map((day) => (
-                  <th key={day} className="border-b border-r px-0.5 py-1 min-w-[52px] text-center">
+                {dayNumbers.map((day) => {
+                  const pastHeader = isPastDay(day);
+                  return (
+                  <th
+                    key={day}
+                    className={`border-b border-r px-0.5 py-1 min-w-[52px] text-center ${
+                      pastHeader ? 'bg-slate-200 text-slate-600' : ''
+                    }`}
+                  >
                     <div className="flex flex-col items-center gap-0.5">
                       <span>{day}</span>
-                      <span className="text-[8px] text-gray-400">{weekdayLabels.get(day)}</span>
+                      <span className={`text-[8px] ${pastHeader ? 'text-slate-500' : 'text-gray-400'}`}>
+                        {weekdayLabels.get(day)}
+                      </span>
                     </div>
                   </th>
-                ))}
+                  );
+                })}
               </tr>
             </thead>
 
@@ -659,34 +1023,46 @@ const ShiftMonthlySchedule: React.FC = () => {
                         const shiftKey = emp.assignments[day];
                         const warn: ShiftDayWarning | null = null;
                     const isEditing =
-                      editingCell?.employeeId === emp.id && editingCell?.day === day;
+                      isEditMode &&
+                      editingCell?.employeeId === emp.id &&
+                      editingCell?.day === day;
+                    const isUnconfiguredFuture = !shiftKey && isFutureDay(day);
+                    const actualWork = isPastDay(day) ? getActualWorkFact(emp.id, day) : null;
+                    const cellTitle = buildCellTitle(shiftKey, day, isUnconfiguredFuture, actualWork);
+                    const cellLabel = shiftKey ?? (isUnconfiguredFuture ? '—' : '·');
+                    const cellClass = getShiftCellClass(shiftKey, warn, isEditMode, day, actualWork);
 
                     return (
-                      <td key={day} className="border-r px-0.5 py-0.5 p-0">
-                        {isEditing ? null : (
+                      <td
+                        key={day}
+                        className={`border-r px-0.5 py-0.5 p-0 ${isPastDay(day) ? 'bg-slate-50/50' : ''}`}
+                      >
+                        {isEditing ? null : isEditMode ? (
                           <button
                             type="button"
                             onClick={(e) => {
                               const rect = e.currentTarget.getBoundingClientRect();
-                              setEditingCell({
-                                employeeId: emp.id,
+                              tryOpenCellEditor(
+                                emp.id,
                                 day,
-                                anchorTop: Math.max(8, rect.top - 140),
-                                anchorLeft: rect.left,
-                              });
+                                Math.max(8, rect.top - 140),
+                                rect.left
+                              );
                             }}
-                            className={`relative w-full h-9 rounded font-mono font-bold text-[10px] transition-colors ${getShiftCellClass(shiftKey, warn)}`}
-                            title={
-                              shiftKey
-                                ? `${(() => {
-                                    const first = shiftByKey.get(shiftKey.split('+')[0]?.trim() ?? '');
-                                    return `${first?.isOvertime ? 'Ca OT — ' : ''}${first?.isNightShift ? 'Ca đêm — ' : ''}`;
-                                  })()}Ca ${shiftKey} — bấm để sửa`
-                                : 'Bấm để gán ca'
-                            }
+                            className={`relative w-full h-9 rounded font-mono font-bold text-[10px] transition-colors cursor-pointer ${cellClass}`}
+                            title={cellTitle}
                           >
-                            {shiftKey ?? '·'}
+                            {cellLabel}
+                            {renderActualWorkBadge(actualWork, shiftKey)}
                           </button>
+                        ) : (
+                          <div
+                            className={`relative w-full h-9 rounded font-mono font-bold text-[10px] cursor-default ${cellClass}`}
+                            title={cellTitle}
+                          >
+                            {cellLabel}
+                            {renderActualWorkBadge(actualWork, shiftKey)}
+                          </div>
                         )}
                       </td>
                     );
@@ -803,7 +1179,7 @@ const ShiftMonthlySchedule: React.FC = () => {
         </div>
       </div>
 
-      {editingCell && (() => {
+      {isEditMode && editingCell && (() => {
         const targetEmp = employees.find((e) => e.id === editingCell.employeeId);
         const current = targetEmp?.assignments[editingCell.day] ?? null;
         const selectedKeys = parseAssignmentKeys(current);
@@ -1065,7 +1441,7 @@ const ShiftMonthlySchedule: React.FC = () => {
                     : 'Xác nhận bổ sung ca gãy để bù phần thiếu còn lại.'}
                 </p>
                 <p className="text-xs text-amber-700 mt-1">
-                  Sau khi xác nhận, hệ thống sẽ cập nhật lịch ca hiện tại theo rule tự động.
+                  Sau khi xác nhận, thay đổi sẽ được áp dụng tạm thời. Bạn cần bấm <strong>Lưu lịch ca</strong> để ghi nhận.
                 </p>
               </div>
 
@@ -1095,6 +1471,139 @@ const ShiftMonthlySchedule: React.FC = () => {
               >
                 <Check size={16} />
                 Áp dụng lịch ca
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pastEditPrompt && (() => {
+        const emp = employees.find((e) => e.id === pastEditPrompt.employeeId);
+        const isToday = isCurrentMonth && pastEditPrompt.day === now.getDate();
+        const isStrictPast = isCurrentMonth && pastEditPrompt.day < now.getDate();
+        return (
+          <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden font-['Inter']">
+              <div className="bg-red-600 text-white px-5 py-3 flex items-center gap-2">
+                <AlertTriangle size={18} />
+                <h3 className="font-bold text-sm">
+                  {isStrictPast ? 'Cảnh báo chỉnh sửa ca đã qua' : 'Cảnh báo chỉnh sửa ca hôm nay'}
+                </h3>
+              </div>
+              <div className="p-5 space-y-3 text-sm">
+                <p className="text-gray-700">
+                  Ngày <strong>{pastEditPrompt.day}</strong>
+                  {isToday ? ' (hôm nay)' : ''} — nhân viên{' '}
+                  <strong>{emp?.name ?? '—'}</strong>.
+                </p>
+                <p className="text-gray-600 text-xs">
+                  {isStrictPast
+                    ? 'Ca làm đã qua có thể ảnh hưởng tới chấm công và báo cáo. Bạn vẫn muốn chỉnh sửa?'
+                    : 'Ca hôm nay đang diễn ra. Bạn vẫn muốn chỉnh sửa?'}
+                </p>
+              </div>
+              <div className="px-5 py-3 border-t bg-gray-50 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPastEditPrompt(null)}
+                  className="flex-1 py-2 rounded-xl border font-bold text-gray-500 hover:bg-white text-sm"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingCell(pastEditPrompt);
+                    setPastEditPrompt(null);
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-red-600 text-white font-bold text-sm hover:bg-red-700"
+                >
+                  Vẫn chỉnh sửa
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {isSaveModalOpen && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden font-['Inter']">
+            <div className="bg-vetc-green text-white px-5 py-3 flex items-center gap-2">
+              <Save size={18} />
+              <h3 className="font-bold text-sm">Xác nhận lưu lịch ca</h3>
+            </div>
+            <div className="p-5 space-y-3 text-sm">
+              <p className="text-gray-700">
+                Bạn sắp lưu <strong>{saveImpact.changedCells}</strong> thay đổi trên{' '}
+                <strong>{saveImpact.changedEmployees}</strong> nhân viên.
+              </p>
+              {saveImpact.changedPastOrToday > 0 && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                  <p className="font-bold flex items-center gap-1">
+                    <AlertTriangle size={14} />
+                    Có {saveImpact.changedPastOrToday} thay đổi vào ngày đã/đang diễn ra
+                  </p>
+                  <p className="mt-1">
+                    Ca làm đã qua có thể ảnh hưởng tới chấm công. Bạn vẫn muốn lưu?
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t bg-gray-50 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsSaveModalOpen(false)}
+                className="flex-1 py-2 rounded-xl border font-bold text-gray-500 hover:bg-white text-sm"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSave}
+                className="flex-1 py-2 rounded-xl bg-vetc-green text-white font-bold inline-flex items-center justify-center gap-2 text-sm hover:bg-green-700"
+              >
+                <Check size={16} />
+                Lưu lịch ca
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isDiscardModalOpen && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden font-['Inter']">
+            <div className="bg-slate-700 text-white px-5 py-3 flex items-center gap-2">
+              <RotateCcw size={18} />
+              <h3 className="font-bold text-sm">
+                {pendingModeChange === 'view' ? 'Thoát chế độ cập nhật' : 'Hủy thay đổi'}
+              </h3>
+            </div>
+            <div className="p-5 text-sm text-gray-700">
+              <p>
+                {pendingModeChange === 'view'
+                  ? 'Bạn có thay đổi chưa lưu. Thoát chế độ cập nhật sẽ bỏ toàn bộ chỉnh sửa tạm thời.'
+                  : `Bạn có ${saveImpact.changedCells} thay đổi chưa lưu. Hủy sẽ khôi phục lịch ca đã lưu gần nhất.`}
+              </p>
+            </div>
+            <div className="px-5 py-3 border-t bg-gray-50 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDiscardModalOpen(false);
+                  setPendingModeChange(null);
+                }}
+                className="flex-1 py-2 rounded-xl border font-bold text-gray-500 hover:bg-white text-sm"
+              >
+                Quay lại
+              </button>
+              <button
+                type="button"
+                onClick={discardDraftChanges}
+                className="flex-1 py-2 rounded-xl bg-slate-700 text-white font-bold text-sm hover:bg-slate-800"
+              >
+                {pendingModeChange === 'view' ? 'Thoát & bỏ thay đổi' : 'Hủy thay đổi'}
               </button>
             </div>
           </div>
