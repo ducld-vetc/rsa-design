@@ -48,7 +48,15 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigateFloodZoneManagement,
   currentStep 
 }) => {
-  const [openMenus, setOpenMenus] = useState<string[]>(['admin', 'payment', 'cskh', 'rescue', 'station']);
+  const [openMenus, setOpenMenus] = useState<string[]>([
+    'admin',
+    'hr',
+    'rescuePackage',
+    'payment',
+    'cskh',
+    'rescue',
+    'station',
+  ]);
 
   if (!isOpen) return null;
 
@@ -62,8 +70,17 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const isMenuOpen = (menuId: string) => openMenus.includes(menuId);
 
+  const isHrActive =
+    currentStep === Step.STAFF_MANAGEMENT ||
+    currentStep === Step.SHIFT_DEFINITION_MANAGEMENT ||
+    currentStep === Step.SHIFT_MONTHLY_SCHEDULE;
+
+  const isRescuePackageActive =
+    currentStep === Step.PRICING_POLICY ||
+    currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT;
+
   return (
-    <aside className="w-64 bg-white border-r flex flex-col transition-all duration-300">
+    <aside className="w-72 shrink-0 bg-white border-r flex flex-col transition-all duration-300">
       <div className="p-4 border-b flex items-center justify-center">
         <div className="w-8 h-8 bg-[#00A859] rounded flex items-center justify-center text-white font-black italic shadow-inner">V</div>
         <span className="font-black text-gray-800 tracking-tighter text-xl ml-2">VETC</span>
@@ -82,75 +99,115 @@ const Sidebar: React.FC<SidebarProps> = ({
             <ChevronDown size={14} className={`transition-transform duration-200 ${isMenuOpen('admin') ? 'rotate-180' : ''}`} />
           </div>
           {isMenuOpen('admin') && (
-            <div className="ml-8 mt-2 space-y-1">
-              <div 
-                onClick={onNavigateStaffManagement}
-                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.STAFF_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                <Users size={14} />
-                <span>Quản lý nhân viên</span>
+            <div className="mt-2 space-y-0.5 pl-2">
+              {/* Nhân sự */}
+              <div>
+                <div
+                  onClick={() => toggleMenu('hr')}
+                  className={`flex items-center justify-between gap-1 text-sm px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                    isHrActive ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Users size={14} className="shrink-0" />
+                    <span className="truncate">Nhân sự</span>
+                  </div>
+                  <ChevronDown size={12} className={`shrink-0 transition-transform duration-200 ${isMenuOpen('hr') ? 'rotate-180' : ''}`} />
+                </div>
+                {isMenuOpen('hr') && (
+                  <div className="mt-0.5 ml-3 border-l border-gray-200 pl-2 space-y-0.5">
+                    <div
+                      onClick={onNavigateStaffManagement}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.STAFF_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <Users size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Quản lý nhân viên</span>
+                    </div>
+                    <div
+                      onClick={onNavigateShiftDefinition}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.SHIFT_DEFINITION_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <Calendar size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Cấu hình ca làm việc</span>
+                    </div>
+                    <div
+                      onClick={onNavigateShiftMonthlySchedule}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.SHIFT_MONTHLY_SCHEDULE ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <CalendarDays size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Lịch ca theo tháng</span>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div 
-                onClick={onNavigatePricingPolicy}
-                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.PRICING_POLICY ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                <DollarSign size={14} />
-                <span>Chính sách giá</span>
+
+              {/* Gói cứu hộ */}
+              <div>
+                <div
+                  onClick={() => toggleMenu('rescuePackage')}
+                  className={`flex items-center justify-between gap-1 text-sm px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                    isRescuePackageActive ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Package size={14} className="shrink-0" />
+                    <span className="truncate">Gói cứu hộ</span>
+                  </div>
+                  <ChevronDown size={12} className={`shrink-0 transition-transform duration-200 ${isMenuOpen('rescuePackage') ? 'rotate-180' : ''}`} />
+                </div>
+                {isMenuOpen('rescuePackage') && (
+                  <div className="mt-0.5 ml-3 border-l border-gray-200 pl-2 space-y-0.5">
+                    <div
+                      onClick={onNavigatePricingPolicy}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.PRICING_POLICY ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <DollarSign size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Chính sách giá</span>
+                    </div>
+                    <div
+                      onClick={onNavigatePackagePurchaseManagement}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <Package size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Quản lý mua gói</span>
+                    </div>
+                  </div>
+                )}
               </div>
+
               <div 
                 onClick={onNavigateBusinessManagement}
-                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.BUSINESS_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                className={`flex items-center gap-2 text-sm px-2 py-1.5 rounded cursor-pointer ${currentStep === Step.BUSINESS_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
               >
-                <Briefcase size={14} />
-                <span>Quản lý doanh nghiệp</span>
-              </div>
-              <div 
-                onClick={onNavigatePackagePurchaseManagement}
-                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                <Package size={14} />
-                <span>Quản lý mua gói</span>
-              </div>
-              <div 
-                onClick={onNavigateShiftDefinition}
-                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.SHIFT_DEFINITION_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                <Calendar size={14} />
-                <span>Cấu hình ca làm việc</span>
-              </div>
-              <div 
-                onClick={onNavigateShiftMonthlySchedule}
-                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.SHIFT_MONTHLY_SCHEDULE ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                <CalendarDays size={14} />
-                <span>Lịch ca theo tháng</span>
+                <Briefcase size={14} className="shrink-0" />
+                <span className="whitespace-nowrap">Quản lý doanh nghiệp</span>
               </div>
               <div 
                 onClick={onNavigateFloodZoneManagement}
-                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.FLOOD_ZONE_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                className={`flex items-center gap-2 text-sm px-2 py-1.5 rounded cursor-pointer ${currentStep === Step.FLOOD_ZONE_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
               >
-                <Waves size={14} />
-                <span>Khu vực ngập lụt</span>
+                <Waves size={14} className="shrink-0" />
+                <span className="whitespace-nowrap">Khu vực ngập lụt</span>
               </div>
               <div>
                 <div
                   onClick={() => toggleMenu('payment')}
-                  className="flex items-center justify-between text-sm p-2 rounded cursor-pointer text-gray-600 hover:bg-gray-100 transition-colors"
+                  className="flex items-center justify-between gap-1 text-sm px-2 py-1.5 rounded cursor-pointer text-gray-600 hover:bg-gray-100 transition-colors"
                 >
-                  <div className="flex items-center space-x-2">
-                    <Wallet size={14} />
-                    <span>Quản lý thanh toán</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Wallet size={14} className="shrink-0" />
+                    <span className="truncate">Quản lý thanh toán</span>
                   </div>
-                  <ChevronDown size={12} className={`transition-transform duration-200 ${isMenuOpen('payment') ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={12} className={`shrink-0 transition-transform duration-200 ${isMenuOpen('payment') ? 'rotate-180' : ''}`} />
                 </div>
                 {isMenuOpen('payment') && (
-                  <div className="ml-4 mt-1 space-y-1">
+                  <div className="mt-0.5 ml-3 border-l border-gray-200 pl-2 space-y-0.5">
                     <div
                       onClick={onNavigatePaymentRequestManagement}
-                      className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.PAYMENT_REQUEST_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.PAYMENT_REQUEST_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
                     >
-                      <FileText size={14} />
-                      <span>Đề nghị thanh toán</span>
+                      <FileText size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Đề nghị thanh toán</span>
                     </div>
                   </div>
                 )}
