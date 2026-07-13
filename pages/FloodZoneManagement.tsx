@@ -432,8 +432,8 @@ const FloodZoneManagement: React.FC = () => {
     });
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-500 w-full min-w-0 max-w-full">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="flex flex-col gap-4 animate-in fade-in duration-500 w-full min-w-0 max-w-full h-[calc(100vh-180px)] min-h-[560px]">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
         <div>
           <h1 className="text-lg font-black text-gray-800 uppercase tracking-tight flex items-center gap-2">
             <Waves size={20} className="text-blue-600" />
@@ -468,57 +468,59 @@ const FloodZoneManagement: React.FC = () => {
       </div>
 
       {/* Tra cứu — 1 hàng */}
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm px-3 py-2">
+      <div className="rounded-lg border border-gray-200 bg-white shadow-sm px-3 py-2 shrink-0">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[160px] sm:max-w-[220px]">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchDraft}
-              onChange={(e) => setSearchDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') applyFilters();
-              }}
-              placeholder="Tìm khu vực..."
-              className="w-full h-8 border border-gray-200 rounded-md pl-8 pr-2.5 text-xs outline-none focus:border-vetc-green bg-gray-50 focus:bg-white"
-            />
+          <div className="flex flex-1 min-w-[240px] items-center gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') applyFilters();
+                }}
+                placeholder="Tìm khu vực..."
+                className="w-full h-8 border border-gray-200 rounded-md pl-8 pr-2.5 text-xs outline-none focus:border-vetc-green bg-gray-50 focus:bg-white"
+              />
+            </div>
+            <select
+              value={statusDraft}
+              onChange={(e) => setStatusDraft(e.target.value as typeof statusDraft)}
+              className="flex-1 min-w-0 h-8 border border-gray-200 rounded-md px-2 text-xs bg-gray-50 outline-none focus:border-vetc-green focus:bg-white"
+              title="Trạng thái"
+            >
+              <option value="all">Tất cả TT</option>
+              <option value="active">Đang hiệu lực</option>
+              <option value="expired">Đã hết hạn</option>
+            </select>
+            <select
+              value={severityDraft}
+              onChange={(e) => setSeverityDraft(e.target.value as typeof severityDraft)}
+              className="flex-1 min-w-0 h-8 border border-gray-200 rounded-md px-2 text-xs bg-gray-50 outline-none focus:border-vetc-green focus:bg-white"
+              title="Mức độ"
+            >
+              <option value="all">Mức độ</option>
+              <option value="high">Cao</option>
+              <option value="medium">Trung bình</option>
+              <option value="low">Thấp</option>
+            </select>
+            <select
+              value={sourceDraft}
+              onChange={(e) => setSourceDraft(e.target.value as typeof sourceDraft)}
+              className="flex-1 min-w-0 h-8 border border-gray-200 rounded-md px-2 text-xs bg-gray-50 outline-none focus:border-vetc-green focus:bg-white"
+              title="Nguồn"
+            >
+              <option value="all">Nguồn</option>
+              <option value="cms">CMS</option>
+              <option value="ihanoi">iHanoi</option>
+              <option value="order_cluster">Cụm đơn</option>
+            </select>
           </div>
-          <select
-            value={statusDraft}
-            onChange={(e) => setStatusDraft(e.target.value as typeof statusDraft)}
-            className="h-8 border border-gray-200 rounded-md px-2 text-xs bg-gray-50 outline-none focus:border-vetc-green focus:bg-white"
-            title="Trạng thái"
-          >
-            <option value="all">Tất cả TT</option>
-            <option value="active">Đang hiệu lực</option>
-            <option value="expired">Đã hết hạn</option>
-          </select>
-          <select
-            value={severityDraft}
-            onChange={(e) => setSeverityDraft(e.target.value as typeof severityDraft)}
-            className="h-8 border border-gray-200 rounded-md px-2 text-xs bg-gray-50 outline-none focus:border-vetc-green focus:bg-white"
-            title="Mức độ"
-          >
-            <option value="all">Mức độ</option>
-            <option value="high">Cao</option>
-            <option value="medium">Trung bình</option>
-            <option value="low">Thấp</option>
-          </select>
-          <select
-            value={sourceDraft}
-            onChange={(e) => setSourceDraft(e.target.value as typeof sourceDraft)}
-            className="h-8 border border-gray-200 rounded-md px-2 text-xs bg-gray-50 outline-none focus:border-vetc-green focus:bg-white"
-            title="Nguồn"
-          >
-            <option value="all">Nguồn</option>
-            <option value="cms">CMS</option>
-            <option value="ihanoi">iHanoi</option>
-            <option value="order_cluster">Cụm đơn</option>
-          </select>
           <button
             type="button"
             onClick={applyFilters}
-            className="inline-flex items-center justify-center gap-1.5 h-8 bg-vetc-green text-white px-3 rounded-md font-bold text-xs hover:bg-green-700 shadow-sm"
+            className="inline-flex items-center justify-center gap-1.5 h-8 bg-vetc-green text-white px-3 rounded-md font-bold text-xs hover:bg-green-700 shadow-sm shrink-0"
           >
             <Search size={13} />
             Tìm kiếm
@@ -526,7 +528,7 @@ const FloodZoneManagement: React.FC = () => {
           <button
             type="button"
             onClick={clearFilters}
-            className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-gray-200 text-gray-500 hover:border-vetc-green hover:text-vetc-green"
+            className="inline-flex items-center justify-center h-8 w-8 rounded-md border border-gray-200 text-gray-500 hover:border-vetc-green hover:text-vetc-green shrink-0"
             title="Xóa lọc"
           >
             <Trash2 size={13} />
@@ -534,7 +536,7 @@ const FloodZoneManagement: React.FC = () => {
 
           <div className="hidden md:block w-px h-5 bg-gray-200 shrink-0" aria-hidden />
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
             <button
               type="button"
               onClick={openCreate}
@@ -582,12 +584,12 @@ const FloodZoneManagement: React.FC = () => {
 
       {/* List view */}
       {viewMode === 'list' && (
-        <div className="border rounded-lg shadow-sm bg-white w-full min-w-0 overflow-hidden">
+        <div className="border rounded-lg shadow-sm bg-white w-full min-w-0 overflow-hidden flex flex-col flex-1 min-h-0">
           <SectionHeader
             title={`Danh sách khu vực (${filteredZones.length})`}
             icon={<FileSpreadsheet size={16} />}
           />
-          <div className="w-full overflow-x-auto overscroll-x-contain custom-scrollbar">
+          <div className="w-full flex-1 min-h-0 overflow-auto overscroll-contain custom-scrollbar">
             <table className="w-full text-xs border-collapse min-w-[1100px]">
               <thead>
                 <tr className="bg-gray-50 border-b text-gray-600">
@@ -689,7 +691,7 @@ const FloodZoneManagement: React.FC = () => {
 
       {/* Map view */}
       {viewMode === 'map' && (
-        <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
+        <div className="border rounded-lg shadow-sm bg-white overflow-hidden flex flex-col flex-1 min-h-0">
           <SectionHeader
             title="Bản đồ cảnh báo ngập"
             icon={<MapIcon size={16} />}
@@ -699,8 +701,8 @@ const FloodZoneManagement: React.FC = () => {
               </span>
             }
           />
-          <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] min-h-[620px]">
-            <div className="border-r overflow-y-auto max-h-[620px] bg-white">
+          <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] flex-1 min-h-0">
+            <div className="border-r overflow-y-auto min-h-0 max-h-[280px] lg:max-h-none bg-white">
               <div className="sticky top-0 z-10 px-3 py-2 bg-gray-50/95 backdrop-blur border-b text-[10px] font-bold uppercase tracking-wide text-gray-500">
                 Khu vực ({filteredZones.length})
               </div>
@@ -748,7 +750,7 @@ const FloodZoneManagement: React.FC = () => {
                 ))
               )}
             </div>
-            <div className="relative h-[620px] min-h-[480px]">
+            <div className="relative min-h-[360px] h-full lg:min-h-0">
               <MapContainer
                 center={selectedZone?.center ?? FLOOD_MAP_DEFAULT_CENTER}
                 zoom={selectedZone ? 14 : FLOOD_MAP_DEFAULT_ZOOM}
