@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap } from 'react-leaflet';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
@@ -54,9 +54,29 @@ import {
   KW_ROUTE,
   KW_STATION_LIST,
   KW_TOW,
+  haversineKm,
 } from '../data/locationSearchMockData';
+import {
+  INITIAL_FLOOD_ZONES,
+  FLOOD_SEVERITY_LABELS,
+  FLOOD_SOURCE_LABELS,
+  severityCircleColor,
+  formatFloodDateTime,
+  type FloodZone,
+} from '../data/floodZoneMockData';
 
 const GREEN = '#00A859';
+
+const ACTIVE_FLOOD_ZONES = INITIAL_FLOOD_ZONES.filter((z) => z.status === 'active');
+
+const floodCenterIcon = L.divIcon({
+  html: `<div style="width:22px;height:22px;background:#2563EB;border:2.5px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(37,99,235,0.45)">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M2 12c1.5-4 4-7 6-7s3.5 3 5 5 3 5 5 5 4.5-3 6-7"/><path d="M2 17c1.5-3 4-5 6-5s3.5 2 5 4 3 4 5 4 4.5-2 6-5"/></svg>
+  </div>`,
+  className: '',
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+});
 
 const BotAvatar: React.FC<{ size?: number }> = ({ size = 28 }) => (
   <img
@@ -422,6 +442,34 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
   const [mapResetToken, setMapResetToken] = useState(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  /** Zone ngập match vị trí sự cố (distance <= radius) */
+  const matchedFloodZones = useMemo(() => {
+    if (!location) return [] as Array<FloodZone & { distanceM: number }>;
+    return ACTIVE_FLOOD_ZONES.map((z) => {
+      const distanceM = Math.round(haversineKm(location.position, z.center) * 1000);
+      return { ...z, distanceM };
+    }).filter((z) => z.distanceM <= z.radius_m);
+  }, [location]);
+
+  const floodMatchWarnings: AreaWarning[] = useMemo(
+    () =>
+      matchedFloodZones.map((z) => ({
+        id: `flood-zone-${z.id}`,
+        type: 'flood' as const,
+        severity: z.severity,
+        title: z.name,
+        detail: `Thuộc vùng ngập trong bán kính ${z.radius_m}m (cách tâm ${z.distanceM}m) · nguồn ${FLOOD_SOURCE_LABELS[z.source]}`,
+      })),
+    [matchedFloodZones]
+  );
+
+  const displayedWarnings = useMemo(() => {
+    const withoutDupFlood = warnings.filter(
+      (w) => !(w.type === 'flood' && floodMatchWarnings.some((f) => f.title === w.title))
+    );
+    return [...floodMatchWarnings, ...withoutDupFlood];
+  }, [warnings, floodMatchWarnings]);
 
   const resetJourney = () => {
     setRouteOrigin(null);
@@ -1190,6 +1238,51 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
         />
         <ZoomButtons />
 
+        {/* Flood zones đang hiệu lực — luôn hiển thị trên map */}
+        {ACTIVE_FLOOD_ZONES.map((z: FloodZone) => {
+          const color = severityCircleColor(z.severity);
+          const matched = matchedFloodZones.some((m) => m.id === z.id);
+          return (
+            <React.Fragment key={`flood-${z.id}`}>
+              <Circle
+                center={z.center}
+                radius={z.radius_m}
+                pathOptions={{
+                  color,
+                  fillColor: color,
+                  fillOpacity: matched ? 0.28 : 0.16,
+                  weight: matched ? 3 : 2,
+                  opacity: matched ? 0.9 : 0.7,
+                }}
+              />
+              <Marker position={z.center} icon={floodCenterIcon}>
+                <Tooltip direction="top" offset={[0, -10]} opacity={0.95}>
+                  <div className="text-[11px]">
+                    <span className="font-bold text-blue-700">Ngập · </span>
+                    <span className="font-bold text-gray-800">{z.name}</span>
+                    {matched && <span className="text-red-600 font-bold"> · Đang match</span>}
+                  </div>
+                </Tooltip>
+                <Popup>
+                  <div className="text-xs max-w-[220px] space-y-1">
+                    <p className="font-bold text-blue-700 uppercase text-[10px]">Khu vực ngập</p>
+                    <p className="font-bold text-gray-800">{z.name}</p>
+                    <p className="text-gray-500">{z.address}</p>
+                    <p className="text-gray-600">
+                      Bán kính <strong>{z.radius_m}m</strong>
+                      {' · '}
+                      {FLOOD_SEVERITY_LABELS[z.severity]}
+                      {' · '}
+                      {FLOOD_SOURCE_LABELS[z.source]}
+                    </p>
+                    <p className="text-gray-500">Hết hạn: {formatFloodDateTime(z.valid_to)}</p>
+                  </div>
+                </Popup>
+              </Marker>
+            </React.Fragment>
+          );
+        })}
+
         {/* Marker các trạm đang liệt kê */}
         {stationList.map((s) => (
           <Marker
@@ -1519,7 +1612,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
           </p>
         )}
 
-        {warnings.length > 0 && (
+        {displayedWarnings.length > 0 && (
           <div className="pointer-events-auto bg-white/95 backdrop-blur rounded-xl shadow-md border border-gray-200 overflow-hidden shrink-0">
             <button
               type="button"
@@ -1528,7 +1621,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
             >
               <AlertTriangle size={14} />
               <span className="text-[11px] font-black uppercase tracking-wide flex-1 text-left">
-                Cảnh báo khu vực ({warnings.length})
+                Cảnh báo khu vực ({displayedWarnings.length})
               </span>
               <ChevronDown
                 size={14}
@@ -1537,7 +1630,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
             </button>
             {warningsOpen && (
               <div className="p-2 space-y-1.5">
-                {warnings.map((w) => {
+                {displayedWarnings.map((w) => {
                   const style = WARNING_STYLE[w.severity];
                   const Icon = WARNING_ICON[w.type];
                   return (
