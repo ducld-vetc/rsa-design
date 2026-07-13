@@ -32,6 +32,7 @@ import PaymentRequestDetail from './pages/PaymentRequestDetail';
 import LocationSearch, { LocationSearchPrefill } from './pages/LocationSearch';
 import ShiftDefinitionManagement from './pages/ShiftDefinitionManagement';
 import ShiftMonthlySchedule from './pages/ShiftMonthlySchedule';
+import FloodZoneManagement from './pages/FloodZoneManagement';
 import { ShiftConfigProvider } from './context/ShiftConfigContext';
 
 const initialData: FormData = {
@@ -96,6 +97,7 @@ const App: React.FC = () => {
   const getStepFromPath = (path: string): Step => {
     if (path.includes('/shift-definition-management')) return Step.SHIFT_DEFINITION_MANAGEMENT;
     if (path.includes('/shift-monthly-schedule')) return Step.SHIFT_MONTHLY_SCHEDULE;
+    if (path.includes('/flood-zone-management')) return Step.FLOOD_ZONE_MANAGEMENT;
     if (path.includes('/location-search')) return Step.LOCATION_SEARCH;
     if (path.includes('/pricing-policy')) return Step.PRICING_POLICY;
     if (path.includes('/payment-request-management')) return Step.PAYMENT_REQUEST_MANAGEMENT;
@@ -297,6 +299,7 @@ const App: React.FC = () => {
   const handleNavigateToLocationSearch = () => navigate('/location-search');
   const handleNavigateToShiftDefinition = () => navigate('/shift-definition-management');
   const handleNavigateToShiftMonthlySchedule = () => navigate('/shift-monthly-schedule');
+  const handleNavigateToFloodZoneManagement = () => navigate('/flood-zone-management');
 
   const handleCreateOrderFromLocation = (p: LocationSearchPrefill) => {
     setFormData(prev => ({
@@ -399,6 +402,7 @@ const App: React.FC = () => {
     Step.LOCATION_SEARCH,
     Step.SHIFT_DEFINITION_MANAGEMENT,
     Step.SHIFT_MONTHLY_SCHEDULE,
+    Step.FLOOD_ZONE_MANAGEMENT,
   ];
   
   const isStepperVisible = !hideStepperSteps.includes(currentStep);
@@ -430,6 +434,9 @@ const App: React.FC = () => {
     }
     if (currentStep === Step.SHIFT_MONTHLY_SCHEDULE) {
       return ['Quản trị hệ thống', 'Lịch ca theo tháng'];
+    }
+    if (currentStep === Step.FLOOD_ZONE_MANAGEMENT) {
+      return ['Quản trị hệ thống', 'Quản lý khu vực ngập lụt'];
     }
     if (currentStep === Step.PAYMENT_REQUEST_MANAGEMENT) {
       if (location.pathname.includes('/payment-request-management/')) {
@@ -463,6 +470,7 @@ const App: React.FC = () => {
         onNavigateLocationSearch={handleNavigateToLocationSearch}
         onNavigateShiftDefinition={handleNavigateToShiftDefinition}
         onNavigateShiftMonthlySchedule={handleNavigateToShiftMonthlySchedule}
+        onNavigateFloodZoneManagement={handleNavigateToFloodZoneManagement}
         currentStep={currentStep}
       />
 
@@ -622,6 +630,9 @@ const App: React.FC = () => {
                 } />
                 <Route path="/shift-monthly-schedule" element={
                   <ShiftMonthlySchedule />
+                } />
+                <Route path="/flood-zone-management" element={
+                  <FloodZoneManagement />
                 } />
               </Routes>
               </ShiftConfigProvider>

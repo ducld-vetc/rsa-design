@@ -1,0 +1,316 @@
+@startuml
+title [Sơ đồ 1] Kiến trúc tổng quan - Tìm kiếm vị trí RSA
+left to right direction
+
+actor "Điều phối viên (OSA)" as OSA
+
+rectangle "FE RSA" {
+  component "Màn hình tìm kiếm vị trí" as FE
+  component "Bảng hành trình\n(1. Sự cố / 2. Trạm / 3. Kéo xe)" as PANEL
+  component "Khung chat hỗ trợ" as CHAT
+  component "Lớp bản đồ\n(ghim, đường đi, cảnh báo khu vực)" as LAYER
+}
+
+rectangle "BE RSA" {
+  component "API điều phối vị trí" as ORCH
+  component "Dịch vụ phiên\n(lưu trạng thái hành trình)" as SESSION
+  component "Dịch vụ trạm cứu hộ" as STATION
+  component "Dịch vụ thời tiết khu vực\n(hợp nhất 2 nguồn)" as WEATHER
+  component "Dịch vụ chuẩn bị dữ liệu tạo đơn" as ORDER
+}
+
+rectangle "BE AI Agent" {
+  component "Bộ phân tích NLU\n(intent + entities)" as AI
+}
+
+cloud "Nền tảng Google Maps" {
+  component "Geocoding API" as GEO
+  component "Places API" as PLACES
+  component "Directions API" as DIR
+  component "Distance Matrix API" as DIST
+  component "Weather API\n(dự báo + cảnh báo)" as WEATHER_API
+}
+
+database "CSDL RSA" as DB
+
+OSA --> FE : Thao tác trên panel/chat
+FE --> PANEL
+FE --> CHAT
+PANEL --> ORCH : Tìm kiếm, chọn trạm, áp dụng hành trình
+CHAT --> ORCH : Nội dung chat + ngữ cảnh
+ORCH --> AI : Phân tích câu chat
+AI --> ORCH : Ý định + key/value + gợi ý
+ORCH --> SESSION
+ORCH --> STATION
+ORCH --> WEATHER
+ORCH --> ORDER
+STATION --> DB
+WEATHER --> DB : Nguồn 1: cảnh báo nội bộ
+WEATHER --> WEATHER_API : Nguồn 2: dự báo Google
+ORCH --> GEO
+ORCH --> PLACES
+ORCH --> DIR
+ORCH --> DIST
+ORCH --> FE : JourneyStateDTO + warnings[] + MapCommand + ChatTurn
+FE --> LAYER : Render bản đồ + cảnh báo khu vực
+
+note bottom of ORCH
+Nguyên tắc:
+1) BE RSA là điểm điều phối trung tâm.
+2) FE không gọi trực tiếp BE AI Agent.
+3) FE không gọi trực tiếp Google backend APIs.
+4) Thời tiết lấy từ 2 nguồn: CSDL RSA + Google Weather API.
+5) Sequence UML chi tiết: location-search-sequence.puml.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 2] Luồng trực tiếp trên màn hình (đã đánh số bước)
+autonumber
+
+actor "Điều phối viên (OSA)" as OSA
+participant "FE - Bảng hành trình" as FE
+participant "BE RSA - Điều phối" as BE
+participant "Dịch vụ thời tiết khu vực" as WS
+participant "Google Maps APIs" as GM
+database "CSDL RSA" as DB
+
+== BƯỚC 1: XÁC ĐỊNH VỊ TRÍ SỰ CỐ ==
+OSA -> FE : [B1.1] Nhập mô tả địa chỉ + bấm "Tìm"
+FE -> BE : [B1.2] POST /location-sessions/{id}/search\n{ query, pointRole=incident, channel=panel }
+BE -> GM : [B1.3] Geocoding / Places Text Search
+GM --> BE : [B1.4] address, lat, lng, confidence
+
+== BƯỚC 1.5: LẤY CẢNH BÁO THỜI TIẾT (2 NGUỒN) ==
+BE -> WS : [B1.5] getAreaWeather(lat, lng)
+
+par Nguồn 1 - CSDL RSA
+  WS -> DB : [B1.5a] Query cảnh báo nội bộ theo vùng\n(tỉnh/quận/phường hoặc polygon)
+  DB --> WS : [B1.5b] rsaWeatherAlerts[]
+else Nguồn 2 - Google Weather API
+  WS -> GM : [B1.5c] Current conditions + Public alerts\n+ Hourly forecast (2-6h)
+  GM --> WS : [B1.5d] googleWeatherData
+end
+
+WS -> WS : [B1.5e] Hợp nhất + chấm mức độ (severity)\nưu tiên RSA > Google
+WS --> BE : [B1.5f] weatherSummary + warnings[]
+
+BE -> DB : [B1.6] Lấy địa điểm lân cận (nearbyPlaces)
+DB --> BE : [B1.7] nearbyPlaces[]
+BE -> BE : [B1.8] Cập nhật session.incident + warnings
+BE --> FE : [B1.9] JourneyStateDTO + ADD_MARKER + warnings[]
+FE --> OSA : [B1.10] Hiển thị kết quả + "Cảnh báo khu vực"
+
+== BƯỚC 2: CHỌN TRẠM / ĐIỂM XUẤT PHÁT ==
+alt 2A. Trạm gần
+  OSA -> FE : [B2.1] Bấm "Tìm trạm gần"
+  FE -> BE : [B2.2] GET /location-sessions/{id}/stations/nearby
+  BE -> DB : [B2.3] Lấy danh sách trạm theo bán kính
+  BE -> GM : [B2.4] Distance Matrix (nếu cần)
+  GM --> BE : [B2.5] distance/duration
+  BE --> FE : [B2.6] StationListDTO[]
+else 2B. Theo địa chỉ
+  OSA -> FE : [B2.1] Nhập tên trạm / địa chỉ + bấm "Tìm"
+  FE -> BE : [B2.2] POST /location-sessions/{id}/stations/search
+  BE -> GM : [B2.3] Geocoding
+  GM --> BE : [B2.4] stationCandidate
+  BE --> FE : [B2.5] StationCandidateDTO
+end
+
+OSA -> FE : [B2.7] Chọn trạm (VD: Garage Thăng Long)
+FE -> BE : [B2.8] POST /location-sessions/{id}/journey/station
+BE -> BE : [B2.9] Gán routeOrigin
+BE --> FE : [B2.10] JourneyStateDTO (đã fill bước trạm)
+
+== BƯỚC 3: THÊM ĐIỂM KÉO XE (TÙY CHỌN) ==
+OSA -> FE : [B3.1] Bấm "+ Thêm điểm kéo xe về"
+FE -> BE : [B3.2] POST /search { pointRole=tow }
+BE -> GM : [B3.3] Geocoding
+GM --> BE : [B3.4] towDestination
+BE --> FE : [B3.5] JourneyStateDTO + ADD_MARKER
+
+== BƯỚC 4: ÁP DỤNG HÀNH TRÌNH ==
+OSA -> FE : [B4.1] Bấm "Áp dụng hành trình"
+FE -> BE : [B4.2] POST /location-sessions/{id}/journey/apply
+BE -> GM : [B4.3] Directions\nleg1: origin -> incident\nleg2: incident -> tow (nếu có)
+GM --> BE : [B4.4] path, distance, duration
+BE -> BE : [B4.5] Lưu route snapshot vào session
+BE --> FE : [B4.6] JourneyAppliedDTO + DRAW_POLYLINE + FIT_BOUNDS
+FE --> OSA : [B4.7] Hiển thị tuyến đường hoàn chỉnh
+@enduml
+
+
+@startuml
+title [Sơ đồ 3] Luồng qua chat (đồng bộ về panel có đánh số)
+autonumber
+
+actor "Điều phối viên (OSA)" as OSA
+participant "FE - Khung chat" as FE
+participant "BE RSA - Điều phối" as BE
+participant "Dịch vụ thời tiết khu vực" as WS
+participant "BE AI Agent" as AI
+participant "Google Maps APIs" as GM
+database "CSDL RSA" as DB
+
+== BƯỚC 1: GỬI CÂU CHAT ==
+OSA -> FE : [C1.1] Gửi tin nhắn / chọn quick reply
+FE -> BE : [C1.2] POST /location-sessions/{id}/chat/messages
+BE -> AI : [C1.3] Parse utterance + context
+AI --> BE : [C1.4] intent, confidence, entities, replyText, quickReplies
+BE -> BE : [C1.5] Map intent -> action handler
+
+== BƯỚC 2: XỬ LÝ THEO Ý ĐỊNH ==
+alt Intent = IDENTIFY_INCIDENT
+  BE -> GM : [C2.1] Geocoding(location_text)
+  GM --> BE : [C2.2] incidentPoint (lat, lng)
+  BE -> WS : [C2.3] getAreaWeather(lat, lng)
+  par Nguồn RSA
+    WS -> DB : [C2.3a] Query cảnh báo nội bộ
+    DB --> WS : [C2.3b] rsaWeatherAlerts[]
+  else Nguồn Google
+    WS -> GM : [C2.3c] Weather API
+    GM --> WS : [C2.3d] googleWeatherData
+  end
+  WS --> BE : [C2.4] warnings[] đã hợp nhất
+  BE -> DB : [C2.5] Lấy nearbyPlaces
+  DB --> BE : [C2.6] nearbyPlaces[]
+  BE -> BE : [C2.7] Cập nhật incident + warnings trong session
+  BE --> FE : [C2.8] ChatTurnDTO + JourneyStateDTO
+else Intent = LIST_NEARBY_STATIONS
+  BE -> DB : [C2.1] Query trạm gần
+  DB --> BE : [C2.2] stationList
+  BE --> FE : [C2.3] ChatTurnDTO(stations + gợi ý)
+else Intent = PICK_STATION
+  BE -> DB : [C2.1] Resolve station by id/name
+  DB --> BE : [C2.2] stationDetail
+  BE -> BE : [C2.3] Cập nhật routeOrigin
+  BE --> FE : [C2.4] ChatTurnDTO + JourneyStateDTO
+else Intent = SET_TOW_DESTINATION
+  BE -> GM : [C2.1] Geocoding(tow_destination)
+  GM --> BE : [C2.2] towPoint
+  BE -> BE : [C2.3] showTowStep = true
+  BE --> FE : [C2.4] ChatTurnDTO + JourneyStateDTO
+else Intent = APPLY_JOURNEY
+  BE -> GM : [C2.1] Directions cho toàn bộ chặng
+  GM --> BE : [C2.2] routeData
+  BE --> FE : [C2.3] ChatTurnDTO + JourneyAppliedDTO
+else Intent = CREATE_ORDER
+  BE -> BE : [C2.1] Build order prefill
+  BE --> FE : [C2.2] ChatTurnDTO + OrderPrefillDTO
+else Intent = CLARIFY_OR_UNKNOWN
+  BE --> FE : [C2.1] ChatTurnDTO(reply + quickReplies)
+end
+
+== BƯỚC 3: ĐỒNG BỘ HIỂN THỊ ==
+FE -> FE : [C3.1] Đồng bộ panel trái + map + cảnh báo khu vực
+FE --> OSA : [C3.2] Một nguồn hiển thị chính là panel trái
+@enduml
+
+
+@startuml
+title [Sơ đồ 4] Luồng chi tiết tạo đơn từ kết quả định vị (end-to-end)
+autonumber
+
+actor "Điều phối viên (OSA)" as OSA
+participant "FE - Màn hình định vị" as FE
+participant "BE RSA - Điều phối" as BE
+participant "BE RSA - Session Service" as SESSION
+participant "BE RSA - Order Prefill Service" as PREFILL
+participant "BE RSA - API Tạo đơn" as ORDER_API
+participant "Google Maps APIs" as GM
+database "CSDL RSA" as DB
+
+== BƯỚC 1: Khóa hành trình và xin dữ liệu tạo đơn ==
+OSA -> FE : [D1.1] Bấm "Tạo đơn cứu hộ"
+FE -> BE : [D1.2] POST /location-sessions/{id}/create-order-preview
+BE -> SESSION : [D1.3] Lấy trạng thái phiên hiện tại
+SESSION --> BE : [D1.4] incident, station, tow, route, warnings, metadata
+
+alt Chưa đủ dữ liệu bắt buộc
+  BE --> FE : [D1.5] 400 + thông báo thiếu dữ liệu\n(ví dụ: chưa có vị trí sự cố/trạm)
+  FE --> OSA : [D1.6] Hiển thị lỗi và hướng dẫn bổ sung
+else Đủ dữ liệu
+  BE -> PREFILL : [D1.5] Chuẩn hóa dữ liệu prefill
+  PREFILL -> DB : [D1.6] Bổ sung thông tin nghiệp vụ\n(khu vực, SLA, cấnh báo thời tiết)
+  DB --> PREFILL : [D1.7] Dữ liệu nghiệp vụ liên quan
+  PREFILL -> GM : [D1.8] Chuẩn hóa lại khoảng cách/thời gian (nếu cần)
+  GM --> PREFILL : [D1.9] distance/duration chuẩn
+  PREFILL --> BE : [D1.10] OrderPrefillDTO hoàn chỉnh\n(kèm weatherSummary nếu có)
+  BE --> FE : [D1.11] 200 + OrderPrefillDTO
+end
+
+== BƯỚC 2: Điều hướng sang màn tạo đơn ==
+FE -> FE : [D2.1] Lưu prefill vào state điều hướng
+FE --> OSA : [D2.2] Mở màn hình "Tạo đơn cứu hộ"\nđã điền sẵn dữ liệu định vị
+
+== BƯỚC 3: Xác nhận và ghi nhận đơn cứu hộ ==
+OSA -> FE : [D3.1] Bổ sung dịch vụ/khách hàng/ghi chú + bấm "Lưu đơn"
+FE -> ORDER_API : [D3.2] POST /rescue-orders\n(payload + OrderPrefillDTO)
+ORDER_API -> DB : [D3.3] Validate + tạo mới rescue order
+DB --> ORDER_API : [D3.4] orderId, orderCode, trạng thái
+ORDER_API --> FE : [D3.5] 201 + thông tin đơn vừa tạo
+FE --> OSA : [D3.6] Thông báo tạo đơn thành công + điều hướng chi tiết đơn
+
+== BƯỚC 4: Đóng vòng session định vị ==
+FE -> BE : [D4.1] POST /location-sessions/{id}/close\n{ linkedOrderId }
+BE -> SESSION : [D4.2] Đánh dấu session đã hoàn tất
+SESSION -> DB : [D4.3] Lưu liên kết session <-> order
+DB --> SESSION : [D4.4] OK
+BE --> FE : [D4.5] 200 + trạng thái session=closed
+
+note bottom
+Ý nghĩa nghiệp vụ:
+1) Tránh nhập lại dữ liệu định vị khi tạo đơn.
+2) Cảnh báo thời tiết đã lấy ở bước tìm vị trí được đưa vào prefill.
+3) Cho phép truy vết ngược: từ đơn -> phiên định vị ban đầu.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 5] Luồng chi tiết lấy thời tiết khu vực (2 nguồn)
+autonumber
+
+participant "BE RSA - Điều phối" as BE
+participant "Dịch vụ thời tiết khu vực" as WS
+database "CSDL RSA\n(cảnh báo nội bộ)" as DB
+participant "Google Weather API" as GW
+
+== Trigger: đã có lat/lng từ geocode ==
+BE -> WS : [W1.1] getAreaWeather(lat, lng, sessionId)
+
+par Nguồn 1 - CSDL RSA
+  WS -> DB : [W1.2a] Query theo khu vực hành chính\nhoặc point-in-polygon
+  DB --> WS : [W1.3a] rsaWeatherAlerts[]\n(type, severity, title, detail, validUntil)
+else Nguồn 2 - Google Weather API
+  WS -> GW : [W1.2b] GET currentConditions(lat, lng)
+  GW --> WS : [W1.3b] nhiệt độ, mưa, gió, tầm nhìn
+  WS -> GW : [W1.2c] GET publicAlerts(lat, lng)
+  GW --> WS : [W1.3c] weatherAlerts[]\n(FLOOD, RAIN, WIND...)
+  WS -> GW : [W1.2d] GET hourlyForecast(lat, lng, hours=6)
+  GW --> WS : [W1.3d] forecast[]
+end
+
+alt Google timeout/lỗi
+  WS -> WS : [W1.4a] Chỉ dùng rsaWeatherAlerts\n(degraded mode)
+else RSA rỗng, Google OK
+  WS -> WS : [W1.4b] Chỉ dùng googleWeatherData
+else Cả 2 nguồn OK
+  WS -> WS : [W1.4c] Hợp nhất theo rule
+end
+
+WS -> WS : [W1.5] Map sang AreaWarning[]\n(type: weather/flood, severity)
+WS -> WS : [W1.6] Cache kết quả (TTL 10-15 phút)
+WS --> BE : [W1.7] weatherSummary + warnings[]\n+ sources: { rsaDb, googleWeather }
+
+note bottom of WS
+Rule hợp nhất:
+1) Cảnh báo RSA nội bộ ưu tiên cao hơn Google.
+2) Trùng loại + cùng khu vực -> gộp 1 card.
+3) Lỗi Google không chặn luồng tìm vị trí.
+4) Map type: mưa/gió -> weather; ngập/lũ -> flood.
+5) Chi tiết Flood Zone: flood-zone-flow.puml.
+6) Sequence UML từng luồng: location-search-sequence.puml.
+end note
+@enduml

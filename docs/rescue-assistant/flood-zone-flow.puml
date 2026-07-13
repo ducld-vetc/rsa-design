@@ -1,0 +1,921 @@
+@startuml
+title [Sơ đồ 1] Kiến trúc Flood Zone - Mô hình tâm điểm + bán kính cố định
+left to right direction
+
+actor "Điều phối / Ops" as USER
+actor "OSA tạo đơn" as OSA
+
+rectangle "FE RSA" {
+  component "Màn tìm vị trí\n(cảnh báo ngập)" as FE
+  component "Màn tạo đơn\n(tick khu vực ngập)" as ORDER_UI
+  component "CMS cảnh báo ngập\n(chọn điểm + bán kính)" as CMS
+}
+
+rectangle "BE RSA" {
+  component "Flood Zone Service" as FZS
+  component "Flood Report Handler" as FRH
+  component "Flood Match Engine\n(khoảng cách <= radius)" as FME
+  component "Expire Job\n(cron TTL + dọn report)" as EXJ
+}
+
+cloud "Nguồn ngoài" {
+  component "iHanoi Flood API" as IHN
+}
+
+database "CSDL RSA" {
+  component "flood_zone\n(center, radius, severity, TTL)" as ZT
+  component "flood_report\n(điểm từ đơn)" as RT
+  component "flood_config\n(bán kính mặc định, rule)" as CFG
+}
+
+OSA --> ORDER_UI : Tick "Khu vực ngập"
+ORDER_UI --> FRH : Lưu flood_report
+USER --> CMS : Chọn điểm + bán kính + thời hạn
+CMS --> FZS : Tạo zone ngay (source=cms)
+
+FZS --> IHN : Query ngập theo lat/lng
+IHN --> FZS : Kết quả ngập (nếu có)
+FZS --> ZT : Tạo/cập nhật zone (source=ihanoi)
+
+FRH --> RT : Lưu report point
+FRH --> FZS : Yêu cầu xử lý report
+FZS --> FME : Check thuộc zone hiện có?
+FME --> ZT : Query zone active
+FZS --> ZT : Tạo zone mới (chỉ khi confirmed)
+
+FE --> FZS : getFloodRisk(lat,lng)
+FZS --> FME : Match distance <= radius\n(chỉ zone status=active)
+FZS --> FE : warnings[] + matchedZone
+
+EXJ --> ZT : Expire zone quá valid_to
+EXJ --> RT : Dọn flood_report cũ
+USER --> CMS : Gỡ cảnh báo sớm\n(PATCH deactivate)
+CMS --> FZS : status=expired
+
+note bottom of FZS
+Nguyên tắc Flood Zone:
+1) Zone = 1 tâm (center) + bán kính cố định (radius_m).
+2) Report từ đơn KHÔNG tự tạo zone ngay.
+3) Đơn mới trong vòng tròn -> gắn report, KHÔNG nở rộng radius.
+4) Không dùng Phường/Xã làm đơn vị cảnh báo.
+5) Hết hạn theo valid_to riêng; chi tiết xem Sơ đồ 15-19.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 2] Luồng tạo Flood Zone (CMS / iHanoi / Đơn cứu hộ)
+autonumber
+
+actor "Ops / OSA" as USER
+participant "FE" as FE
+participant "Flood Zone Service" as FZS
+participant "iHanoi API" as IHN
+database "CSDL RSA" as DB
+
+== Nhánh A: Ops đánh dấu trên CMS (tạo zone ngay) ==
+USER -> FE : [FZ-A1] Mở CMS > Chọn điểm trên bản đồ
+USER -> FE : [FZ-A2] Chọn mức độ + bán kính\n(200m/300m/500m) + thời hạn
+FE -> FZS : [FZ-A3] POST /flood-zones\n{ center, radius_m, severity, valid_to, source=cms }
+FZS -> DB : [FZ-A4] INSERT flood_zone (status=active)
+DB --> FZS : [FZ-A5] zoneId
+FZS --> FE : [FZ-A6] 201 Created
+FE --> USER : [FZ-A7] Hiển thị vòng tròn cảnh báo trên map
+
+== Nhánh B: iHanoi báo ngập tại lat/lng ==
+FZS -> IHN : [FZ-B1] GET flood-by-location(lat,lng)
+IHN --> FZS : [FZ-B2] isFlooded=true, level, metadata
+FZS -> DB : [FZ-B3] Check zone active trùng tâm (<= 50m)
+alt Đã có zone gần đó
+  FZS -> DB : [FZ-B4a] Cập nhật severity/TTL zone hiện có
+else Chưa có zone
+  FZS -> DB : [FZ-B4b] INSERT flood_zone\n(center=lat/lng, radius=config.default, source=ihanoi)
+end
+
+== Nhánh C: OSA tick "Khu vực ngập" khi tạo đơn ==
+USER -> FE : [FZ-C1] Tạo đơn + tick "Khu vực ngập"
+FE -> FZS : [FZ-C2] POST /flood-reports\n{ orderId, lat, lng }
+FZS -> DB : [FZ-C3] INSERT flood_report (chưa tạo zone)
+
+FZS -> DB : [FZ-C4] Query flood_zone active tại vùng
+alt Report nằm TRONG zone hiện có\n(distance <= radius)
+  FZS -> DB : [FZ-C5a] Gắn report vào zone\n(tăng report_count, KHÔNG đổi radius)
+  FZS --> FE : [FZ-C6a] OK - thuộc zone hiện có
+else Report NGOÀI mọi zone
+  FZS -> DB : [FZ-C5b] Đếm report lân cận\n(bán kính 150m, cửa sổ 2 giờ)
+  alt >= 3 report (confirmed cluster)
+    FZS -> DB : [FZ-C6b] INSERT flood_zone MỚI\n(center=centroid cụm, radius=config.default)
+    note right: 1 cụm = 1 zone duy nhất\nkhông tạo zone cho từng đơn
+  else Chưa đủ điều kiện
+    FZS --> FE : [FZ-C6c] Chỉ lưu report, chưa cảnh báo zone
+  end
+end
+
+note bottom
+Rule chống zone phình to:
+- Radius cố định theo config, không auto expand.
+- Center cố định sau khi tạo zone.
+- Đơn mới gần zone cũ -> attach report, không tạo zone mới.
+- Chỉ tạo zone mới khi: CMS / iHanoi / cluster >= N report.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 3] Luồng kiểm tra Flood Zone khi tìm vị trí / tạo đơn mới
+autonumber
+
+actor "OSA" as OSA
+participant "FE" as FE
+participant "BE RSA" as BE
+participant "Flood Zone Service" as FZS
+participant "iHanoi API" as IHN
+database "CSDL RSA" as DB
+
+== Trigger: đã có lat/lng incident ==
+OSA -> FE : [FM-1] Tìm vị trí / tạo đơn tại (lat,lng)
+FE -> BE : [FM-2] POST /search hoặc validate location
+BE -> FZS : [FM-3] getFloodRisk(lat, lng)
+
+par Check nguồn iHanoi
+  FZS -> IHN : [FM-4a] Query ngập theo điểm
+  IHN --> FZS : [FM-5a] iHanoiResult
+else Check zone nội bộ
+  FZS -> DB : [FM-4b] SELECT flood_zone WHERE status=active
+  DB --> FZS : [FM-5b] zones[]
+  FZS -> FZS : [FM-6] Tính distance(point, zone.center)\nfor each zone
+end
+
+alt distance <= zone.radius_m
+  FZS -> FZS : [FM-7a] matchedZone = zone\nmatchType = in_radius
+  FZS --> BE : [FM-8a] floodRisk=high/medium\n+ warning "Thuộc vùng ngập"
+else Không match zone nào
+  FZS -> FZS : [FM-7b] floodRisk=none
+  FZS --> BE : [FM-8b] warnings=[] hoặc chỉ cảnh báo iHanoi
+end
+
+BE --> FE : [FM-9] JourneyStateDTO + warnings[]
+FE --> OSA : [FM-10] Hiển thị card:\n"Khu vực ngập trong bán kính Xm (cách Ym)"
+
+note right of FZS
+Ví dụ:
+- Zone A: center=(21.0021,105.8123), radius=300m
+- Điểm B cách A 100m -> thuộc zone A
+- Điểm C cách A 400m -> không thuộc zone A
+(dù cùng Phường/Xã)
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 4] Luồng cấu hình & vận hành Flood Zone trên CMS
+autonumber
+
+actor "Admin / Ops" as OPS
+participant "CMS Flood Config" as CMS
+participant "Flood Zone Service" as FZS
+database "CSDL RSA" as DB
+
+== Cấu hình hệ thống (Admin) ==
+OPS -> CMS : [FC-1] Mở Cài đặt > Cảnh báo ngập lụt
+OPS -> CMS : [FC-2] Nhập cấu hình:\n- Bán kính mặc định (300m)\n- TTL zone mặc định (12h)\n- Chu kỳ job expire (15 phút)\n- reportRetention (7 ngày)\n- Số report tối thiểu (3/2h)\n- Bật/tắt nguồn iHanoi/CMS/Đơn
+CMS -> FZS : [FC-3] PUT /flood-config
+FZS -> DB : [FC-4] Lưu flood_config
+
+== Ops đánh dấu ngập thủ công ==
+OPS -> CMS : [FC-5] Chọn điểm trên bản đồ
+OPS -> CMS : [FC-6] Chọn mức độ + bán kính + thời hạn
+CMS -> FZS : [FC-7] POST /flood-zones (source=cms)
+FZS -> DB : [FC-8] Tạo zone active
+
+== Ops quản lý zone đang active ==
+OPS -> CMS : [FC-9] Xem danh sách zone active
+CMS -> FZS : [FC-10] GET /flood-zones?status=active
+FZS -> DB : [FC-11] Query zones + report_count
+FZS --> CMS : [FC-12] Danh sách zone (map + metadata)
+
+alt Ops hủy cảnh báo sớm
+  OPS -> CMS : [FC-13] Bấm "Gỡ cảnh báo"
+  CMS -> FZS : [FC-14] PATCH /flood-zones/{id}/deactivate
+  FZS -> DB : [FC-15] status=expired,\nexpired_by=ops_manual
+end
+
+== Job định kỳ expire (không reset toàn bộ lúc 00:00) ==
+FZS -> DB : [FC-16] Job mỗi 15p:\nexpire zone có valid_to < now
+FZS -> DB : [FC-17] Job: xóa report cũ\n(created_at > reportRetention)
+
+note bottom
+CMS thiết kế cho user phổ thông:
+- Không vẽ polygon.
+- Chỉ: chọn điểm + chọn bán kính + chọn thời hạn.
+- Xem vùng cảnh báo dạng vòng tròn trên bản đồ.
+Luồng expired chi tiết: Sơ đồ 15-19.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 5] Sequence end-to-end - Vòng đời Flood Zone (kịch bản thực tế)
+autonumber
+
+actor "OSA #1" as OSA1
+actor "OSA #2" as OSA2
+actor "OSA #3" as OSA3
+actor "OSA #4" as OSA4
+actor "Ops" as OPS
+participant "FE RSA\n(Tạo đơn / Tìm vị trí)" as FE
+participant "BE RSA\n(Điều phối)" as BE
+participant "Flood Zone Service" as FZS
+participant "iHanoi API" as IHN
+database "CSDL RSA" as DB
+
+== Giai đoạn 1: 3 đơn đầu tiên - chỉ lưu report, chưa có zone ==
+OSA1 -> FE : Tạo đơn tại điểm P1, tick "Khu vực ngập"
+FE -> BE : POST /orders + flood flag
+BE -> FZS : processFloodReport(orderId, P1)
+FZS -> DB : INSERT flood_report #1
+FZS -> DB : Query zone active quanh P1
+DB --> FZS : Không có zone
+FZS -> DB : Đếm report lân cận (150m, 2h) = 1
+FZS --> BE : reportSaved, zoneCreated=false
+BE --> FE : OK (chưa cảnh báo zone)
+FE --> OSA1 : Đơn tạo thành công
+
+... 30 phút sau, cùng khu vực ...
+
+OSA2 -> FE : Tạo đơn tại P2 (cách P1 ~80m), tick ngập
+FE -> BE : POST /orders + flood flag
+BE -> FZS : processFloodReport(orderId, P2)
+FZS -> DB : INSERT flood_report #2
+FZS -> DB : Đếm report lân cận = 2
+FZS --> BE : reportSaved, zoneCreated=false
+
+... 1 giờ sau ...
+
+OSA3 -> FE : Tạo đơn tại P3 (cách P1 ~120m), tick ngập
+FE -> BE : POST /orders + flood flag
+BE -> FZS : processFloodReport(orderId, P3)
+FZS -> DB : INSERT flood_report #3
+FZS -> DB : Đếm report lân cận = 3 (>= ngưỡng config)
+FZS -> DB : INSERT flood_zone\n(center=centroid P1-P2-P3,\nradius=300m, source=order_cluster,\nvalid_to=now+12h)
+DB --> FZS : zoneId=Z-001
+FZS --> BE : zoneCreated=true, zoneId=Z-001
+BE --> FE : Đơn OK + thông báo nội bộ "Vùng ngập mới được xác nhận"
+FE --> OSA3 : Đơn tạo thành công
+
+== Giai đoạn 2: Đơn thứ 4 trong zone - gắn report, KHÔNG tạo zone mới ==
+OSA4 -> FE : Tìm vị trí / tạo đơn tại P4\n(cách tâm Z-001 = 100m)
+FE -> BE : POST /search { lat, lng }
+BE -> FZS : getFloodRisk(P4)
+
+par Nguồn iHanoi
+  FZS -> IHN : GET flood-by-location(P4)
+  IHN --> FZS : isFlooded=false
+else Zone nội bộ
+  FZS -> DB : SELECT flood_zone active
+  DB --> FZS : Z-001 (center, radius=300m)
+  FZS -> FZS : distance(P4, Z-001.center) = 100m\n<= 300m -> MATCH
+end
+
+FZS --> BE : floodRisk=high\nwarning="Thuộc vùng ngập (cách 100m)"
+BE --> FE : JourneyStateDTO + warnings[]
+FE --> OSA4 : Hiển thị card cảnh báo ngập trên map
+
+OSA4 -> FE : Tick "Khu vực ngập" + tạo đơn
+FE -> BE : POST /orders + flood flag
+BE -> FZS : processFloodReport(orderId, P4)
+FZS -> DB : INSERT flood_report #4
+FZS -> DB : Gắn report #4 -> zone Z-001\n(report_count=4, radius KHÔNG đổi)
+FZS --> BE : attachedToZone=Z-001, zoneCreated=false
+BE --> FE : OK
+FE --> OSA4 : Đơn tạo thành công
+
+== Giai đoạn 3: Ops giám sát trên CMS ==
+OPS -> FE : Mở CMS > Danh sách zone active
+FE -> FZS : GET /flood-zones?status=active
+FZS -> DB : Query Z-001 + 4 reports
+FZS --> FE : zone Z-001 (300m, 4 reports, hết hạn 11h nữa)
+FE --> OPS : Hiển thị vòng tròn trên map + metadata
+
+alt Ops xác nhận hết ngập sớm (chi tiết: Sơ đồ 13)
+  OPS -> FE : Bấm "Gỡ cảnh báo" trên Z-001
+  FE -> FZS : PATCH /flood-zones/Z-001/deactivate
+  FZS -> DB : UPDATE status=expired,\nexpired_by=ops_manual
+  FZS --> FE : OK
+  FE --> OPS : Zone đã gỡ khỏi bản đồ cảnh báo
+else Để TTL tự hết hạn (chi tiết: Sơ đồ 14-16)
+  FZS -> DB : Job định kỳ: valid_to < now\n-> status=expired,\nexpired_by=system_ttl
+  note right of DB
+    Không reset toàn bộ lúc 00:00.
+    Mỗi zone hết hạn theo valid_to riêng.
+  end note
+end
+
+== Giai đoạn 4: Sau khi zone hết hạn - query lại (chi tiết: Sơ đồ 18) ==
+OSA4 -> FE : Tìm lại vị trí P4
+FE -> BE : POST /search { lat, lng }
+BE -> FZS : getFloodRisk(P4)
+FZS -> DB : SELECT flood_zone active quanh P4
+DB --> FZS : Không có zone active
+FZS -> IHN : GET flood-by-location(P4)
+IHN --> FZS : isFlooded=false
+FZS --> BE : floodRisk=none, warnings=[]
+BE --> FE : Không còn cảnh báo ngập
+FE --> OSA4 : Map bình thường, không hiện vòng tròn
+
+note bottom
+Tóm tắt vòng đời:
+1) Report rời rạc (< N) -> chỉ lưu điểm, chưa cảnh báo.
+2) Đủ N report -> tạo 1 zone (center + radius cố định).
+3) Đơn mới trong vòng tròn -> cảnh báo + gắn report, không nở zone.
+4) Ops gỡ sớm hoặc TTL hết -> zone expired, query không còn match.
+end note
+@enduml
+
+
+' ============================================================
+' PHẦN B: SEQUENCE CHI TIẾT — từng luồng một, tuần tự từng bước
+' ============================================================
+
+
+@startuml
+title [Sơ đồ 6] Sequence chi tiết — OSA tick ngập (đơn lẻ, chưa tạo zone)
+autonumber
+
+actor "OSA" as OSA
+participant "FE\n(Màn tạo đơn)" as FE
+participant "BE RSA\n(Điều phối đơn)" as BE
+participant "Flood Zone Service" as FZS
+database "CSDL RSA" as DB
+
+OSA -> FE : B1. Mở form tạo đơn cứu hộ
+OSA -> FE : B2. Nhập địa chỉ sự cố\n(hệ thống có lat/lng)
+OSA -> FE : B3. Tick checkbox "Khu vực ngập"
+OSA -> FE : B4. Bấm "Tạo đơn"
+
+FE -> BE : B5. POST /orders\n{ order, isFlooded: true, lat, lng }
+BE -> BE : B6. Validate đơn hợp lệ
+BE -> FZS : B7. processFloodReport(\n  orderId, lat, lng, reportedAt)
+
+FZS -> DB : B8. INSERT flood_report\n{ orderId, lat, lng, status=pending }
+DB --> FZS : B9. reportId = R-001
+
+FZS -> DB : B10. SELECT flood_zone\nWHERE status=active\nAND distance(center, point) <= radius_m
+DB --> FZS : B11. Danh sách rỗng\n(không thuộc zone nào)
+
+FZS -> DB : B12. SELECT COUNT(*) FROM flood_report\nWHERE distance(lat,lng, point) <= 150m\nAND created_at >= now - 2h
+DB --> FZS : B13. count = 1\n(< minReports = 3)
+
+FZS -> FZS : B14. Quyết định:\nchỉ lưu report,\nKHÔNG tạo flood_zone
+
+FZS --> BE : B15. {\n  reportId: R-001,\n  zoneCreated: false,\n  attachedZoneId: null,\n  nearbyReportCount: 1\n}
+BE --> FE : B16. 201 Created\n(đơn OK, chưa có cảnh báo zone)
+FE --> OSA : B17. "Tạo đơn thành công"\n(không hiện vòng tròn ngập trên map)
+
+note bottom of FZS
+Kết quả: hệ thống ghi nhận 1 điểm ngập.
+Chưa đủ 3 report trong 2h/150m -> chưa tạo zone cảnh báo.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 7] Sequence chi tiết — Đủ ngưỡng report, tạo zone mới
+autonumber
+
+actor "OSA" as OSA
+participant "FE\n(Màn tạo đơn)" as FE
+participant "BE RSA" as BE
+participant "Flood Zone Service" as FZS
+database "CSDL RSA" as DB
+
+note over DB
+Đã có R-001 (P1), R-002 (P2) trong 2h.
+OSA gửi report thứ 3 tại P3.
+end note
+
+OSA -> FE : B1. Tạo đơn + tick "Khu vực ngập" tại P3
+FE -> BE : B2. POST /orders + flood flag (P3)
+BE -> FZS : B3. processFloodReport(orderId, P3)
+
+FZS -> DB : B4. INSERT flood_report R-003
+DB --> FZS : B5. reportId = R-003
+
+FZS -> DB : B6. SELECT flood_zone active quanh P3
+DB --> FZS : B7. Không có zone
+
+FZS -> DB : B8. SELECT flood_report\nlân cận 150m / 2h
+DB --> FZS : B9. [R-001@P1, R-002@P2, R-003@P3]\ncount = 3
+
+FZS -> FZS : B10. count >= minReports (3)\n-> kích hoạt tạo zone
+
+FZS -> FZS : B11. Tính centroid(P1,P2,P3)\n= center mới
+
+FZS -> DB : B12. SELECT flood_config
+DB --> FZS : B13. defaultRadius=300m,\nzoneTtl=12h
+
+FZS -> DB : B14. INSERT flood_zone\n{\n  center=centroid,\n  radius_m=300,\n  severity=medium,\n  source=order_cluster,\n  valid_to=now+12h,\n  status=active\n}
+DB --> FZS : B15. zoneId = Z-001
+
+FZS -> DB : B16. UPDATE flood_report\nSET zone_id=Z-001\nWHERE id IN (R-001,R-002,R-003)
+
+FZS --> BE : B17. {\n  zoneCreated: true,\n  zoneId: Z-001,\n  reportCount: 3\n}
+BE --> FE : B18. Đơn OK +\nzone mới được xác nhận
+FE --> OSA : B19. Tạo đơn thành công\n(hệ thống bắt đầu cảnh báo vùng Z-001)
+
+note bottom
+Center + radius cố định ngay khi tạo.
+Không tạo 3 zone riêng cho 3 đơn.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 8] Sequence chi tiết — Report nằm trong zone (gắn report, không nở zone)
+autonumber
+
+actor "OSA" as OSA
+participant "FE\n(Màn tạo đơn)" as FE
+participant "BE RSA" as BE
+participant "Flood Zone Service" as FZS
+database "CSDL RSA" as DB
+
+note over DB
+Zone Z-001 đang active:\ncenter=(21.0021, 105.8123)\nradius=300m, report_count=3
+end note
+
+OSA -> FE : B1. Tạo đơn tại P4\n(cách tâm Z-001 = 100m)
+OSA -> FE : B2. Tick "Khu vực ngập"
+FE -> BE : B3. POST /orders + flood flag (P4)
+BE -> FZS : B4. processFloodReport(orderId, P4)
+
+FZS -> DB : B5. INSERT flood_report R-004
+DB --> FZS : B6. reportId = R-004
+
+FZS -> DB : B7. SELECT flood_zone active
+DB --> FZS : B8. Z-001 { center, radius=300m }
+
+FZS -> FZS : B9. distance(P4, Z-001.center) = 100m
+FZS -> FZS : B10. 100m <= 300m\n-> P4 THUỘC Z-001
+
+FZS -> DB : B11. UPDATE flood_report R-004\nSET zone_id = Z-001
+FZS -> DB : B12. UPDATE flood_zone Z-001\nSET report_count = report_count + 1\n(KHÔNG đổi center, KHÔNG đổi radius_m)
+
+FZS -> FZS : B13. Quyết định:\nKHÔNG INSERT zone mới\nKHÔNG expand radius
+
+FZS --> BE : B14. {\n  attachedZoneId: Z-001,\n  zoneCreated: false,\n  radiusChanged: false\n}
+BE --> FE : B15. 201 Created
+FE --> OSA : B16. Tạo đơn thành công
+
+note right of FZS
+Ví dụ chống zone phình to:
+- Đơn cách tâm 100m -> gắn vào Z-001
+- Radius vẫn 300m, center không đổi
+- Không tạo Z-002 tại P4
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 9] Sequence chi tiết — Ops tạo zone thủ công trên CMS
+autonumber
+
+actor "Ops" as OPS
+participant "FE\n(CMS cảnh báo ngập)" as CMS
+participant "Flood Zone Service" as FZS
+database "CSDL RSA" as DB
+
+OPS -> CMS : B1. Đăng nhập CMS > Cảnh báo ngập lụt
+OPS -> CMS : B2. Bấm "Thêm vùng ngập mới"
+OPS -> CMS : B3. Click chọn điểm trên bản đồ\n-> lat/lng = (21.0050, 105.8200)
+
+CMS -> CMS : B4. Hiện form:\n- Mức độ: Cao / Trung bình / Thấp\n- Bán kính: 200m / 300m / 500m\n- Thời hạn: 6h / 12h / 24h
+
+OPS -> CMS : B5. Chọn: Trung bình, 300m, 12h
+OPS -> CMS : B6. Bấm "Lưu cảnh báo"
+
+CMS -> FZS : B7. POST /flood-zones\n{\n  center: {lat, lng},\n  radius_m: 300,\n  severity: medium,\n  valid_to: now+12h,\n  source: cms,\n  created_by: opsId\n}
+
+FZS -> FZS : B8. Validate input\n(lat/lng hợp lệ, radius > 0)
+
+FZS -> DB : B9. INSERT flood_zone\nstatus=active, source=cms
+DB --> FZS : B10. zoneId = Z-CMS-001
+
+FZS --> CMS : B11. 201 Created\n{ zoneId, center, radius_m, valid_to }
+
+CMS -> CMS : B12. Vẽ vòng tròn cảnh báo\n(center + radius) lên map
+
+CMS --> OPS : B13. "Đã lưu vùng ngập Z-CMS-001"\n+ hiển thị preview vòng tròn
+
+note bottom
+CMS: chọn điểm + chọn bán kính + chọn thời hạn.
+Không vẽ polygon. Zone có hiệu lực ngay.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 10] Sequence chi tiết — Đồng bộ zone từ iHanoi
+autonumber
+
+participant "Job đồng bộ\n(định kỳ / on-demand)" as JOB
+participant "Flood Zone Service" as FZS
+participant "iHanoi API" as IHN
+database "CSDL RSA" as DB
+
+JOB -> FZS : B1. syncFromIHanoi(lat, lng)\nhoặc quét danh sách điểm ngập
+
+FZS -> IHN : B2. GET /flood-by-location\n?lat=21.0050&lng=105.8200
+IHN --> FZS : B3. {\n  isFlooded: true,\n  level: "high",\n  updatedAt: "..."\n}
+
+FZS -> FZS : B4. Kiểm tra config:\nnguồn iHanoi đang bật?
+
+FZS -> DB : B5. SELECT flood_config
+DB --> FZS : B6. defaultRadius=300m, iHanoiEnabled=true
+
+FZS -> DB : B7. SELECT flood_zone active\nWHERE distance(center, point) <= 50m\nAND source IN (ihanoi, cms, order_cluster)
+DB --> FZS : B8. Không có zone trùng tâm
+
+FZS -> DB : B9. INSERT flood_zone\n{\n  center=(lat,lng),\n  radius_m=300,\n  severity=high,\n  source=ihanoi,\n  valid_to=now+12h,\n  status=active\n}
+DB --> FZS : B10. zoneId = Z-IHN-001
+
+FZS --> JOB : B11. zoneCreated=true,\nzoneId=Z-IHN-001
+
+note over FZS, DB
+Nếu B8 đã có zone gần đó (<= 50m):
+  -> UPDATE severity + gia hạn valid_to
+  -> KHÔNG tạo zone trùng lặp
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 11] Sequence chi tiết — Kiểm tra ngập khi tìm vị trí (CÓ zone)
+autonumber
+
+actor "OSA" as OSA
+participant "FE\n(Màn tìm vị trí)" as FE
+participant "BE RSA\n(Location Orchestrator)" as BE
+participant "Flood Zone Service" as FZS
+participant "iHanoi API" as IHN
+database "CSDL RSA" as DB
+
+OSA -> FE : B1. Nhập / chọn địa chỉ sự cố
+FE -> BE : B2. POST /location/search\n{ address, lat, lng, sessionId }
+
+BE -> BE : B3. Geocode xong,\ncó lat/lng incident
+
+BE -> FZS : B4. getFloodRisk(lat, lng)
+
+FZS -> DB : B5. SELECT flood_zone\nWHERE status = active
+DB --> FZS : B6. [Z-001: center, radius=300m, severity=medium]
+
+FZS -> FZS : B7. Với mỗi zone:\n  d = distance(point, center)\n  d(Z-001) = 100m
+
+FZS -> FZS : B8. 100m <= 300m\n-> matchedZone = Z-001
+
+FZS -> IHN : B9. GET flood-by-location (song song)
+IHN --> FZS : B10. isFlooded=false
+
+FZS -> FZS : B11. Ưu tiên zone nội bộ\n(lấy severity từ Z-001)
+
+FZS --> BE : B12. {\n  floodRisk: "medium",\n  matchedZoneId: Z-001,\n  distanceM: 100,\n  warnings: [{\n    type: "flood",\n    severity: "medium",\n    title: "Khu vực ngập",\n    detail: "Cách tâm vùng 100m"\n  }]\n}
+
+BE --> FE : B13. JourneyStateDTO + warnings[]\n+ MapCommand DRAW_CIRCLE(Z-001)
+
+FE -> FE : B14. Vẽ vòng tròn 300m\nquanh tâm Z-001 trên map
+
+FE --> OSA : B15. Hiện card cảnh báo:\n"Khu vực ngập — cách 100m\nBán kính cảnh báo 300m"
+
+note bottom
+Match theo khoảng cách thực (m),
+không theo Phường/Xã.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 12] Sequence chi tiết — Kiểm tra ngập khi tìm vị trí (KHÔNG có zone)
+autonumber
+
+actor "OSA" as OSA
+participant "FE\n(Màn tìm vị trí)" as FE
+participant "BE RSA" as BE
+participant "Flood Zone Service" as FZS
+participant "iHanoi API" as IHN
+database "CSDL RSA" as DB
+
+OSA -> FE : B1. Chọn vị trí sự cố tại P5
+FE -> BE : B2. POST /location/search { lat, lng, ... }
+BE -> FZS : B3. getFloodRisk(lat, lng)
+
+FZS -> DB : B4. SELECT flood_zone active
+DB --> FZS : B5. [Z-001 ... các zone khác]
+
+FZS -> FZS : B6. Tính distance(P5, từng zone)\nGần nhất: Z-001, d = 400m
+
+FZS -> FZS : B7. 400m > 300m (radius)\n-> KHÔNG match zone nội bộ
+
+FZS -> IHN : B8. GET flood-by-location(P5)
+IHN --> FZS : B9. isFlooded=false
+
+FZS -> FZS : B10. floodRisk = none\nwarnings = []
+
+FZS --> BE : B11. { floodRisk: "none", warnings: [] }
+BE --> FE : B12. JourneyStateDTO\n(không có cảnh báo ngập)
+FE --> OSA : B13. Map bình thường,\nkhông vẽ vòng tròn ngập
+
+note right of FZS
+Ví dụ:
+- P5 cách Z-001 = 400m -> không thuộc zone
+- Dù P5 cùng Phường/Xã với Z-001
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 13] Sequence chi tiết — Ops gỡ cảnh báo zone trên CMS
+autonumber
+
+actor "Ops" as OPS
+participant "FE\n(CMS cảnh báo ngập)" as CMS
+participant "Flood Zone Service" as FZS
+database "CSDL RSA" as DB
+
+OPS -> CMS : B1. Mở "Danh sách zone đang active"
+CMS -> FZS : B2. GET /flood-zones?status=active
+FZS -> DB : B3. SELECT flood_zone + report_count\nWHERE status=active
+DB --> FZS : B4. [Z-001: 300m, 4 reports, hết hạn 11h]
+FZS --> CMS : B5. Danh sách zone
+CMS --> OPS : B6. Hiển thị map + bảng zone
+
+OPS -> CMS : B7. Chọn Z-001 > "Gỡ cảnh báo"
+CMS -> OPS : B8. Xác nhận: "Gỡ cảnh báo vùng ngập này?"
+OPS -> CMS : B9. Bấm "Xác nhận gỡ"
+
+CMS -> FZS : B10. PATCH /flood-zones/Z-001/deactivate\n{ reason: "ops_manual", deactivated_by: opsId }
+
+FZS -> DB : B11. UPDATE flood_zone\nSET status=expired,\n    expired_at=now,\n    expired_by='ops_manual'\nWHERE id=Z-001
+DB --> FZS : B12. OK (1 row)
+
+FZS --> CMS : B13. 200 OK { zoneId: Z-001, status: expired }
+CMS -> CMS : B14. Xóa vòng tròn Z-001 khỏi map
+CMS --> OPS : B15. "Đã gỡ cảnh báo Z-001"
+
+note bottom
+Sau B11: getFloodRisk tại điểm trong Z-001\ntrả về floodRisk=none (zone không còn active).
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 14] Sequence chi tiết — Job hết hạn zone theo TTL
+autonumber
+
+participant "Scheduler\n(cron mỗi 15 phút)" as CRON
+participant "Flood Zone Service" as FZS
+database "CSDL RSA" as DB
+participant "FE\n(cache cảnh báo)" as FE
+
+CRON -> FZS : B1. runExpireZonesJob()
+
+FZS -> DB : B2. SELECT id, valid_to\nFROM flood_zone\nWHERE status=active\nAND valid_to < now()
+DB --> FZS : B3. [Z-001 (hết hạn 10:00),\n Z-002 (hết hạn 09:30)]
+
+loop Mỗi zone hết hạn
+  FZS -> DB : B4. UPDATE flood_zone\nSET status=expired,\n    expired_at=now,\n    expired_by='system_ttl'\nWHERE id=zoneId
+  DB --> FZS : B5. OK
+end
+
+FZS -> DB : B6. DELETE / UPDATE flood_report\nWHERE created_at < now - reportRetention\n(ví dụ 7 ngày)
+DB --> FZS : B7. Đã dọn report cũ
+
+FZS -> FZS : B8. Invalidate cache\nflood-risk theo vùng Z-001, Z-002
+
+FZS --> CRON : B9. Job done:\nexpiredCount=2
+
+note over CRON, DB
+Không reset toàn bộ lúc 00:00.
+Mỗi zone tự hết hạn theo valid_to riêng.
+Ops có thể gỡ sớm (xem Sơ đồ 13).
+end note
+
+note over FE
+Lần query tiếp theo tại điểm thuộc Z-001:\ngetFloodRisk -> warnings=[]\n(không còn vòng tròn trên map)
+end note
+@enduml
+
+
+' ============================================================
+' PHẦN C: LUỒNG EXPIRED — vòng đời, TTL, gỡ sớm, hậu expired
+' ============================================================
+
+
+@startuml
+title [Sơ đồ 15] Vòng đời trạng thái Flood Zone (state)
+hide empty description
+
+[*] --> active : Tạo zone\n(CMS / iHanoi / cụm đơn)\nvalid_to = now + TTL
+
+active --> active : iHanoi sync gần tâm\n(<= 50m)\n-> gia hạn valid_to\n+ cập nhật severity
+
+active --> expired : Ops gỡ thủ công\nPATCH deactivate\nexpired_by=ops_manual
+
+active --> expired : Job cron (15 phút)\nnow > valid_to\nexpired_by=system_ttl
+
+expired --> [*] : Zone lưu lịch sử\n(không match query)
+
+note right of active
+Điều kiện match:
+- status = active
+- distance(point, center) <= radius_m
+- now <= valid_to (ngầm qua job expire)
+end note
+
+note right of expired
+Sau expired:
+- getFloodRisk() bỏ qua zone này
+- Report mới KHÔNG attach vào zone cũ
+- Có thể tạo zone mới nếu đủ cụm report
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 16] Tổng quan cơ chế Expired Flood Zone
+autonumber
+
+participant "Nguồn tạo zone" as SRC
+database "flood_zone\n(status, valid_to)" as Z
+participant "Expire Job\n(cron 15 phút)" as JOB
+actor "Ops" as OPS
+participant "Flood Zone Service" as FZS
+participant "getFloodRisk /\nprocessFloodReport" as API
+
+== Khởi tạo TTL ==
+SRC -> Z : INSERT status=active\nvalid_to = now + TTL\n(TTL: CMS chọn / config 12h)
+
+== Cách 1: Hết hạn tự động ==
+JOB -> FZS : [EX-1] runExpireZonesJob()
+FZS -> Z : [EX-2] SELECT WHERE status=active\nAND valid_to < now()
+Z --> FZS : [EX-3] danh sách zone quá hạn
+FZS -> Z : [EX-4] UPDATE status=expired,\nexpired_at=now,\nexpired_by=system_ttl
+FZS -> FZS : [EX-5] Invalidate cache flood-risk
+
+== Cách 2: Ops gỡ sớm ==
+OPS -> FZS : [EX-6] PATCH /flood-zones/{id}/deactivate
+FZS -> Z : [EX-7] UPDATE status=expired,\nexpired_by=ops_manual
+
+== Ảnh hưởng sau expired ==
+API -> Z : [EX-8] Query chỉ lấy status=active
+Z --> API : [EX-9] Zone expired bị loại
+API -> API : [EX-10] Không trả cảnh báo\nkhông vẽ vòng tròn
+
+note bottom
+Khác cơ chế cũ:
+- KHÔNG reset toàn bộ lúc 00:00
+- Mỗi zone có valid_to riêng
+- Report đơn lẻ KHÔNG gia hạn TTL zone
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 17] Sequence chi tiết — Gia hạn TTL zone (iHanoi sync)
+autonumber
+
+participant "Job iHanoi\n(định kỳ)" as JOB
+participant "Flood Zone Service" as FZS
+participant "iHanoi API" as IHN
+database "CSDL RSA" as DB
+
+note over DB
+Z-001 đang active:\nvalid_to = 14:00 (còn 2h)\ncenter = (21.0050, 105.8200)
+end note
+
+JOB -> FZS : B1. syncFromIHanoi(21.0050, 105.8200)
+FZS -> IHN : B2. GET flood-by-location
+IHN --> FZS : B3. isFlooded=true, level=high
+
+FZS -> DB : B4. SELECT flood_zone active\nWHERE distance(center, point) <= 50m
+DB --> FZS : B5. Z-001 (status=active, valid_to=14:00)
+
+FZS -> FZS : B6. Zone còn active\n-> KHÔNG tạo zone mới
+
+FZS -> DB : B7. UPDATE flood_zone Z-001\nSET severity=high,\n    valid_to = now + defaultTtl (12h),\n    last_synced_at=now,\n    source_meta=ihanoi
+
+FZS --> JOB : B8. zoneExtended=true,\nnewValidTo=now+12h
+
+note bottom of FZS
+Chỉ iHanoi (và Ops sửa trên CMS)\nđược gia hạn valid_to.
+Report từ đơn OSA chỉ tăng report_count,\nKHÔNG kéo dài TTL zone.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 18] Sequence chi tiết — Query sau khi zone đã expired
+autonumber
+
+actor "OSA" as OSA
+participant "FE\n(Màn tìm vị trí)" as FE
+participant "BE RSA" as BE
+participant "Flood Zone Service" as FZS
+participant "iHanoi API" as IHN
+database "CSDL RSA" as DB
+
+note over DB
+Z-001 đã expired lúc 10:00\n(expired_by=system_ttl)
+Điểm P4 cách tâm Z-001 = 100m
+(trước đây thuộc zone)
+end note
+
+OSA -> FE : B1. Tìm vị trí tại P4
+FE -> BE : B2. POST /location/search { lat, lng }
+BE -> FZS : B3. getFloodRisk(P4)
+
+FZS -> DB : B4. SELECT flood_zone\nWHERE status = active
+DB --> FZS : B5. Không có Z-001\n(chỉ lấy active)
+
+FZS -> FZS : B6. distance(P4, Z-001.center)=100m\nnhưng Z-001 status=expired\n-> KHÔNG match
+
+FZS -> IHN : B7. GET flood-by-location(P4)
+IHN --> FZS : B8. isFlooded=false
+
+FZS -> FZS : B9. floodRisk=none\nwarnings=[]
+
+FZS --> BE : B10. { floodRisk: none, warnings: [] }
+BE --> FE : B11. JourneyStateDTO\n(không có cảnh báo ngập)
+FE --> OSA : B12. Map bình thường,\nkhông vẽ vòng tròn Z-001
+
+note bottom
+Zone expired vẫn lưu DB để audit.\nChỉ zone active mới tham gia match.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 19] Sequence chi tiết — Report mới sau khi zone expired
+autonumber
+
+actor "OSA" as OSA
+participant "FE\n(Màn tạo đơn)" as FE
+participant "BE RSA" as BE
+participant "Flood Zone Service" as FZS
+database "CSDL RSA" as DB
+
+note over DB
+Z-001 expired (10:00).\nP4 nằm trong vòng tròn cũ của Z-001\nnhưng zone không còn active.
+end note
+
+OSA -> FE : B1. Tạo đơn tại P4 + tick "Khu vực ngập"
+FE -> BE : B2. POST /orders + flood flag
+BE -> FZS : B3. processFloodReport(orderId, P4)
+
+FZS -> DB : B4. INSERT flood_report R-005
+DB --> FZS : B5. reportId = R-005
+
+FZS -> DB : B6. SELECT flood_zone\nWHERE status=active\nAND distance(center,P4) <= radius_m
+DB --> FZS : B7. Rỗng\n(Z-001 expired, không match)
+
+FZS -> FZS : B8. KHÔNG attach R-005 vào Z-001\n(zone đã expired)
+
+FZS -> DB : B9. SELECT flood_report lân cận\n150m / 2h (chỉ report chưa gắn zone active)
+DB --> FZS : B10. count = 1\n(chỉ R-005)
+
+FZS -> FZS : B11. count < minReports (3)\n-> chưa tạo zone mới
+
+FZS --> BE : B12. {\n  reportSaved: true,\n  zoneCreated: false,\n  attachedZoneId: null\n}
+BE --> FE : B13. 201 Created
+FE --> OSA : B14. Đơn OK,\nchưa có cảnh báo zone mới
+
+note bottom
+Sau expired: cụm report đếm lại từ đầu.\nĐủ 3 report mới -> tạo Z-002 (zone mới).\nKhông "hồi sinh" Z-001 cũ.
+end note
+@enduml
+
+
+@startuml
+title [Sơ đồ 20] Sequence chi tiết — Dọn flood_report cũ (reportRetention)
+autonumber
+
+participant "Expire Job\n(cron 15 phút)" as JOB
+participant "Flood Zone Service" as FZS
+database "CSDL RSA" as DB
+
+JOB -> FZS : B1. runCleanupReportsJob()
+
+FZS -> DB : B2. SELECT flood_config
+DB --> FZS : B3. reportRetention = 7 ngày
+
+FZS -> DB : B4. DELETE FROM flood_report\nWHERE created_at < now - 7 days\nAND zone_id IS NULL\nOR zone_id IN (\n  SELECT id FROM flood_zone\n  WHERE status=expired\n  AND expired_at < now - 7 days\n)
+
+DB --> FZS : B5. deletedCount = N
+
+FZS --> JOB : B6. cleanupDone,\ndeletedReports=N
+
+note bottom
+Dọn report không ảnh hưởng zone active.\nZone expired giữ lịch sử tối thiểu 7 ngày\n(trước khi dọn report liên kết).
+Job chạy cùng chu kỳ với expire zone (15 phút).
+end note
+@enduml

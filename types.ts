@@ -109,6 +109,7 @@ export enum Step {
   LOCATION_SEARCH = 44,
   SHIFT_DEFINITION_MANAGEMENT = 45,
   SHIFT_MONTHLY_SCHEDULE = 46,
+  FLOOD_ZONE_MANAGEMENT = 47,
 }
 
 export interface MonitoringOrder {

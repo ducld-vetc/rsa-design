@@ -1,0 +1,140 @@
+@startuml location_search_integration_sequence
+title Sequence tích hợp - Tìm kiếm vị trí RSA (tất cả luồng)
+autonumber
+
+actor "OSA / Điều phối" as osa
+
+box "FE RSA" #E8F5E9
+  participant "Màn hình tìm vị trí\n(Panel + Chat + Bản đồ)" as fe
+end box
+
+box "BE RSA" #E3F2FD
+  participant "BE RSA" as be
+end box
+
+box "AI Agent" #FFF8E1
+  participant "AI Agent" as ai
+end box
+
+box "Google (Map / Weather)" #F3E5F5
+  participant "Google Maps / Weather" as google
+end box
+
+database "CSDL RSA" as db
+
+== A. Tìm vị trí sự cố ==
+
+alt A1. Panel - nhập địa chỉ trực tiếp
+  osa -> fe : Nhập mô tả địa chỉ + bấm Tìm
+  fe -> be : Tìm vị trí sự cố (kênh panel)
+else A2. Chat - mô tả qua chat bot
+  osa -> fe : Nhập tin nhắn / chọn gợi ý nhanh
+  fe -> be : Gửi nội dung chat + ngữ cảnh phiên
+  be -> ai : Phân tích câu (intent + entities)
+  ai --> be : Ý định + dữ liệu trích xuất + gợi ý trả lời
+end
+
+be -> google : Geocoding / Places
+google --> be : Địa chỉ, tọa độ
+
+be -> db : Cảnh báo nội bộ (thời tiết, ngập, giao thông...)
+db --> be : Cảnh báo RSA
+
+be -> google : Dự báo thời tiết / cảnh báo công khai
+google --> be : Dữ liệu thời tiết
+
+be -> db : Địa điểm lân cận (xăng, TTTM, mốc...)
+db --> be : Danh sách địa điểm tham chiếu
+
+be --> fe : Vị trí sự cố + cảnh báo + địa điểm gần
+fe --> osa : Hiển thị panel trái + bản đồ
+
+== B. Tìm trạm / điểm xuất phát ==
+
+alt B1. Tìm trạm gần
+  osa -> fe : Bấm Tìm trạm gần
+  fe -> be : Lấy trạm trong bán kính
+  be -> db : Query trạm cứu hộ RSA
+  db --> be : Danh sách trạm
+  be -> google : Tính khoảng cách (Distance Matrix)
+  google --> be : Km, thời gian
+  be --> fe : Danh sách trạm gần
+else B2. Tìm trạm theo địa chỉ / tên trạm
+  osa -> fe : Nhập tên trạm hoặc địa chỉ + Tìm
+  fe -> be : Tìm trạm theo từ khóa
+  be -> db : Tìm khớp trạm nội bộ
+  db --> be : Trạm ứng viên
+  be -> google : Geocoding (nếu cần)
+  google --> be : Tọa độ
+  be --> fe : Kết quả trạm
+else B3. Chat - Xem danh sách trạm
+  osa -> fe : Chọn "Xem danh sách trạm"
+  fe -> be : Yêu cầu trạm gần
+  be -> ai : Phân tích intent
+  ai --> be : LIST_NEARBY_STATIONS
+  be -> db : Trạm gần vị trí sự cố
+  db --> be : Danh sách trạm
+  be --> fe : Trả lời chat + danh sách trạm
+end
+
+fe --> osa : Hiển thị trạm trên panel / chat / bản đồ
+
+== C. Chọn trạm làm điểm xuất phát ==
+
+osa -> fe : Chọn 1 trạm (panel, chat hoặc marker bản đồ)
+fe -> be : Gán trạm làm điểm xuất phát
+be --> fe : Cập nhật bước 2 hành trình
+fe --> osa : Banner "Đã chọn" + đồng bộ panel
+
+== D. Tìm điểm kéo xe về (tùy chọn) ==
+
+alt D1. Panel
+  osa -> fe : Thêm điểm kéo xe về + nhập địa chỉ
+  fe -> be : Tìm điểm kéo xe
+else D2. Chat
+  osa -> fe : Chọn "Vị trí kéo xe tới" + nhập địa điểm
+  fe -> be : Yêu cầu điểm kéo xe
+  be -> ai : Phân tích intent
+  ai --> be : SET_TOW_DESTINATION
+end
+
+be -> google : Geocoding
+google --> be : Tọa độ điểm kéo xe
+be --> fe : Cập nhật bước 3 hành trình
+fe --> osa : Ghim điểm kéo xe trên bản đồ
+
+== E. Áp dụng hành trình ==
+
+alt E1. Panel
+  osa -> fe : Bấm Áp dụng hành trình
+  fe -> be : Vẽ tuyến đầy đủ
+else E2. Chat
+  osa -> fe : Chọn "Xem đường đi" / xác nhận hành trình
+  fe -> be : Yêu cầu vẽ tuyến
+  be -> ai : Phân tích intent (nếu qua chat)
+  ai --> be : APPLY_JOURNEY / ROUTE
+end
+
+be -> google : Directions\n(trạm -> sự cố -> điểm kéo xe)
+google --> be : Đường đi, km, phút
+be --> fe : Hành trình hoàn chỉnh
+fe --> osa : Vẽ polyline trên bản đồ
+
+== F. Xóa phiên tìm kiếm ==
+
+osa -> fe : Bấm Xóa phiên tìm kiếm
+fe -> be : Reset phiên định vị
+be --> fe : Phiên rỗng
+fe -> fe : Xóa panel + bản đồ + chat
+fe --> osa : Về trạng thái ban đầu
+
+note over fe, be
+Nguyên tắc tích hợp:
+1) BE RSA là điểm điều phối trung tâm.
+2) FE không gọi trực tiếp AI Agent hay Google.
+3) Panel và Chat dùng chung trạng thái hành trình.
+4) Thời tiết: CSDL RSA + Google Weather.
+5) Flood zone chi tiết: flood-zone-flow.puml
+end note
+
+@enduml
