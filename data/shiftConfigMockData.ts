@@ -99,6 +99,58 @@ export function isStrictPastDay(
   return day < refDate.getDate();
 }
 
+/** Ngày tương lai trên lịch (sau hôm nay) — giữ nguyên hôm nay & quá khứ khi đổi cấu hình ca */
+export function isFutureScheduleDay(
+  yearMonth: string,
+  day: number,
+  refDate: Date = new Date()
+): boolean {
+  const currentYearMonth = `${refDate.getFullYear()}-${String(refDate.getMonth() + 1).padStart(2, '0')}`;
+  if (yearMonth > currentYearMonth) return true;
+  if (yearMonth < currentYearMonth) return false;
+  return day > refDate.getDate();
+}
+
+export type FutureShiftKeyUsage = {
+  yearMonth: string;
+  cellCount: number;
+  employeeCount: number;
+  days: number[];
+};
+
+/** Đếm ô lịch tương lai đang gán KEY ca (hỗ trợ KEY ghép `C1+CG1`) */
+export function summarizeFutureShiftKeyUsage(
+  shiftKey: string,
+  employees: MonthlyEmployee[],
+  yearMonth: string,
+  refDate: Date = new Date()
+): FutureShiftKeyUsage {
+  const daysInMonth = getDaysInMonth(yearMonth);
+  const employeeIds = new Set<string>();
+  const daySet = new Set<number>();
+  let cellCount = 0;
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    if (!isFutureScheduleDay(yearMonth, day, refDate)) continue;
+    employees.forEach((emp) => {
+      const raw = emp.assignments[day];
+      if (!raw) return;
+      const keys = raw.split('+').map((s) => s.trim());
+      if (!keys.includes(shiftKey)) return;
+      cellCount += 1;
+      employeeIds.add(emp.id);
+      daySet.add(day);
+    });
+  }
+
+  return {
+    yearMonth,
+    cellCount,
+    employeeCount: employeeIds.size,
+    days: [...daySet].sort((a, b) => a - b),
+  };
+}
+
 /** Mock kiểm tra đơn thực tế theo ngày đã qua (BE sẽ thay bằng API) */
 export function buildMockActualWorkFacts(
   employees: MonthlyEmployee[],

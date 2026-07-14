@@ -16,7 +16,8 @@ import {
   Truck,
   User,
   UserCheck,
-  UserX
+  UserX,
+  AlertTriangle
 } from 'lucide-react';
 import {FormData, OrderHistory} from '../types';
 import ImageUploadSection from '../shared/ImageUploadSection';
@@ -24,7 +25,10 @@ import ServiceSelectionField from '../shared/ServiceSelectionField';
 import AISuggestionSection from '../shared/AISuggestionSection';
 import MapSelectionModal from '../shared/MapSelectionModal';
 import RescueHistoryModal from '../shared/RescueHistoryModal';
-import UsageHistoryModal from '../shared/UsageHistoryModal';
+import UsageHistoryModal, {
+  DEFAULT_PACKAGE_ORDERS,
+  hasOrderCreatedToday,
+} from '../shared/UsageHistoryModal';
 import DuplicateRescueWarningModal from '../shared/DuplicateRescueWarningModal';
 import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
 import { FloodWarningBadge } from '../shared/OrderAlertBadges';
@@ -41,15 +45,7 @@ interface CreateRescueOrderProps {
   role?: 'OSA' | 'CSKH' | 'STATION' | 'DRIVER';
 }
 
-const MOCK_HISTORY_DATA: OrderHistory[] = [
-  { id: 'RS-10234', date: '20/01/2026', service: 'Kích bình ắc quy', status: 'Completed' },
-  { id: 'RS-09852', date: '15/12/2025', service: 'Cứu hộ kéo xe', status: 'Cancelled' },
-  { id: 'RS-08765', date: '10/11/2025', service: 'Thay lốp dự phòng', status: 'Completed' },
-  { id: 'RS-07654', date: '05/10/2025', service: 'Cung cấp nhiên liệu', status: 'Completed' },
-  { id: 'RS-06543', date: '20/09/2025', service: 'Sửa chữa tại chỗ', status: 'Completed' },
-  { id: 'RS-05432', date: '15/08/2025', service: 'Cẩu xe từ vực', status: 'Completed' },
-  { id: 'RS-04321', date: '01/07/2025', service: 'Kích bình ắc quy', status: 'Cancelled' }
-];
+const MOCK_HISTORY_DATA: OrderHistory[] = DEFAULT_PACKAGE_ORDERS;
 
 const WORKSHOP_STATIONS = [
   'Carpla Service Thái Bình',
@@ -224,6 +220,15 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
 
   // Logic to slice history - Max 4 items on main screen
   const visibleHistory = currentHistory.slice(0, 4);
+
+  /** Đơn gắn gói để mở Chi tiết gói + cảnh báo trong ngày */
+  const packageOrders: OrderHistory[] =
+    currentHistory.length > 0
+      ? currentHistory
+      : data.customer.servicePackage !== 'Không có'
+        ? MOCK_HISTORY_DATA
+        : [];
+  const hasOrderToday = hasOrderCreatedToday(packageOrders);
 
   const SectionHeader = ({ title, number, icon, trailing }: { title: string, number: number, icon?: React.ReactNode, trailing?: React.ReactNode }) => (
       <div className="bg-vetc-green text-white px-4 py-2 rounded-t-lg font-bold text-sm flex items-center justify-between">
@@ -446,17 +451,25 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
                   </div>
                 </div>
                 {/* Package info */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-x-12 gap-y-4 pb-4 border-b border-gray-100">
-                  <div className="flex items-center">
-                    <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">Gói cứu hộ sử dụng</label>
-                    <div className="flex-1 flex items-center space-x-2">
-                      <div className={`flex-1 border rounded px-3 py-1.5 text-xs font-bold flex items-center justify-between ${data.customer.servicePackage === 'Không có' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                        <span>{data.customer.servicePackage}</span>
-                        {data.customer.servicePackage === 'Không có' ? <UserX size={14} /> : <UserCheck size={14} />}
+                <div className="pb-4 border-b border-gray-100 space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-12 gap-y-4">
+                    <div className="flex items-center">
+                      <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">Gói cứu hộ sử dụng</label>
+                      <div className="flex-1 flex items-center space-x-2">
+                        <div className={`flex-1 border rounded px-3 py-1.5 text-xs font-bold flex items-center justify-between ${data.customer.servicePackage === 'Không có' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                          <span>{data.customer.servicePackage}</span>
+                          {data.customer.servicePackage === 'Không có' ? <UserX size={14} /> : <UserCheck size={14} />}
+                        </div>
+                        <button onClick={() => setIsPackageModalOpen(true)} className="text-[10px] text-blue-600 font-bold underline whitespace-nowrap">Chi tiết gói</button>
                       </div>
-                      <button onClick={() => setIsPackageModalOpen(true)} className="text-[10px] text-blue-600 font-bold underline whitespace-nowrap">Chi tiết gói</button>
                     </div>
                   </div>
+                  {hasOrderToday && (
+                    <div className="flex items-center gap-1.5 text-amber-700 pl-0 md:pl-40">
+                      <AlertTriangle size={13} className="shrink-0" />
+                      <span className="text-[11px] font-bold">Đã phát sinh đơn trong ngày</span>
+                    </div>
+                  )}
                 </div>
                 {/* Location info */}
                 <div className="flex items-center space-x-2">
@@ -797,10 +810,7 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
         onClose={() => setIsPackageModalOpen(false)}
         currentPackage={data.customer.servicePackage}
         customerPlate={data.customer.plate}
-        onApply={(pkg) => {
-          onUpdateCustomer({ servicePackage: pkg });
-          setIsPackageModalOpen(false);
-        }}
+        orders={packageOrders}
       />
 
       {/* MODAL BẢN ĐỒ */}

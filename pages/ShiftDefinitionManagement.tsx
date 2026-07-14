@@ -13,10 +13,11 @@ import {
 import {
   SHIFT_TYPE_COLORS,
   SHIFT_TYPE_LABELS,
+  summarizeFutureShiftKeyUsage,
+  type FutureShiftKeyUsage,
   type ShiftDefinition,
   type ShiftRole,
   type ShiftType,
-  type TimeSlotStaffingRule,
 } from '../data/shiftConfigMockData';
 import { useShiftConfig } from '../context/ShiftConfigContext';
 
@@ -38,35 +39,34 @@ const emptyForm = (role: ShiftRole): Omit<ShiftDefinition, 'id'> => ({
   description: '',
   isNightShift: false,
   restDayAfterShift: true,
+  minStaff: 3,
+  maxStaff: 5,
 });
 
-const emptySlotForm = (role: ShiftRole): Omit<TimeSlotStaffingRule, 'id'> => ({
-  role,
-  label: '',
-  timeStart: '08:00',
-  timeEnd: '12:00',
-  minStaff: 3,
-  maxStaff: 6,
-  status: 'active',
-});
+type PendingImpact =
+  | { action: 'edit'; payload: Omit<ShiftDefinition, 'id'>; editingId: string; shiftKey: string; usage: FutureShiftKeyUsage }
+  | { action: 'delete'; id: string; shiftKey: string; usage: FutureShiftKeyUsage };
+
+const formatYearMonthLabel = (yearMonth: string) => {
+  const [y, m] = yearMonth.split('-');
+  return `${m}/${y}`;
+};
 
 const ShiftDefinitionManagement: React.FC = () => {
-  const {
-    shiftDefinitions,
-    setShiftDefinitions,
-    timeSlotRules,
-    setTimeSlotRules,
-  } = useShiftConfig();
+  const { shiftDefinitions, setShiftDefinitions, buildEmployees } = useShiftConfig();
 
   const [role, setRole] = useState<ShiftRole>('OSA');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | ShiftType>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [form, setForm] = useState<Omit<ShiftDefinition, 'id'>>(emptyForm('OSA'));
-  const [slotForm, setSlotForm] = useState<Omit<TimeSlotStaffingRule, 'id'>>(emptySlotForm('OSA'));
+  const [pendingImpact, setPendingImpact] = useState<PendingImpact | null>(null);
+
+  const currentYearMonth = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
 
   const roleDefinitions = useMemo(() => {
     return shiftDefinitions
@@ -83,10 +83,10 @@ const ShiftDefinitionManagement: React.FC = () => {
       });
   }, [shiftDefinitions, role, search, typeFilter]);
 
-  const roleTimeSlots = useMemo(
-    () => timeSlotRules.filter((r) => r.role === role),
-    [timeSlotRules, role]
-  );
+  const getFutureUsage = (shiftKey: string): FutureShiftKeyUsage => {
+    const employees = buildEmployees(role, currentYearMonth);
+    return summarizeFutureShiftKeyUsage(shiftKey, employees, currentYearMonth);
+  };
 
   const openCreate = () => {
     setEditingId(null);
@@ -97,60 +97,87 @@ const ShiftDefinitionManagement: React.FC = () => {
   const openEdit = (item: ShiftDefinition) => {
     setEditingId(item.id);
     const { id: _id, ...rest } = item;
-    setForm(rest);
+    setForm({
+      ...rest,
+      minStaff: rest.minStaff ?? 3,
+      maxStaff: rest.maxStaff,
+    });
     setIsModalOpen(true);
+  };
+
+  const commitSave = (payload: Omit<ShiftDefinition, 'id'>, id: string | null) => {
+    if (id) {
+      setShiftDefinitions((prev) =>
+        prev.map((d) => (d.id === id ? { ...payload, id } : d))
+      );
+    } else {
+      setShiftDefinitions((prev) => [
+        ...prev,
+        { ...payload, id: `${role}-${payload.shiftKey.toLowerCase()}-${Date.now()}` },
+      ]);
+    }
+    setIsModalOpen(false);
+    setPendingImpact(null);
+  };
+
+  const commitDelete = (id: string) => {
+    setShiftDefinitions((prev) => prev.filter((d) => d.id !== id));
+    setPendingImpact(null);
   };
 
   const handleSave = () => {
     if (!form.shiftKey.trim() || !form.name.trim()) return;
 
-    if (editingId) {
-      setShiftDefinitions((prev) =>
-        prev.map((d) => (d.id === editingId ? { ...form, id: editingId } : d))
-      );
-    } else {
-      setShiftDefinitions((prev) => [
-        ...prev,
-        { ...form, id: `${role}-${form.shiftKey.toLowerCase()}-${Date.now()}` },
-      ]);
+    const payload: Omit<ShiftDefinition, 'id'> = {
+      ...form,
+      shiftKey: form.shiftKey.trim().toUpperCase(),
+      minStaff: form.minStaff != null && form.minStaff > 0 ? form.minStaff : undefined,
+      maxStaff: form.maxStaff != null && form.maxStaff > 0 ? form.maxStaff : undefined,
+    };
+
+    if (!editingId) {
+      commitSave(payload, null);
+      return;
     }
-    setIsModalOpen(false);
-  };
 
-  const handleDelete = (id: string) => {
-    setShiftDefinitions((prev) => prev.filter((d) => d.id !== id));
-  };
-
-  const openCreateSlot = () => {
-    setEditingSlotId(null);
-    setSlotForm(emptySlotForm(role));
-    setIsSlotModalOpen(true);
-  };
-
-  const openEditSlot = (item: TimeSlotStaffingRule) => {
-    setEditingSlotId(item.id);
-    const { id: _id, ...rest } = item;
-    setSlotForm(rest);
-    setIsSlotModalOpen(true);
-  };
-
-  const handleSaveSlot = () => {
-    if (!slotForm.label.trim()) return;
-    if (editingSlotId) {
-      setTimeSlotRules((prev) =>
-        prev.map((r) => (r.id === editingSlotId ? { ...slotForm, id: editingSlotId } : r))
-      );
-    } else {
-      setTimeSlotRules((prev) => [
-        ...prev,
-        { ...slotForm, id: `${role}-slot-${Date.now()}` },
-      ]);
+    const original = shiftDefinitions.find((d) => d.id === editingId);
+    const keyToCheck = original?.shiftKey ?? payload.shiftKey;
+    const usage = getFutureUsage(keyToCheck);
+    if (usage.cellCount > 0) {
+      setPendingImpact({
+        action: 'edit',
+        payload,
+        editingId,
+        shiftKey: keyToCheck,
+        usage,
+      });
+      return;
     }
-    setIsSlotModalOpen(false);
+
+    commitSave(payload, editingId);
   };
 
-  const handleDeleteSlot = (id: string) => {
-    setTimeSlotRules((prev) => prev.filter((r) => r.id !== id));
+  const handleDelete = (item: ShiftDefinition) => {
+    const usage = getFutureUsage(item.shiftKey);
+    if (usage.cellCount > 0) {
+      setPendingImpact({
+        action: 'delete',
+        id: item.id,
+        shiftKey: item.shiftKey,
+        usage,
+      });
+      return;
+    }
+    commitDelete(item.id);
+  };
+
+  const confirmPendingImpact = () => {
+    if (!pendingImpact) return;
+    if (pendingImpact.action === 'edit') {
+      commitSave(pendingImpact.payload, pendingImpact.editingId);
+      return;
+    }
+    commitDelete(pendingImpact.id);
   };
 
   const formatTimeRange = (item: { timeStart: string; timeEnd: string }) =>
@@ -182,10 +209,10 @@ const ShiftDefinitionManagement: React.FC = () => {
       </div>
 
       <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-        <p className="font-bold text-[11px] uppercase tracking-wide text-blue-700 mb-1">Key ca & khung giờ</p>
+        <p className="font-bold text-[11px] uppercase tracking-wide text-blue-700 mb-1">Key ca & định biên</p>
         <p>
-          <strong>KEY ca</strong> (HC, S1, G1…) dùng khi upload Excel — mỗi ca có khung giờ riêng.
-          <strong> Cảnh báo thiếu người</strong> cấu hình theo <strong>khung giờ trong ngày</strong> (tổng mọi ca đang làm trong khung), không theo từng KEY ca.
+          <strong>KEY ca</strong> (C1, CG1, OT…) dùng khi upload Excel và lưới lịch tháng. Mỗi ca có khung giờ riêng cùng{' '}
+          <strong>số người tối thiểu / tối đa</strong> để cảnh báo thiếu–thừa trên lịch tháng.
         </p>
       </div>
 
@@ -246,7 +273,7 @@ const ShiftDefinitionManagement: React.FC = () => {
       <div className="border rounded-lg shadow-sm overflow-hidden bg-white">
         <SectionHeader title={`Danh sách ca — ${role}`} />
         <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full min-w-[900px] text-sm text-left">
+          <table className="w-full min-w-[1000px] text-sm text-left">
             <thead className="bg-gray-50 text-[11px] font-black text-gray-500 uppercase">
               <tr>
                 <th className="px-4 py-3 border-b">STT</th>
@@ -254,6 +281,8 @@ const ShiftDefinitionManagement: React.FC = () => {
                 <th className="px-4 py-3 border-b">Tên ca</th>
                 <th className="px-4 py-3 border-b">Loại ca</th>
                 <th className="px-4 py-3 border-b">Khung giờ</th>
+                <th className="px-4 py-3 border-b text-center">Tối thiểu</th>
+                <th className="px-4 py-3 border-b text-center">Tối đa</th>
                 <th className="px-4 py-3 border-b text-center">Ca đêm</th>
                 <th className="px-4 py-3 border-b text-center">Trạng thái</th>
                 <th className="px-4 py-3 border-b text-center">Thao tác</th>
@@ -277,6 +306,19 @@ const ShiftDefinitionManagement: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600 text-xs font-mono">{formatTimeRange(item)}</td>
+                  <td className="px-4 py-3 text-center">
+                    {item.minStaff != null ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-bold">
+                        <AlertTriangle size={11} />
+                        {item.minStaff}
+                      </span>
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center text-gray-600">
+                    {item.maxStaff != null ? item.maxStaff : '—'}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     {item.isNightShift ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold">
@@ -310,7 +352,7 @@ const ShiftDefinitionManagement: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(item.id)}
+                        onClick={() => handleDelete(item)}
                         className="p-1.5 rounded text-red-500 hover:bg-red-50"
                         title="Xóa"
                       >
@@ -322,69 +364,11 @@ const ShiftDefinitionManagement: React.FC = () => {
               ))}
               {roleDefinitions.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">
+                  <td colSpan={10} className="px-4 py-10 text-center text-gray-400 text-sm">
                     Chưa có ca làm việc nào phù hợp bộ lọc.
                   </td>
                 </tr>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Khung giờ — ngưỡng nhân sự */}
-      <div className="border rounded-lg shadow-sm overflow-hidden bg-white">
-        <div className="bg-vetc-green text-white px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center space-x-2 font-bold text-sm uppercase tracking-wide">
-            <AlertTriangle size={16} />
-            <span>Khung giờ & số người tối thiểu — {role}</span>
-          </div>
-          <button
-            type="button"
-            onClick={openCreateSlot}
-            className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-xs font-bold"
-          >
-            <Plus size={14} />
-            Thêm khung giờ
-          </button>
-        </div>
-        <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full min-w-[700px] text-sm text-left">
-            <thead className="bg-gray-50 text-[11px] font-black text-gray-500 uppercase">
-              <tr>
-                <th className="px-4 py-3 border-b">STT</th>
-                <th className="px-4 py-3 border-b">Tên khung</th>
-                <th className="px-4 py-3 border-b">Khung giờ</th>
-                <th className="px-4 py-3 border-b text-center">Tối thiểu</th>
-                <th className="px-4 py-3 border-b text-center">Tối đa</th>
-                <th className="px-4 py-3 border-b text-center">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {roleTimeSlots.map((slot, index) => (
-                <tr key={slot.id} className="border-b hover:bg-gray-50/80">
-                  <td className="px-4 py-3 text-gray-500">{index + 1}</td>
-                  <td className="px-4 py-3 font-bold text-gray-800">{slot.label}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-600">{formatTimeRange(slot)}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-bold">
-                      <AlertTriangle size={11} />
-                      {slot.minStaff}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center text-gray-600">{slot.maxStaff ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
-                      <button type="button" onClick={() => openEditSlot(slot)} className="p-1.5 rounded text-blue-600 hover:bg-blue-50">
-                        <Pencil size={15} />
-                      </button>
-                      <button type="button" onClick={() => handleDeleteSlot(slot.id)} className="p-1.5 rounded text-red-500 hover:bg-red-50">
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
             </tbody>
           </table>
         </div>
@@ -459,6 +443,46 @@ const ShiftDefinitionManagement: React.FC = () => {
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-gray-600 uppercase mb-1 block">
+                    Tối thiểu (người)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.minStaff ?? ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        minStaff: e.target.value ? Number(e.target.value) : undefined,
+                      }))
+                    }
+                    className="w-full border rounded px-3 py-2 text-sm outline-none focus:border-vetc-green"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-gray-600 uppercase mb-1 block">
+                    Tối đa (cảnh báo thừa)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.maxStaff ?? ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        maxStaff: e.target.value ? Number(e.target.value) : undefined,
+                      }))
+                    }
+                    className="w-full border rounded px-3 py-2 text-sm outline-none focus:border-vetc-green"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                Định biên theo <strong>từng KEY ca</strong> — dùng cho cảnh báo thiếu/thừa và sắp xếp ca trên lịch tháng.
+              </p>
 
               {form.type === 'SPLIT' && (
                 <div>
@@ -539,54 +563,69 @@ const ShiftDefinitionManagement: React.FC = () => {
         </div>
       )}
 
-      {isSlotModalOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div className="bg-amber-500 text-white px-5 py-3 flex items-center justify-between">
-              <h3 className="font-bold">
-                {editingSlotId ? 'Sửa khung giờ' : 'Thêm khung giờ'} — {role}
-              </h3>
-              <button type="button" onClick={() => setIsSlotModalOpen(false)} className="p-1 hover:bg-white/20 rounded-full">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-5 space-y-4 text-left">
-              <div>
-                <label className="text-[11px] font-bold text-gray-600 uppercase mb-1 block">Tên khung giờ</label>
-                <input
-                  value={slotForm.label}
-                  onChange={(e) => setSlotForm((f) => ({ ...f, label: e.target.value }))}
-                  placeholder="VD: Buổi sáng"
-                  className="w-full border rounded px-3 py-2 text-sm outline-none focus:border-vetc-green"
+      {pendingImpact && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-5 space-y-4 animate-in zoom-in-95">
+            <div className="flex items-start gap-3">
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                  pendingImpact.action === 'delete' ? 'bg-red-50' : 'bg-amber-50'
+                }`}
+              >
+                <AlertTriangle
+                  size={20}
+                  className={pendingImpact.action === 'delete' ? 'text-red-600' : 'text-amber-600'}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-bold text-gray-600 uppercase mb-1 block">Từ</label>
-                  <input type="time" value={slotForm.timeStart} onChange={(e) => setSlotForm((f) => ({ ...f, timeStart: e.target.value }))} className="w-full border rounded px-3 py-2 text-sm outline-none focus:border-vetc-green" />
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-gray-600 uppercase mb-1 block">Đến</label>
-                  <input type="time" value={slotForm.timeEnd} onChange={(e) => setSlotForm((f) => ({ ...f, timeEnd: e.target.value }))} className="w-full border rounded px-3 py-2 text-sm outline-none focus:border-vetc-green" />
-                </div>
+              <div className="text-left min-w-0">
+                <h3 className="font-bold text-gray-900">
+                  {pendingImpact.action === 'delete'
+                    ? 'Xóa ca đang dùng trên lịch tương lai?'
+                    : 'Sửa ca đang dùng trên lịch tương lai?'}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  KEY <span className="font-mono font-bold text-gray-900">{pendingImpact.shiftKey}</span> đang
+                  được gán trên lịch tháng{' '}
+                  <strong>{formatYearMonthLabel(pendingImpact.usage.yearMonth)}</strong> (ngày sau hôm nay):{' '}
+                  <strong>{pendingImpact.usage.cellCount}</strong> ô /{' '}
+                  <strong>{pendingImpact.usage.employeeCount}</strong> nhân viên
+                  {pendingImpact.usage.days.length > 0 && (
+                    <>
+                      {' '}
+                      · ngày {pendingImpact.usage.days.slice(0, 8).join(', ')}
+                      {pendingImpact.usage.days.length > 8
+                        ? `… (+${pendingImpact.usage.days.length - 8})`
+                        : ''}
+                    </>
+                  )}
+                  .
+                </p>
+                <p className="text-xs text-gray-500 mt-2 bg-gray-50 rounded-lg px-3 py-2">
+                  Ca quá khứ và hôm nay giữ nguyên trên lịch. Thay đổi cấu hình áp dụng ngay cho rule /
+                  cảnh báo / sắp xếp; ô tương lai vẫn giữ KEY hiện tại trừ khi bạn chỉnh lại trên màn Lịch
+                  ca.
+                </p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-bold text-gray-600 uppercase mb-1 block">Tối thiểu (tổng người)</label>
-                  <input type="number" min={1} value={slotForm.minStaff} onChange={(e) => setSlotForm((f) => ({ ...f, minStaff: Number(e.target.value) }))} className="w-full border rounded px-3 py-2 text-sm outline-none focus:border-vetc-green" />
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-gray-600 uppercase mb-1 block">Tối đa (cảnh báo thừa)</label>
-                  <input type="number" min={1} value={slotForm.maxStaff ?? ''} onChange={(e) => setSlotForm((f) => ({ ...f, maxStaff: e.target.value ? Number(e.target.value) : undefined }))} className="w-full border rounded px-3 py-2 text-sm outline-none focus:border-vetc-green" />
-                </div>
-              </div>
-              <p className="text-[11px] text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
-                Đếm tổng nhân viên có ca chồng lấn khung giờ này (HC + S1 + G1…), không tính riêng từng KEY ca.
-              </p>
             </div>
-            <div className="px-5 py-4 border-t bg-gray-50 flex gap-2">
-              <button type="button" onClick={() => setIsSlotModalOpen(false)} className="flex-1 py-2.5 rounded-xl border font-bold text-gray-500">Hủy</button>
-              <button type="button" onClick={handleSaveSlot} disabled={!slotForm.label.trim()} className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white font-bold disabled:opacity-50">Lưu khung giờ</button>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingImpact(null)}
+                className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={confirmPendingImpact}
+                className={`px-4 py-2 rounded-lg text-white text-sm font-bold ${
+                  pendingImpact.action === 'delete'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-amber-600 hover:bg-amber-700'
+                }`}
+              >
+                {pendingImpact.action === 'delete' ? 'Xác nhận xóa' : 'Xác nhận lưu'}
+              </button>
             </div>
           </div>
         </div>

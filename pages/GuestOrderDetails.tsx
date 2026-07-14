@@ -67,7 +67,10 @@ import CustomerFeeChangeWarningModal, {
 import GuaranteeRateChangeWarningModal from '../shared/GuaranteeRateChangeWarningModal';
 import UnpaidDepositRemainingWarningModal from '../shared/UnpaidDepositRemainingWarningModal';
 import ProviderPaymentConfirmDialog from '../shared/ProviderPaymentConfirmDialog';
-import UsageHistoryModal from '../shared/UsageHistoryModal';
+import UsageHistoryModal, {
+  DEFAULT_PACKAGE_ORDERS,
+  hasOrderCreatedToday,
+} from '../shared/UsageHistoryModal';
 import StatusUpdateModal, { STATUS_OPTIONS } from '../shared/StatusUpdateModal';
 import type { OrderDetailsNavState } from '../data/orderListDemoData';
 import ShareLocationWebviewModal from '../shared/ShareLocationWebviewModal';
@@ -783,6 +786,8 @@ const GuestOrderDetails: React.FC<{
   const [isDistanceWarningOpen, setIsDistanceWarningOpen] = useState(false);
 
   const hasPackage = selectedPackage !== 'Không có';
+  const packageOrders = hasPackage ? DEFAULT_PACKAGE_ORDERS : [];
+  const hasOrderToday = hasOrderCreatedToday(packageOrders);
   const isOverDistance = parseFloat(estimatedDistance) > 100;
 
   const handleDistanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1544,7 +1549,17 @@ const GuestOrderDetails: React.FC<{
                 </div>
                 <div className="lg:col-span-1">
                   <div>
-                    <Label>Gói dịch vụ</Label>
+                    <Label>
+                      <span className="flex items-center gap-2 flex-wrap">
+                        Gói dịch vụ
+                        {hasOrderToday && (
+                          <span className="inline-flex items-center gap-1 normal-case tracking-normal text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-bold text-[10px]">
+                            <AlertTriangle size={11} className="shrink-0" />
+                            Cảnh báo đơn
+                          </span>
+                        )}
+                      </span>
+                    </Label>
                     <div className="flex-1 flex items-center space-x-2">
                       <div className={`flex-1 relative`}>
                         <select
@@ -2733,7 +2748,7 @@ const GuestOrderDetails: React.FC<{
             onClose={() => setIsPackageModalOpen(false)}
             currentPackage={selectedPackage}
             customerPlate={mockFormData.customer.plate}
-            onApply={(pkg) => setSelectedPackage(pkg)}
+            orders={packageOrders}
         />
 
         {/* Actual Service Selection Modal */}
