@@ -16,6 +16,7 @@ import {
 import {
   DEFAULT_EMPLOYEE_SHIFT_PREFS,
   type AutoScheduleActionMode,
+  type MidMonthAutoOptions,
   getPreferencesForMonth,
   getShiftMonthPreference,
   type AutoScheduleResult,
@@ -49,7 +50,8 @@ type ShiftConfigContextValue = {
     role: ShiftRole,
     yearMonth: string,
     employees: MonthlyEmployee[],
-    actionMode?: AutoScheduleActionMode
+    actionMode?: AutoScheduleActionMode,
+    midMonth?: MidMonthAutoOptions
   ) => AutoScheduleResult;
   computeWarnings: (
     role: ShiftRole,
@@ -174,7 +176,13 @@ export const ShiftConfigProvider: React.FC<{ children: React.ReactNode }> = ({ c
   );
 
   const runAutoScheduleForMonth = useCallback(
-    (role: ShiftRole, yearMonth: string, employees: MonthlyEmployee[], actionMode?: AutoScheduleActionMode) =>
+    (
+      role: ShiftRole,
+      yearMonth: string,
+      employees: MonthlyEmployee[],
+      actionMode?: AutoScheduleActionMode,
+      midMonth?: MidMonthAutoOptions
+    ) =>
       runAutoSchedule({
         role,
         yearMonth,
@@ -184,6 +192,7 @@ export const ShiftConfigProvider: React.FC<{ children: React.ReactNode }> = ({ c
         minShiftUnitsPerMonth: getMinShiftUnitsFromBe(role),
         preferences: getPreferencesForMonth(employeeShiftPreferences, role, yearMonth),
         actionMode,
+        midMonth,
       }),
     [employeeShiftPreferences, getMinShiftUnitsFromBe, getShiftDefinitionsForRole, getTimeSlotRulesForRole]
   );

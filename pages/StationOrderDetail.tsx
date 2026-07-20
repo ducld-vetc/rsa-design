@@ -36,10 +36,12 @@ import {
   User,
   UserCheck,
   UserX,
+  Video,
   Wrench,
   X
 } from 'lucide-react';
 import ImageUploadSection from '../shared/ImageUploadSection';
+import RescueVehicleCameraSection from '../shared/RescueVehicleCameraSection';
 import ServiceSelectionField from '../shared/ServiceSelectionField';
 import AISuggestionSection from '../shared/AISuggestionSection';
 import RescueList from './RescueList';
@@ -613,6 +615,7 @@ const StationOrderDetail: React.FC = () => {
     { id: 'orchestration', label: 'Điều phối cứu hộ', icon: <LifeBuoy size={16}/>, hideInCreate: false, hideForInternal: false },
     { id: 'process', label: 'Quá trình cứu hộ', icon: <Activity size={16}/>, hideInCreate: true, hideForInternal: false },
     { id: 'images', label: 'Hình ảnh', icon: <Camera size={16}/>, hideInCreate: false, hideForInternal: false },
+    { id: 'camera', label: 'Camera xe', icon: <Video size={16}/>, hideInCreate: true, hideForInternal: false },
     { id: 'monitoring', label: 'Giám sát & Thực thi', icon: <ShieldCheck size={16}/>, hideInCreate: true, hideForInternal: true },
     { id: 'invoice', label: 'Hóa đơn', icon: <FileText size={16}/>, hideInCreate: true, hideForInternal: false },
   ];
@@ -1313,10 +1316,20 @@ const StationOrderDetail: React.FC = () => {
             </div>
           </div>
 
-          {/* 5. Thông tin giám sát, thực thi (Renumbered from 6) */}
+          {/* 5. Camera xe cứu hộ (VnetGPS) */}
+          <div id="section-camera" className={`scroll-mt-40 ${rescueOrderId ? 'block' : 'hidden'}`}>
+            <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
+              <SectionHeader title="Camera xe cứu hộ" number={5} icon={<Video size={18} />} />
+              <div className="p-6">
+                <RescueVehicleCameraSection readOnly={!isEditing} />
+              </div>
+            </div>
+          </div>
+
+          {/* 6. Thông tin giám sát, thực thi (Renumbered) */}
           {isVetcOrder && <div id="section-monitoring" className={`scroll-mt-40 ${rescueOrderId ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden text-left">
-              <SectionHeader title="Thông tin giám sát, thực thi" number={5} icon={<ShieldCheck size={18} />} />
+              <SectionHeader title="Thông tin giám sát, thực thi" number={6} icon={<ShieldCheck size={18} />} />
               <div className="p-6">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-x-8 gap-y-6">
                   {/* Detailed Ratings Section */}
@@ -1344,10 +1357,10 @@ const StationOrderDetail: React.FC = () => {
             </div>
           </div>}
 
-          {/* 6. Thông tin hóa đơn */}
+          {/* 7. Thông tin hóa đơn */}
           <div id="section-invoice" className={`scroll-mt-40 block`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden text-left">
-              <SectionHeader title="Thông tin hóa đơn" number={6} icon={<FileText size={18} />} />
+              <SectionHeader title="Thông tin hóa đơn" number={7} icon={<FileText size={18} />} />
               <div className="p-5 space-y-6">
 
                 <div className="flex flex-col sm:flex-row items-center justify-between p-3 bg-blue-50 border border-blue-100 rounded-lg gap-4 text-left">

@@ -46,10 +46,12 @@ import {
   User,
   UserCheck,
   UserX,
+  Video,
   Wrench,
   X
 } from 'lucide-react';
 import ImageUploadSection from '../shared/ImageUploadSection';
+import RescueVehicleCameraSection from '../shared/RescueVehicleCameraSection';
 import ServiceSelectionField from '../shared/ServiceSelectionField';
 import AISuggestionSection from '../shared/AISuggestionSection';
 import RescueList from './RescueList';
@@ -1204,6 +1206,7 @@ const GuestOrderDetails: React.FC<{
     { id: 'fees', label: 'Thông tin phí', icon: <Banknote size={16}/> },
     { id: 'process', label: 'Quá trình cứu hộ', icon: <Activity size={16}/> },
     { id: 'images', label: 'Hình ảnh', icon: <Camera size={16}/> },
+    { id: 'camera', label: 'Camera xe', icon: <Video size={16}/> },
     { id: 'monitoring', label: 'Giám sát & Thực thi', icon: <ShieldCheck size={16}/> },
     { id: 'invoice', label: 'Hóa đơn', icon: <FileText size={16}/> },
     { id: 'payment-request', label: 'Đề nghị thanh toán', icon: <CreditCard size={16}/> },
@@ -2555,10 +2558,20 @@ const GuestOrderDetails: React.FC<{
             </div>
           </div>
 
-          {/* 6. Thông tin giám sát, thực thi */}
+          {/* 6. Camera xe cứu hộ (VnetGPS) */}
+          <div id="section-camera" className={`scroll-mt-40 ${isVisible('camera') ? 'block' : 'hidden'}`}>
+            <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
+              <SectionHeader title="Camera xe cứu hộ" number={6} icon={<Video size={18} />} />
+              <div className="p-6">
+                <RescueVehicleCameraSection readOnly={!isEditing} />
+              </div>
+            </div>
+          </div>
+
+          {/* 7. Thông tin giám sát, thực thi */}
           <div id="section-monitoring" className={`scroll-mt-40 ${isVisible('monitoring') ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden text-left">
-              <SectionHeader title="Thông tin giám sát, thực thi" number={6} icon={<ShieldCheck size={18} />} />
+              <SectionHeader title="Thông tin giám sát, thực thi" number={7} icon={<ShieldCheck size={18} />} />
               <div className="p-5 space-y-4">
                 <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3">
                   <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest mb-2">
@@ -2627,7 +2640,7 @@ const GuestOrderDetails: React.FC<{
           {/* 7. Thông tin hóa đơn */}
           <div id="section-invoice" className={`scroll-mt-40 ${isVisible('invoice') ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden text-left">
-              <SectionHeader title="Thông tin hóa đơn" number={7} icon={<FileText size={18} />} />
+              <SectionHeader title="Thông tin hóa đơn" number={8} icon={<FileText size={18} />} />
               <div className="p-5 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                   <div>
@@ -2735,7 +2748,7 @@ const GuestOrderDetails: React.FC<{
           {/* 8. Đề nghị thanh toán */}
           <div id="section-payment-request" className={`scroll-mt-40 ${isVisible('payment-request') ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden text-left">
-              <SectionHeader title="Đề nghị thanh toán" number={8} icon={<CreditCard size={18} />} />
+              <SectionHeader title="Đề nghị thanh toán" number={9} icon={<CreditCard size={18} />} />
               <div className="p-5">
                 <PaymentRequestSection disabled={currentStatus !== 'FINISH-COMPLETED'} />
               </div>

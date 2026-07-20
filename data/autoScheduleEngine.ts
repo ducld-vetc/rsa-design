@@ -25,6 +25,9 @@ export type AutoScheduleResult = {
   unmetSlots: { day: number; slotLabel: string; shortage: number }[];
   quotaShortfalls: { employeeId: string; name: string; assigned: number; required: number }[];
   otAssignments: number;
+  /** Thông tin công còn lại khi chạy giữa tháng (respectRemainingQuota) */
+  midMonthQuota?: EmployeeRemainingQuota[];
+  preserveThroughDay?: number;
 };
 
 export type AutoScheduleActionMode = 'FULL' | 'ACTION1_DEFAULT' | 'ACTION2_SPLIT_TOPUP';
@@ -129,6 +132,72 @@ function emptyAssignments(daysInMonth: number): Record<number, string | null> {
   const a: Record<number, string | null> = {};
   for (let d = 1; d <= daysInMonth; d += 1) a[d] = null;
   return a;
+}
+
+function cloneAssignments(
+  source: Record<number, string | null>,
+  daysInMonth: number
+): Record<number, string | null> {
+  const a: Record<number, string | null> = {};
+  for (let d = 1; d <= daysInMonth; d += 1) a[d] = source[d] ?? null;
+  return a;
+}
+
+/** Đếm công quy đổi trong khoảng ngày [fromDay, toDay] */
+export function countUnitsInDayRange(
+  emp: MonthlyEmployee,
+  fromDay: number,
+  toDay: number,
+  shiftByKey: Map<string, ShiftDefinition>
+): number {
+  let total = 0;
+  for (let d = fromDay; d <= toDay; d += 1) {
+    const raw = emp.assignments[d];
+    if (!raw) continue;
+    raw.split('+').map((s) => s.trim()).forEach((key) => {
+      const shift = shiftByKey.get(key);
+      if (shift) total += getShiftWorkloadUnits(shift);
+    });
+  }
+  return total;
+}
+
+export type MidMonthAutoOptions = {
+  /** Giữ nguyên assignment từ ngày 1 → N (gồm hôm nay); chỉ xếp lại từ N+1 */
+  preserveThroughDay: number;
+  /**
+   * Có = đọc công đã xếp 1→N, lấy phần còn lại so với định mức tháng,
+   * xếp FULL các ngày còn lại không vượt trần định mức.
+   */
+  respectRemainingQuota: boolean;
+};
+
+export type EmployeeRemainingQuota = {
+  employeeId: string;
+  name: string;
+  usedUnits: number;
+  remainingUnits: number;
+  monthlyMax: number;
+};
+
+export function summarizeRemainingQuotaFromPreserved(params: {
+  employees: MonthlyEmployee[];
+  shiftDefinitions: ShiftDefinition[];
+  preserveThroughDay: number;
+  monthlyMax: number;
+}): EmployeeRemainingQuota[] {
+  const shiftByKey = new Map(params.shiftDefinitions.map((s) => [s.shiftKey, s]));
+  return params.employees.map((emp) => {
+    const usedUnits = countUnitsInDayRange(emp, 1, params.preserveThroughDay, shiftByKey);
+    const remainingUnits = Math.max(0, params.monthlyMax - usedUnits);
+    return {
+      employeeId: emp.id,
+      name: emp.name,
+      usedUnits,
+      remainingUnits,
+      monthlyMax: params.monthlyMax,
+    };
+  });
 }
 
 function countMonthlyUnits(
@@ -272,6 +341,7 @@ function assignShift(
  * - Lấp đủ mọi khung giờ trong ngày (kể cả ca đêm 22h→6h sáng)
  * - Đảm bảo mỗi loại ca chính có ít nhất 1 NV/ngày (nếu còn người)
  * - Thiếu người → xếp ca OT
+ * - Giữa tháng: có thể giữ 1→hôm nay và xếp phần còn lại theo công còn lại
  */
 export function runAutoSchedule(input: {
   role: ShiftRole;
@@ -282,6 +352,7 @@ export function runAutoSchedule(input: {
   minShiftUnitsPerMonth: number;
   preferences: EmployeeShiftMonthPreference[];
   actionMode?: AutoScheduleActionMode;
+  midMonth?: MidMonthAutoOptions;
 }): AutoScheduleResult {
   const {
     yearMonth,
@@ -291,6 +362,7 @@ export function runAutoSchedule(input: {
     minShiftUnitsPerMonth: globalMin,
     preferences,
     actionMode = 'FULL',
+    midMonth,
   } = input;
 
   const daysInMonth = getDaysInMonth(yearMonth);
@@ -302,19 +374,74 @@ export function runAutoSchedule(input: {
   const logs: string[] = [];
   let otAssignments = 0;
 
+  const preserveThroughDay =
+    midMonth && midMonth.preserveThroughDay >= 1
+      ? Math.min(midMonth.preserveThroughDay, daysInMonth)
+      : 0;
+  const scheduleFromDay = preserveThroughDay > 0 ? preserveThroughDay + 1 : 1;
+  const respectRemainingQuota = Boolean(midMonth?.respectRemainingQuota && preserveThroughDay > 0);
+
+  const midMonthQuota = respectRemainingQuota
+    ? summarizeRemainingQuotaFromPreserved({
+        employees,
+        shiftDefinitions,
+        preserveThroughDay,
+        monthlyMax: globalMin,
+      })
+    : undefined;
+  const remainingByEmpId = new Map(
+    (midMonthQuota ?? []).map((q) => [q.employeeId, q.remainingUnits] as const)
+  );
+
   const getPref = (employeeId: string, shiftKey: string) =>
     getShiftMonthPreference(preferences, input.role, yearMonth, employeeId, shiftKey);
 
-  const scheduled: MonthlyEmployee[] = employees.map((e) => ({
-    ...e,
-    assignments: actionMode === 'ACTION2_SPLIT_TOPUP' ? { ...e.assignments } : emptyAssignments(daysInMonth),
-  }));
+  const scheduled: MonthlyEmployee[] = employees.map((e) => {
+    if (actionMode === 'ACTION2_SPLIT_TOPUP') {
+      return { ...e, assignments: cloneAssignments(e.assignments, daysInMonth) };
+    }
+    if (preserveThroughDay > 0) {
+      const next = cloneAssignments(e.assignments, daysInMonth);
+      for (let d = preserveThroughDay + 1; d <= daysInMonth; d += 1) next[d] = null;
+      return { ...e, assignments: next };
+    }
+    return { ...e, assignments: emptyAssignments(daysInMonth) };
+  });
+
+  if (preserveThroughDay > 0) {
+    logs.push(
+      `Giữa tháng: giữ lịch ngày 1→${preserveThroughDay}; xếp từ ngày ${scheduleFromDay}` +
+        (respectRemainingQuota ? ' (theo công còn lại so với định mức tháng)' : '')
+    );
+    if (midMonthQuota) {
+      midMonthQuota.forEach((q) => {
+        logs.push(
+          `Công ${q.name}: đã xếp ${formatShiftUnits(q.usedUnits)}/${formatShiftUnits(q.monthlyMax)} → còn ${formatShiftUnits(q.remainingUnits)}`
+        );
+      });
+    }
+  }
 
   const recoveryBlock = new Map<string, Set<number>>();
 
   const isBlocked = (empId: string, day: number, shiftKey: string): boolean => {
     if (recoveryBlock.get(empId)?.has(day)) return true;
     return getPref(empId, shiftKey).offDays.includes(day);
+  };
+
+  const withinQuotaForAssign = (emp: MonthlyEmployee, shift: ShiftDefinition): boolean => {
+    if (!respectRemainingQuota) return true;
+    const usedTotal = countMonthlyUnits(emp, shiftByKey);
+    return usedTotal + getShiftWorkloadUnits(shift) <= globalMin + 1e-9;
+  };
+
+  const empScoreTarget = (empId: string): number => {
+    if (!respectRemainingQuota) return globalMin;
+    const remaining = remainingByEmpId.get(empId);
+    if (remaining == null) return globalMin;
+    // Điểm ưu tiên dựa trên phần còn lại: coi như thiếu = remaining so với “mốc 0 đã đủ phần quá khứ”
+    const usedPast = globalMin - remaining;
+    return usedPast + remaining; // = globalMin, scoring uses currentUnits vs this
   };
 
   const applyNightRecovery = (day: number) => {
@@ -333,13 +460,18 @@ export function runAutoSchedule(input: {
     });
   };
 
+  // Seed nghỉ H+1 từ đoạn lịch đã giữ (quá khứ → hôm nay)
+  if (preserveThroughDay > 0) {
+    for (let d = 1; d <= preserveThroughDay; d += 1) applyNightRecovery(d);
+  }
+
   const tryAssign = (
     day: number,
     shift: ShiftDefinition,
     allowOt: boolean
   ): boolean => {
     const candidates = scheduled
-      .filter((emp) => !emp.assignments[day])
+      .filter((emp) => !emp.assignments[day] && withinQuotaForAssign(emp, shift))
       .map((emp) => ({
         emp,
         score: scoreEmployee(
@@ -347,7 +479,7 @@ export function runAutoSchedule(input: {
           day,
           shift.shiftKey,
           getPref(emp.id, shift.shiftKey),
-          globalMin,
+          empScoreTarget(emp.id),
           countMonthlyUnits(emp, shiftByKey),
           isBlocked(emp.id, day, shift.shiftKey),
           false
@@ -372,7 +504,7 @@ export function runAutoSchedule(input: {
 
     if (allowOt && otShift) {
       const otPool = scheduled
-        .filter((emp) => !emp.assignments[day])
+        .filter((emp) => !emp.assignments[day] && withinQuotaForAssign(emp, otShift))
         .sort(
           (a, b) =>
             countMonthlyUnits(a, shiftByKey) - countMonthlyUnits(b, shiftByKey)
@@ -411,7 +543,8 @@ export function runAutoSchedule(input: {
       const candidates = scheduled
       .filter((emp) =>
         !isBlocked(emp.id, day, split.shiftKey) &&
-        canAppendShift(emp, day, split, shiftByKey)
+        canAppendShift(emp, day, split, shiftByKey) &&
+        withinQuotaForAssign(emp, split)
       )
         .map((emp) => ({
           emp,
@@ -512,7 +645,7 @@ export function runAutoSchedule(input: {
   const runAction1 = actionMode === 'FULL' || actionMode === 'ACTION1_DEFAULT';
   const runAction2 = actionMode === 'FULL' || actionMode === 'ACTION2_SPLIT_TOPUP';
 
-  for (let day = 1; day <= daysInMonth; day += 1) {
+  for (let day = scheduleFromDay; day <= daysInMonth; day += 1) {
     if (day > 1) applyNightRecovery(day - 1);
 
     const shiftsByPriority = [...fullShifts].sort((a, b) => {
@@ -555,7 +688,7 @@ export function runAutoSchedule(input: {
       const hasSomeone = scheduled.some((e) => hasShiftKey(e.assignments[day], shift.shiftKey));
       if (hasSomeone) continue;
 
-      const free = scheduled.filter((emp) => !emp.assignments[day]);
+      const free = scheduled.filter((emp) => !emp.assignments[day] && withinQuotaForAssign(emp, shift));
       const candidate = free
         .map((emp) => ({
           emp,
@@ -564,7 +697,7 @@ export function runAutoSchedule(input: {
             day,
             shift.shiftKey,
             getPref(emp.id, shift.shiftKey),
-            globalMin,
+            empScoreTarget(emp.id),
             countMonthlyUnits(emp, shiftByKey),
             isBlocked(emp.id, day, shift.shiftKey),
             false
@@ -593,16 +726,16 @@ export function runAutoSchedule(input: {
     for (const emp of scheduled) {
     let units = countMonthlyUnits(emp, shiftByKey);
 
-    for (let day = 1; day <= daysInMonth && units < globalMin; day += 1) {
+    for (let day = scheduleFromDay; day <= daysInMonth && units < globalMin; day += 1) {
       if (emp.assignments[day]) continue;
 
       const shift =
         fullShifts.find(
-          (s) => !isNightShiftDefinition(s) && !isBlocked(emp.id, day, s.shiftKey)
+          (s) => !isNightShiftDefinition(s) && !isBlocked(emp.id, day, s.shiftKey) && withinQuotaForAssign(emp, s)
         ) ??
-        fullShifts.find((s) => !isBlocked(emp.id, day, s.shiftKey)) ??
+        fullShifts.find((s) => !isBlocked(emp.id, day, s.shiftKey) && withinQuotaForAssign(emp, s)) ??
         fullShifts[0];
-      if (!shift || isBlocked(emp.id, day, shift.shiftKey)) break;
+      if (!shift || isBlocked(emp.id, day, shift.shiftKey) || !withinQuotaForAssign(emp, shift)) break;
 
       assignShift(
         emp,
@@ -624,13 +757,14 @@ export function runAutoSchedule(input: {
     (needsSplitRebalance || shouldBlendDefaultAndSplit) &&
     splitShifts.length > 0
   ) {
-    for (let day = 1; day <= daysInMonth; day += 1) {
+    for (let day = scheduleFromDay; day <= daysInMonth; day += 1) {
       const split = splitShifts[(day - 1) % splitShifts.length];
       const candidates = scheduled
         .filter(
           (emp) =>
             !isBlocked(emp.id, day, split.shiftKey) &&
-            canAppendShift(emp, day, split, shiftByKey)
+            canAppendShift(emp, day, split, shiftByKey) &&
+            withinQuotaForAssign(emp, split)
         )
         .map((emp) => ({
           emp,
@@ -665,7 +799,7 @@ export function runAutoSchedule(input: {
   }
 
   const unmetSlots: AutoScheduleResult['unmetSlots'] = [];
-  for (let day = 1; day <= daysInMonth; day += 1) {
+  for (let day = scheduleFromDay; day <= daysInMonth; day += 1) {
     for (const shift of canonicalShifts) {
       const minStaff = shift.minStaff ?? 0;
       const coverage =
@@ -699,7 +833,15 @@ export function runAutoSchedule(input: {
     `Hoàn tất: ${unmetSlots.length} ca thiếu, ${otAssignments} ca OT, ${quotaShortfalls.length} NV chưa đủ công`
   );
 
-  return { employees: scheduled, logs, unmetSlots, quotaShortfalls, otAssignments };
+  return {
+    employees: scheduled,
+    logs,
+    unmetSlots,
+    quotaShortfalls,
+    otAssignments,
+    midMonthQuota,
+    preserveThroughDay: preserveThroughDay > 0 ? preserveThroughDay : undefined,
+  };
 }
 
 export function formatShiftUnits(n: number): string {

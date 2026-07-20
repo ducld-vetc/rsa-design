@@ -115,6 +115,7 @@ const ShiftMonthlySchedule: React.FC = () => {
   const [isPrefModalOpen, setIsPrefModalOpen] = useState(false);
   const [autoStep, setAutoStep] = useState<'idle' | 'action1_done' | 'action2_done'>('idle');
   const [pendingAutoAction, setPendingAutoAction] = useState<1 | 2 | null>(null);
+  const [isMidMonthPastPromptOpen, setIsMidMonthPastPromptOpen] = useState(false);
   const [screenMode, setScreenMode] = useState<ScheduleScreenMode>('view');
   const [pastEditPrompt, setPastEditPrompt] = useState<{
     employeeId: string;
@@ -161,6 +162,18 @@ const ShiftMonthlySchedule: React.FC = () => {
   const shiftByKey = useMemo(
     () => new Map(shiftDefinitions.map((s) => [s.shiftKey, s])),
     [shiftDefinitions]
+  );
+
+  /** Tháng đã có ít nhất 1 ô lịch được gán KEY → coi là đã xếp ca */
+  const scheduleAlreadyConfigured = useMemo(
+    () =>
+      employees.some((emp) =>
+        dayNumbers.some((d) => {
+          const key = emp.assignments[d];
+          return key != null && key !== '';
+        })
+      ),
+    [employees, dayNumbers]
   );
   const hasOvertimeShift = useMemo(
     () => shiftDefinitions.some((s) => isOvertimeShift(s)),
@@ -473,16 +486,64 @@ const ShiftMonthlySchedule: React.FC = () => {
     setAutoStep('idle');
   };
 
-  const handleRunAutoSchedule = (action: 1 | 2) => {
+  const handleRunAutoSchedule = (
+    action: 1 | 2,
+    mode: 'full_month' | 'future_with_remaining' | 'future_only' = 'full_month'
+  ) => {
+    const todayDay = now.getDate();
+    const canMidMonth = isCurrentMonth && todayDay >= 1 && todayDay < daysInMonth;
+    const midMonth =
+      canMidMonth && mode !== 'full_month'
+        ? {
+            preserveThroughDay: todayDay,
+            respectRemainingQuota: mode === 'future_with_remaining',
+          }
+        : undefined;
+
     const result = runAutoScheduleForMonth(
       role,
       yearMonth,
       employees,
-      action === 1 ? 'ACTION1_DEFAULT' : 'ACTION2_SPLIT_TOPUP'
+      action === 1 ? 'ACTION1_DEFAULT' : 'ACTION2_SPLIT_TOPUP',
+      midMonth
     );
     setPendingAutoAction(action);
     setAutoResult(result);
     setIsAutoModalOpen(true);
+  };
+
+  /** Action 1 giữa tháng: hỏi cách xử lý ngày quá khứ / hôm nay */
+  const handleAutoScheduleClick = (action: 1 | 2) => {
+    const todayDay = now.getDate();
+    const needsPastPrompt =
+      action === 1 && isCurrentMonth && todayDay >= 1 && todayDay < daysInMonth;
+
+    if (needsPastPrompt) {
+      setIsMidMonthPastPromptOpen(true);
+      return;
+    }
+
+    // Action 2 giữa tháng: không đụng quá khứ/hôm nay, chỉ bù từ ngày mai
+    if (action === 2 && isCurrentMonth && todayDay >= 1 && todayDay < daysInMonth) {
+      handleRunAutoSchedule(2, 'future_only');
+      return;
+    }
+
+    handleRunAutoSchedule(action, 'full_month');
+  };
+
+  const handleMidMonthRescheduleAll = () => {
+    setIsMidMonthPastPromptOpen(false);
+    handleRunAutoSchedule(1, 'full_month');
+  };
+
+  const handleMidMonthKeepPastAndFillFuture = () => {
+    setIsMidMonthPastPromptOpen(false);
+    handleRunAutoSchedule(1, 'future_with_remaining');
+  };
+
+  const handleDismissMidMonthPastPrompt = () => {
+    setIsMidMonthPastPromptOpen(false);
   };
 
   const handleConfirmAutoSchedule = () => {
@@ -795,12 +856,14 @@ const ShiftMonthlySchedule: React.FC = () => {
         yearMonth={yearMonth}
         shiftKeys={shiftKeys}
         roster={employees}
+        scheduleAlreadyConfigured={scheduleAlreadyConfigured}
         getPreference={(employeeId, shiftKey) =>
           getShiftMonthPreferenceFor(role, yearMonth, employeeId, shiftKey)
         }
         onUpdatePreference={(employeeId, shiftKey, patch) =>
           updateShiftMonthPreference(role, yearMonth, employeeId, shiftKey, patch)
         }
+        onConfirmedChangeAfterSchedule={() => setAutoStep('idle')}
       />
 
       {/* Main grid card */}
@@ -851,7 +914,7 @@ const ShiftMonthlySchedule: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleRunAutoSchedule(1)}
+                onClick={() => handleAutoScheduleClick(1)}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black bg-indigo-600 text-white hover:bg-indigo-700 transition-all"
               >
                 <Sparkles size={11} />
@@ -859,7 +922,7 @@ const ShiftMonthlySchedule: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleRunAutoSchedule(2)}
+                onClick={() => handleAutoScheduleClick(2)}
                 disabled={autoStep !== 'action1_done'}
                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-black transition-all ${
                   autoStep === 'action1_done'
@@ -1406,6 +1469,58 @@ const ShiftMonthlySchedule: React.FC = () => {
         </div>
       )}
 
+      {isMidMonthPastPromptOpen && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+            <div className="bg-amber-600 text-white px-5 py-3 flex items-center gap-2">
+              <AlertTriangle size={18} />
+              <h3 className="font-bold text-sm">Xếp ca giữa tháng — chọn phạm vi</h3>
+            </div>
+            <div className="p-5 space-y-3 text-sm text-left">
+              <p className="text-gray-700">
+                Hôm nay là ngày <strong>{now.getDate()}/{now.getMonth() + 1}</strong>. Chọn cách xử lý ngày
+                đã qua / hôm nay khi sắp xếp ca mặc định:
+              </p>
+              <ul className="text-xs text-gray-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 space-y-1.5 list-disc list-inside">
+                <li>
+                  <strong>Xếp lại cả tháng:</strong> xóa & xếp lại từ ngày 1 → cuối tháng (gồm quá khứ).
+                </li>
+                <li>
+                  <strong>Giữ quá khứ:</strong> giữ ca ngày 1→hôm nay; tính công còn lại (trần{' '}
+                  {formatShiftUnits(minShiftUnits)} công/NV); xếp FULL từ ngày mai.
+                </li>
+                <li>
+                  <strong>Hủy:</strong> đóng, không chạy sắp xếp.
+                </li>
+              </ul>
+            </div>
+            <div className="px-5 py-3 border-t bg-gray-50 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleMidMonthRescheduleAll}
+                className="w-full py-2.5 rounded-xl bg-red-600 text-white font-bold text-sm hover:bg-red-700"
+              >
+                Xếp lại cả tháng (gồm quá khứ)
+              </button>
+              <button
+                type="button"
+                onClick={handleMidMonthKeepPastAndFillFuture}
+                className="w-full py-2.5 rounded-xl bg-amber-600 text-white font-bold text-sm hover:bg-amber-700"
+              >
+                Giữ quá khứ — xếp phần còn lại
+              </button>
+              <button
+                type="button"
+                onClick={handleDismissMidMonthPastPrompt}
+                className="w-full py-2 rounded-xl border font-bold text-gray-500 hover:bg-white text-sm"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isAutoModalOpen && autoResult && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95">
@@ -1444,6 +1559,49 @@ const ShiftMonthlySchedule: React.FC = () => {
                   Sau khi xác nhận, thay đổi sẽ được áp dụng tạm thời. Bạn cần bấm <strong>Lưu lịch ca</strong> để ghi nhận.
                 </p>
               </div>
+
+              {autoResult.preserveThroughDay != null && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs text-indigo-900 space-y-1">
+                  <p className="font-bold text-indigo-950">Chế độ giữa tháng</p>
+                  <p>
+                    Giữ lịch ngày <strong>1 → {autoResult.preserveThroughDay}</strong>; chỉ xếp từ ngày{' '}
+                    <strong>{autoResult.preserveThroughDay + 1}</strong>.
+                  </p>
+                </div>
+              )}
+
+              {autoResult.midMonthQuota && autoResult.midMonthQuota.length > 0 && (
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">
+                    Công đã xếp (1→{autoResult.preserveThroughDay}) / còn lại so với định mức{' '}
+                    {formatShiftUnits(minShiftUnits)}
+                  </div>
+                  <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                    <table className="w-full text-[11px]">
+                      <thead className="bg-white sticky top-0">
+                        <tr className="text-left text-gray-500 border-b">
+                          <th className="px-3 py-1.5 font-bold">Nhân viên</th>
+                          <th className="px-3 py-1.5 font-bold text-right">Đã xếp</th>
+                          <th className="px-3 py-1.5 font-bold text-right">Còn lại</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {autoResult.midMonthQuota.map((q) => (
+                          <tr key={q.employeeId} className="border-b border-slate-100">
+                            <td className="px-3 py-1.5 text-gray-800">{q.name}</td>
+                            <td className="px-3 py-1.5 text-right font-mono">
+                              {formatShiftUnits(q.usedUnits)}
+                            </td>
+                            <td className="px-3 py-1.5 text-right font-mono font-bold text-vetc-green">
+                              {formatShiftUnits(q.remainingUnits)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700 space-y-1">
                 <p className="font-bold text-slate-800">Tổng quan cách xếp:</p>
