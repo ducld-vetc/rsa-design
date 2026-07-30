@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import ImageUploadSection from '../shared/ImageUploadSection';
 import RescueVehicleCameraSection from '../shared/RescueVehicleCameraSection';
+import RescueGpsPlaybackSection from '../shared/RescueGpsPlaybackSection';
 import ServiceSelectionField from '../shared/ServiceSelectionField';
 import AISuggestionSection from '../shared/AISuggestionSection';
 import RescueList from './RescueList';
@@ -1252,47 +1253,10 @@ const StationOrderDetail: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Timeline Sidebar */}
-                <div className="lg:col-span-4 border-l p-0 flex flex-col bg-white overflow-hidden text-left">
-                  <div className="p-4 border-b bg-gray-50/50 flex justify-between items-center">
-                    <h4 className="text-xs font-black text-gray-500 uppercase tracking-widest">Nhật ký hành trình</h4>
-                    <button className="text-[10px] text-blue-600 font-bold hover:underline">Chi tiết GPS</button>
-                  </div>
-                  <div className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar text-left">
-                    <div className="relative border-l-2 border-gray-100 ml-3 pl-8 space-y-8">
-                      <div className="relative">
-                        <div className="absolute -left-[44px] top-0 w-6 h-6 rounded-full bg-green-500 border-4 border-white shadow-md flex items-center justify-center">
-                          <div className="w-1 h-1 bg-white rounded-full"></div>
-                        </div>
-                        <div className="text-left">
-                          <p className="text-xs font-black text-green-600 uppercase">Cứu hộ đang thực hiện</p>
-                          <p className="text-xs text-gray-700 font-medium mt-1">Xe cứu hộ đã đến hiện trường và đang xử lý lỗi ắc quy.</p>
-                          <p className="text-[10px] text-gray-400 mt-2 flex items-center">
-                            <Clock size={10} className="mr-1" /> 02/02/2026 14:15:00
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="relative">
-                        <div className="absolute -left-[44px] top-0 w-6 h-6 rounded-full bg-blue-500 border-4 border-white shadow-md"></div>
-                        <div className="text-left">
-                          <p className="text-xs font-black text-blue-600 uppercase">Đang di chuyển</p>
-                          <p className="text-xs text-gray-600 font-medium mt-1">Bắt đầu di chuyển từ trạm cứu hộ Hà Nội.</p>
-                          <p className="text-[10px] text-gray-400 mt-2">02/02/2026 14:00:30</p>
-                        </div>
-                      </div>
-
-                      <div className="relative">
-                        <div className="absolute -left-[44px] top-0 w-6 h-6 rounded-full bg-gray-200 border-4 border-white shadow-md"></div>
-                        <div className="text-left">
-                          <p className="text-xs font-black text-gray-400 uppercase">Tài xế đã nhận đơn</p>
-                          <p className="text-xs text-gray-500 mt-1">Hệ thống ghi nhận tài xế Nguyễn Văn Tài tiếp nhận.</p>
-                          <p className="text-[10px] text-gray-400 mt-2">02/02/2026 13:55:12</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-4 bg-gray-50 border-t">
+                {/* Timeline — VnetGPS map/playback */}
+                <div className="lg:col-span-4 border-l flex flex-col bg-white overflow-hidden text-left min-h-0">
+                  <RescueGpsPlaybackSection />
+                  <div className="p-4 bg-gray-50 border-t shrink-0">
                     <button 
                       onClick={() => setIsStatusUpdateModalOpen(true)}
                       className="w-full bg-vetc-green text-white py-2.5 rounded-xl font-bold text-xs shadow-lg hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center space-x-2"

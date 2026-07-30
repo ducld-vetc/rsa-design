@@ -33,6 +33,10 @@ import LocationSearch, { LocationSearchPrefill } from './pages/LocationSearch';
 import ShiftDefinitionManagement from './pages/ShiftDefinitionManagement';
 import ShiftMonthlySchedule from './pages/ShiftMonthlySchedule';
 import FloodZoneManagement from './pages/FloodZoneManagement';
+import RescueFeeConfiguration from './pages/RescueFeeConfiguration';
+import RescueFeeForm from './pages/RescueFeeForm';
+import RescueFeeDetail from './pages/RescueFeeDetail';
+import RescueFeeCriteriaManagement from './pages/RescueFeeCriteriaManagement';
 import { ShiftConfigProvider } from './context/ShiftConfigContext';
 
 const initialData: FormData = {
@@ -98,6 +102,8 @@ const App: React.FC = () => {
     if (path.includes('/shift-definition-management')) return Step.SHIFT_DEFINITION_MANAGEMENT;
     if (path.includes('/shift-monthly-schedule')) return Step.SHIFT_MONTHLY_SCHEDULE;
     if (path.includes('/flood-zone-management')) return Step.FLOOD_ZONE_MANAGEMENT;
+    if (path.includes('/rescue-fee-criteria')) return Step.RESCUE_FEE_CRITERIA;
+    if (path.includes('/rescue-fee-config')) return Step.RESCUE_FEE_CONFIGURATION;
     if (path.includes('/location-search')) return Step.LOCATION_SEARCH;
     if (path.includes('/pricing-policy')) return Step.PRICING_POLICY;
     if (path.includes('/payment-request-management')) return Step.PAYMENT_REQUEST_MANAGEMENT;
@@ -300,6 +306,8 @@ const App: React.FC = () => {
   const handleNavigateToShiftDefinition = () => navigate('/shift-definition-management');
   const handleNavigateToShiftMonthlySchedule = () => navigate('/shift-monthly-schedule');
   const handleNavigateToFloodZoneManagement = () => navigate('/flood-zone-management');
+  const handleNavigateToRescueFeeConfiguration = () => navigate('/rescue-fee-config');
+  const handleNavigateToRescueFeeCriteria = () => navigate('/rescue-fee-criteria');
 
   const handleCreateOrderFromLocation = (p: LocationSearchPrefill) => {
     setFormData(prev => ({
@@ -403,6 +411,8 @@ const App: React.FC = () => {
     Step.SHIFT_DEFINITION_MANAGEMENT,
     Step.SHIFT_MONTHLY_SCHEDULE,
     Step.FLOOD_ZONE_MANAGEMENT,
+    Step.RESCUE_FEE_CONFIGURATION,
+    Step.RESCUE_FEE_CRITERIA,
   ];
   
   const isStepperVisible = !hideStepperSteps.includes(currentStep);
@@ -438,6 +448,17 @@ const App: React.FC = () => {
     if (currentStep === Step.FLOOD_ZONE_MANAGEMENT) {
       return ['Quản trị hệ thống', 'Quản lý khu vực ngập lụt'];
     }
+    if (currentStep === Step.RESCUE_FEE_CONFIGURATION) {
+      if (location.pathname.includes('/create')) return ['Quản trị hệ thống', 'Cấu hình phí', 'Tạo bảng phí'];
+      if (location.pathname.includes('/edit/')) return ['Quản trị hệ thống', 'Cấu hình phí', 'Chỉnh sửa bảng phí'];
+      if (location.pathname.match(/\/rescue-fee-config\/[^/]+$/)) {
+        return ['Quản trị hệ thống', 'Cấu hình phí', 'Chi tiết bảng phí'];
+      }
+      return ['Quản trị hệ thống', 'Cấu hình phí cứu hộ'];
+    }
+    if (currentStep === Step.RESCUE_FEE_CRITERIA) {
+      return ['Quản trị hệ thống', 'Phí cứu hộ', 'Danh mục tiêu chí'];
+    }
     if (currentStep === Step.PAYMENT_REQUEST_MANAGEMENT) {
       if (location.pathname.includes('/payment-request-management/')) {
         return ['Quản trị hệ thống', 'Quản lý thanh toán', 'Tạo đề nghị thanh toán'];
@@ -471,6 +492,8 @@ const App: React.FC = () => {
         onNavigateShiftDefinition={handleNavigateToShiftDefinition}
         onNavigateShiftMonthlySchedule={handleNavigateToShiftMonthlySchedule}
         onNavigateFloodZoneManagement={handleNavigateToFloodZoneManagement}
+        onNavigateRescueFeeConfiguration={handleNavigateToRescueFeeConfiguration}
+        onNavigateRescueFeeCriteria={handleNavigateToRescueFeeCriteria}
         currentStep={currentStep}
       />
 
@@ -633,6 +656,21 @@ const App: React.FC = () => {
                 } />
                 <Route path="/flood-zone-management" element={
                   <FloodZoneManagement />
+                } />
+                <Route path="/rescue-fee-config" element={
+                  <RescueFeeConfiguration />
+                } />
+                <Route path="/rescue-fee-config/create" element={
+                  <RescueFeeForm />
+                } />
+                <Route path="/rescue-fee-config/edit/:id" element={
+                  <RescueFeeForm />
+                } />
+                <Route path="/rescue-fee-config/:id" element={
+                  <RescueFeeDetail />
+                } />
+                <Route path="/rescue-fee-criteria" element={
+                  <RescueFeeCriteriaManagement />
                 } />
               </Routes>
               </ShiftConfigProvider>

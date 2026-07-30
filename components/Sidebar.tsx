@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves } from 'lucide-react';
+import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves, Settings2, SlidersHorizontal } from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
@@ -23,6 +23,8 @@ interface SidebarProps {
   onNavigateShiftDefinition: () => void;
   onNavigateShiftMonthlySchedule: () => void;
   onNavigateFloodZoneManagement: () => void;
+  onNavigateRescueFeeConfiguration: () => void;
+  onNavigateRescueFeeCriteria: () => void;
   currentStep: Step;
 }
 
@@ -46,6 +48,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigateShiftDefinition,
   onNavigateShiftMonthlySchedule,
   onNavigateFloodZoneManagement,
+  onNavigateRescueFeeConfiguration,
+  onNavigateRescueFeeCriteria,
   currentStep 
 }) => {
   const [openMenus, setOpenMenus] = useState<string[]>([
@@ -56,6 +60,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     'cskh',
     'rescue',
     'station',
+    'rescueFee',
   ]);
 
   if (!isOpen) return null;
@@ -78,6 +83,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isRescuePackageActive =
     currentStep === Step.PRICING_POLICY ||
     currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT;
+
+  const isRescueFeeActive =
+    currentStep === Step.RESCUE_FEE_CONFIGURATION ||
+    currentStep === Step.RESCUE_FEE_CRITERIA;
 
   return (
     <aside className="w-72 shrink-0 bg-white border-r flex flex-col transition-all duration-300">
@@ -188,6 +197,38 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Waves size={14} className="shrink-0" />
                 <span className="whitespace-nowrap">Khu vực ngập lụt</span>
+              </div>
+              <div>
+                <div
+                  onClick={() => toggleMenu('rescueFee')}
+                  className={`flex items-center justify-between gap-1 text-sm px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                    isRescueFeeActive ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <DollarSign size={14} className="shrink-0" />
+                    <span className="truncate">Phí cứu hộ</span>
+                  </div>
+                  <ChevronDown size={12} className={`shrink-0 transition-transform duration-200 ${isMenuOpen('rescueFee') ? 'rotate-180' : ''}`} />
+                </div>
+                {isMenuOpen('rescueFee') && (
+                  <div className="mt-0.5 ml-3 border-l border-gray-200 pl-2 space-y-0.5">
+                    <div
+                      onClick={onNavigateRescueFeeConfiguration}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.RESCUE_FEE_CONFIGURATION ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <Settings2 size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Cấu hình phí</span>
+                    </div>
+                    <div
+                      onClick={onNavigateRescueFeeCriteria}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.RESCUE_FEE_CRITERIA ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <SlidersHorizontal size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Danh mục tiêu chí</span>
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <div

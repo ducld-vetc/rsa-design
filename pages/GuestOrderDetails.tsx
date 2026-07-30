@@ -52,6 +52,7 @@ import {
 } from 'lucide-react';
 import ImageUploadSection from '../shared/ImageUploadSection';
 import RescueVehicleCameraSection from '../shared/RescueVehicleCameraSection';
+import RescueGpsPlaybackSection from '../shared/RescueGpsPlaybackSection';
 import ServiceSelectionField from '../shared/ServiceSelectionField';
 import AISuggestionSection from '../shared/AISuggestionSection';
 import RescueList from './RescueList';
@@ -89,6 +90,12 @@ import Searching from "./Searching";
 import PartnerSelect from '../components/PartnerSelect';
 import PaymentRequestSection from '../shared/PaymentRequestSection';
 import DriverSelect from '../components/DriverSelect';
+import {
+  calculateRescueFees,
+  getRetailMarkupFactor,
+  formatMoneyVi,
+  type FeeSnapshot,
+} from '../data/rescueFeeMockData';
 
 interface ActualService {
   id: string;
@@ -212,6 +219,11 @@ type AdjustmentRow = {
   discount: string;
   totalPrice: string;
   customerPaid: string;
+  isCustom?: boolean;
+  isCustomerFeeManual?: boolean;
+  isSupplierFeeManual?: boolean;
+  customerSource?: string;
+  supplierSource?: string;
 };
 
 const parseMoney = (value: string) => parseFloat(value.replace(/,/g, '')) || 0;
@@ -231,93 +243,43 @@ const applyVatBeforeTax = (afterTax: number, vatPercent: number) =>
 const calculateCustomerTotal = (rows: AdjustmentRow[]) =>
   rows.reduce((sum, row) => sum + parseMoney(row.customerPaid), 0);
 
-const applyTotalPriceToRow = (row: AdjustmentRow, totalPrice: number): AdjustmentRow => {
+const calculateProviderTotal = (rows: AdjustmentRow[]) =>
+  rows.reduce((sum, row) => sum + parseMoney(row.totalPrice), 0);
+
+const applyTotalPriceToRow = (
+  row: AdjustmentRow,
+  totalPrice: number,
+  options?: { retailMarkup?: number; preserveCustomerPaid?: boolean }
+): AdjustmentRow => {
   const fixed = parseMoney(row.fixedPrice);
   const coef = parseFloat(row.coefficient) || 0;
   const diff = fixed * coef - totalPrice;
+  const markup = options?.retailMarkup ?? getRetailMarkupFactor();
+
+  let customerPaid = row.customerPaid;
+  if (!options?.preserveCustomerPaid && !row.isCustomerFeeManual) {
+    customerPaid = Math.round(totalPrice * markup).toLocaleString('en-US');
+  }
 
   return {
     ...row,
     totalPrice: totalPrice.toLocaleString('en-US'),
-    customerPaid: Math.round(totalPrice * 0.1).toLocaleString('en-US'),
+    customerPaid,
     discount: diff.toLocaleString('en-US'),
   };
 };
 
-const distributeProviderTotalByWeight = (
-  rows: AdjustmentRow[],
-  targetTotal: number
-): AdjustmentRow[] => {
-  if (rows.length === 0) return rows;
-
-  const safeTotal = Math.max(0, targetTotal);
-  const weights = rows.map((row) => parseMoney(row.totalPrice));
-  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
-
-  if (weightSum === 0) {
-    const evenShare = Math.round(safeTotal / rows.length);
-    let allocated = 0;
-
-    return rows.map((row, index) => {
-      const price = index === rows.length - 1 ? safeTotal - allocated : evenShare;
-      if (index !== rows.length - 1) allocated += price;
-      return applyTotalPriceToRow(row, price);
-    });
-  }
-
-  let allocated = 0;
-
-  return rows.map((row, index) => {
-    if (index === rows.length - 1) {
-      return applyTotalPriceToRow(row, safeTotal - allocated);
-    }
-
-    const price = Math.round(safeTotal * (weights[index] / weightSum));
-    allocated += price;
-    return applyTotalPriceToRow(row, price);
-  });
-};
-
 const recalculateRowsFromFixedPrices = (rows: AdjustmentRow[]): AdjustmentRow[] =>
   rows.map((row) => {
+    if (row.isSupplierFeeManual) {
+      return applyTotalPriceToRow(row, parseMoney(row.totalPrice), { preserveCustomerPaid: true });
+    }
     const fixed = parseMoney(row.fixedPrice);
     const coef = parseFloat(row.coefficient) || 1;
-    return applyTotalPriceToRow(row, Math.round(fixed * coef));
+    return applyTotalPriceToRow(row, Math.round(fixed * coef), {
+      preserveCustomerPaid: row.isCustomerFeeManual,
+    });
   });
-
-/** Edit one row's Giá NCC; auto-balance another row so sum stays at providerTotal */
-const updateProviderRowPriceWithinTotal = (
-  rows: AdjustmentRow[],
-  editedId: number,
-  rawValue: string,
-  providerTotal: number
-): AdjustmentRow[] => {
-  if (rows.length === 0) return rows;
-
-  const editedIndex = rows.findIndex((row) => row.id === editedId);
-  if (editedIndex === -1) return rows;
-
-  if (rows.length === 1) {
-    return [applyTotalPriceToRow(rows[0], providerTotal)];
-  }
-
-  const balanceIndex = editedIndex === rows.length - 1 ? rows.length - 2 : rows.length - 1;
-  const fixedSum = rows.reduce((sum, row, index) => {
-    if (index === editedIndex || index === balanceIndex) return sum;
-    return sum + parseMoney(row.totalPrice);
-  }, 0);
-
-  const availableForPair = Math.max(0, providerTotal - fixedSum);
-  let editedPrice = Math.max(0, parseMoney(formatMoneyInput(rawValue)));
-  editedPrice = Math.min(editedPrice, availableForPair);
-  const balancePrice = availableForPair - editedPrice;
-
-  return rows.map((row, index) => {
-    if (index === editedIndex) return applyTotalPriceToRow(row, editedPrice);
-    if (index === balanceIndex) return applyTotalPriceToRow(row, balancePrice);
-    return row;
-  });
-};
 
 const computeUpdatedRows = (
   rows: AdjustmentRow[],
@@ -340,7 +302,11 @@ const computeUpdatedRows = (
 
     if (field === 'totalPrice') {
       const numericPrice = parseMoney(processedValue);
-      updatedRow.customerPaid = (numericPrice * 0.1).toLocaleString('en-US');
+      if (!updatedRow.isCustomerFeeManual) {
+        updatedRow.customerPaid = Math.round(
+          numericPrice * getRetailMarkupFactor()
+        ).toLocaleString('en-US');
+      }
     }
 
     if (field === 'adjustmentType') {
@@ -362,6 +328,15 @@ const computeUpdatedRows = (
     if (field === 'fixedPrice' || field === 'coefficient' || field === 'totalPrice' || field === 'adjustmentType') {
       const fixed = parseMoney(updatedRow.fixedPrice);
       const coef = parseFloat(updatedRow.coefficient) || 0;
+      if ((field === 'fixedPrice' || field === 'coefficient' || field === 'adjustmentType') && !updatedRow.isSupplierFeeManual) {
+        const nextTotal = Math.round(fixed * coef);
+        updatedRow.totalPrice = nextTotal.toLocaleString('en-US');
+        if (!updatedRow.isCustomerFeeManual) {
+          updatedRow.customerPaid = Math.round(
+            nextTotal * getRetailMarkupFactor()
+          ).toLocaleString('en-US');
+        }
+      }
       const total = parseMoney(updatedRow.totalPrice);
       const diff = fixed * coef - total;
       updatedRow.discount = diff.toLocaleString('en-US');
@@ -421,12 +396,28 @@ const AdjustmentTypeSelect = ({
       <div className="relative" ref={triggerRef}>
         <div
             onClick={() => !disabled && setIsOpen(!isOpen)}
-            className={`flex items-center justify-between px-2 py-1 border rounded cursor-pointer min-h-[28px] transition-all ${disabled ? 'bg-gray-50 text-gray-500 border-gray-100' : 'bg-white border-gray-200 hover:border-vetc-green'}`}
+            className={`flex items-start justify-between gap-1 px-2 py-1 border rounded cursor-pointer min-h-[34px] transition-all ${disabled ? 'bg-gray-50 text-gray-500 border-gray-100' : 'bg-white border-gray-200 hover:border-vetc-green'}`}
         >
-        <span className="truncate max-w-[120px] text-[10px] font-bold">
-          {value || <span className="text-gray-400 font-normal italic">Chọn...</span>}
-        </span>
-          <ChevronDown size={12} className={`text-gray-400 shrink-0 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+          <div className="flex min-h-[22px] flex-1 flex-wrap gap-1">
+            {selectedOptions.length === 0 && (
+              <span className="text-[10px] italic text-gray-400">Chon...</span>
+            )}
+            {selectedOptions.map((opt) => (
+              <span
+                key={opt}
+                className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 border border-blue-100"
+                title={opt}
+              >
+                {opt}
+              </span>
+            ))}
+          </div>
+          {!disabled && (
+            <ChevronDown
+              size={12}
+              className={`text-gray-400 shrink-0 mt-1 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+            />
+          )}
         </div>
 
         <AnimatePresence>
@@ -510,6 +501,15 @@ const AVAILABLE_SERVICES = [
   'Dịch vụ khác'
 ];
 
+const OTHER_SERVICE_OPTIONS = [
+  { value: 'night-support', label: 'Hỗ trợ ngoài giờ', suggestedPrice: 250000 },
+  { value: 'highway-support', label: 'Phụ phí cao tốc', suggestedPrice: 300000 },
+  { value: 'rain-storm-support', label: 'Phụ phí mưa bão', suggestedPrice: 350000 },
+  { value: 'remote-area-support', label: 'Phụ phí khu vực xa', suggestedPrice: 400000 },
+  { value: 'parking-basement-support', label: 'Hỗ trợ tầng hầm/bãi đỗ', suggestedPrice: 280000 },
+  { value: 'custom-other', label: 'Khác', suggestedPrice: 200000 },
+];
+
 const CANCEL_REASONS = [
   "Không còn cần dịch vụ",
   "Tìm được dịch vụ khác",
@@ -578,6 +578,9 @@ const GuestOrderDetails: React.FC<{
     { id: '2', name: 'Kích bình ắc quy', price: '100,000' }
   ]);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+  const [isOtherServiceFormOpen, setIsOtherServiceFormOpen] = useState(false);
+  const [otherServiceKey, setOtherServiceKey] = useState('');
+  const [otherServicePrice, setOtherServicePrice] = useState('');
   const [incidentDescription, setIncidentDescription] = useState(
       '- Hiện tượng: Xe không đề được, đề yếu.\n' +
       '- Khả năng di chuyển: Không di chuyển được.\n' +
@@ -715,17 +718,57 @@ const GuestOrderDetails: React.FC<{
     setEnterpriseEstimatedCost(parseInt(digits, 10).toLocaleString('en-US'));
   };
 
-  // Adjustment Coefficients Data state
-  const INITIAL_ADJUSTMENT_ROWS: AdjustmentRow[] = [
-    { id: 1, serviceName: 'Xe hết pin ', fixedPrice: '500,000', adjustmentType: 'Đêm', coefficient: '1.2', ceilingPrice: '1,000,000', discount: '0', totalPrice: '600,000', customerPaid: '60,000' },
-    { id: 2, serviceName: 'Kích bình ắc quy', fixedPrice: '1,000,000', adjustmentType: '<10km', coefficient: '1.5', ceilingPrice: '3,000,000', discount: '0', totalPrice: '1,500,000', customerPaid: '150,000' },
-    { id: 3, serviceName: 'Đâm, tai nạn, lật', fixedPrice: '1,000,000', adjustmentType: 'Cao tốc', coefficient: '1', ceilingPrice: '3,000,000', discount: '0', totalPrice: '1,000,000', customerPaid: '100,000' }
-  ];
-  const [adjustmentRows, setAdjustmentRows] = useState(INITIAL_ADJUSTMENT_ROWS);
-  const [providerTotal, setProviderTotal] = useState(
-    INITIAL_ADJUSTMENT_ROWS.reduce((sum, row) => sum + parseMoney(row.totalPrice), 0)
-  );
+  // Adjustment Coefficients Data state — khởi tạo từ engine bảng phí
+  const buildInitialFeeRows = (): { rows: AdjustmentRow[]; snapshot: FeeSnapshot | null } => {
+    const breakdown = calculateRescueFees({
+      customerType: 'PACKAGE',
+      supplierType: 'INTERNAL',
+      packageBenefitAmount: 800000,
+      weather: 'NORMAL',
+      isNight: true,
+      lines: [
+        { serviceName: 'Xe hết pin', serviceType: 'ONSITE' },
+        { serviceName: 'Kích bình ắc quy', serviceType: 'ONSITE' },
+        { serviceName: 'Đâm, tai nạn, lật', serviceType: 'ONSITE' },
+      ],
+    });
+
+    const rows: AdjustmentRow[] = breakdown.lines.map((line, idx) => ({
+      id: idx + 1,
+      serviceName: line.serviceName,
+      fixedPrice: formatMoneyVi(line.fixedPrice),
+      adjustmentType: line.adjustmentLabels.join(', '),
+      coefficient: String(line.coefficient),
+      ceilingPrice: '0',
+      discount: formatMoneyVi(line.discount),
+      totalPrice: formatMoneyVi(line.supplierAmount),
+      customerPaid: formatMoneyVi(line.customerAmount),
+      isCustom: false,
+      isCustomerFeeManual: false,
+      isSupplierFeeManual: false,
+      customerSource: line.customerSource,
+      supplierSource: line.supplierSource,
+    }));
+
+    return { rows, snapshot: breakdown.snapshot };
+  };
+
+  const initialFeeBundle = buildInitialFeeRows();
+  const [adjustmentRows, setAdjustmentRows] = useState<AdjustmentRow[]>(initialFeeBundle.rows);
+  const [feeSnapshot, setFeeSnapshot] = useState<FeeSnapshot | null>(initialFeeBundle.snapshot);
   const [customerTotalOverride, setCustomerTotalOverride] = useState<string | null>(null);
+
+  // One order must use a single customer fee table source.
+  const customerFeeSourceText =
+    feeSnapshot?.customerFeeMode === 'BUSINESS'
+      ? selectedEnterprise || feeSnapshot.customerTableCode || 'VETC'
+      : 'VETC';
+  const supplierFeeSourceText =
+    feeSnapshot?.supplierTableCode?.includes('INT') ||
+    partnerName.toLowerCase().includes('vetc') ||
+    partnerName.toLowerCase().includes('carpla')
+      ? 'VETC'
+      : 'NCC';
 
   // Map States
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
@@ -877,7 +920,8 @@ const GuestOrderDetails: React.FC<{
   // Calculate Max Coefficient for Highlighting
   const maxCoefficient = adjustmentRows.length > 0 ? Math.max(...adjustmentRows.map(r => parseFloat(r.coefficient))) : 0;
 
-  // Provider total is master; table Giá NCC is derived from it
+  // Tổng phí = tổng các dòng (không cân bằng dòng khác)
+  const providerTotal = calculateProviderTotal(adjustmentRows);
   const displayProviderTotal = providerTotal;
 
   const providerVatValue = parseFloat(vat) || 0;
@@ -930,11 +974,24 @@ const GuestOrderDetails: React.FC<{
   };
 
   const handleProviderTotalChange = (value: string) => {
+    // Tổng phía trên chỉ phản ánh tổng dòng; không phân bổ lại.
+    // Cho phép ghi đè tạm hiển thị bằng cách scale tỷ lệ nếu user chủ động sửa (hiếm).
     const formatted = formatMoneyInput(value);
     const newTotal = parseMoney(formatted);
-    setProviderTotal(newTotal);
-    setAdjustmentRows((prev) => distributeProviderTotalByWeight(prev, newTotal));
+    const current = calculateProviderTotal(adjustmentRows);
+    if (current <= 0 || adjustmentRows.length === 0) return;
+    const ratio = newTotal / current;
     setCustomerTotalOverride(null);
+    setAdjustmentRows((prev) =>
+      prev.map((row) => {
+        const nextSupplier = Math.round(parseMoney(row.totalPrice) * ratio);
+        return {
+          ...applyTotalPriceToRow(row, nextSupplier, { preserveCustomerPaid: row.isCustomerFeeManual }),
+          isSupplierFeeManual: true,
+          supplierSource: 'Thủ công',
+        };
+      })
+    );
   };
 
   const handleCustomerTotalChange = (value: string) => {
@@ -943,8 +1000,6 @@ const GuestOrderDetails: React.FC<{
 
   const handleRefreshProviderTotal = () => {
     const recalculated = recalculateRowsFromFixedPrices(adjustmentRows);
-    const newTotal = recalculated.reduce((sum, row) => sum + parseMoney(row.totalPrice), 0);
-    setProviderTotal(newTotal);
     setAdjustmentRows(recalculated);
     setCustomerTotalOverride(null);
   };
@@ -1039,11 +1094,13 @@ const GuestOrderDetails: React.FC<{
     }, 1500);
   };
 
-  const handleAddService = (serviceName: string) => {
-    const defaultPrice = '500,000';
+  const handleAddService = (serviceName: string, customPrice?: string) => {
+    const defaultPrice = customPrice && customPrice.trim() !== '' ? formatMoneyInput(customPrice) : '500,000';
     const defaultCoefficient = '1';
+    const supplierAmount = parseMoney(defaultPrice);
+    const customerAmount = Math.round(supplierAmount * getRetailMarkupFactor());
 
-    const newRow = {
+    const newRow: AdjustmentRow = {
       id: Date.now(),
       serviceName: serviceName,
       fixedPrice: defaultPrice,
@@ -1052,14 +1109,35 @@ const GuestOrderDetails: React.FC<{
       ceilingPrice: '0',
       discount: '0',
       totalPrice: defaultPrice,
-      customerPaid: (parseFloat(defaultPrice.replace(/,/g, '')) * 0.1).toLocaleString('en-US')
+      customerPaid: customerAmount.toLocaleString('en-US'),
+      isCustom: serviceName === 'Dịch vụ khác' || Boolean(customPrice),
+      isCustomerFeeManual: false,
+      isSupplierFeeManual: Boolean(customPrice),
+      customerSource: customPrice ? 'Thủ công' : customerFeeSourceText,
+      supplierSource: customPrice ? 'Thủ công' : supplierFeeSourceText,
     };
-    const newProviderTotal = providerTotal + parseMoney(defaultPrice);
-    const withNewRow = [...adjustmentRows, newRow];
-    setProviderTotal(newProviderTotal);
     setCustomerTotalOverride(null);
-    setAdjustmentRows(distributeProviderTotalByWeight(withNewRow, newProviderTotal));
+    setAdjustmentRows((prev) => [...prev, newRow]);
+    setOtherServiceKey('');
+    setOtherServicePrice('');
+    setIsOtherServiceFormOpen(false);
     setIsServiceModalOpen(false);
+  };
+
+  const handleSelectServiceFromModal = (serviceName: string) => {
+    if (serviceName === 'Dịch vụ khác') {
+      setIsOtherServiceFormOpen(true);
+      return;
+    }
+    handleAddService(serviceName);
+  };
+
+  const handleSaveOtherService = () => {
+    const selectedOtherService = OTHER_SERVICE_OPTIONS.find((opt) => opt.value === otherServiceKey);
+    const normalizedName = selectedOtherService?.label?.trim() ?? '';
+    const normalizedPrice = parseMoney(otherServicePrice);
+    if (!normalizedName || normalizedPrice <= 0) return;
+    handleAddService(normalizedName, otherServicePrice);
   };
 
   const handleRemoveService = (id: string) => {
@@ -1147,23 +1225,57 @@ const GuestOrderDetails: React.FC<{
 
   const handleProviderPriceChange = (id: number, value: string) => {
     setCustomerTotalOverride(null);
-    setAdjustmentRows((prev) => updateProviderRowPriceWithinTotal(prev, id, value, providerTotal));
+    const nextPrice = Math.max(0, parseMoney(formatMoneyInput(value)));
+    setAdjustmentRows((prev) =>
+      prev.map((row) =>
+        row.id === id
+          ? {
+              ...applyTotalPriceToRow(row, nextPrice, {
+                preserveCustomerPaid: row.isCustomerFeeManual,
+              }),
+              isSupplierFeeManual: true,
+              supplierSource: 'Thủ công',
+            }
+          : row
+      )
+    );
+  };
+
+  const handleCustomerPaidChange = (id: number, value: string) => {
+    if (!isEditing) return;
+    setCustomerTotalOverride(null);
+    setAdjustmentRows((prev) =>
+      prev.map((row) =>
+        row.id === id
+          ? {
+              ...row,
+              customerPaid: formatMoneyInput(value),
+              isCustomerFeeManual: true,
+              customerSource: 'Thủ công',
+            }
+          : row
+      )
+    );
   };
 
   const handleRemoveAdjustmentRow = (id: number) => {
     if (!isEditing) return;
-    const removedRow = adjustmentRows.find((row) => row.id === id);
-    const remaining = adjustmentRows.filter((row) => row.id !== id);
-    const newProviderTotal = Math.max(0, providerTotal - (removedRow ? parseMoney(removedRow.totalPrice) : 0));
-    setProviderTotal(newProviderTotal);
     setCustomerTotalOverride(null);
-    setAdjustmentRows(distributeProviderTotalByWeight(remaining, newProviderTotal));
+    setAdjustmentRows((prev) => prev.filter((row) => row.id !== id));
   };
 
   const handleAdjustmentChange = (id: number, field: string, value: string) => {
     if (field === 'totalPrice') return;
     setCustomerTotalOverride(null);
-    setAdjustmentRows(computeUpdatedRows(adjustmentRows, id, field, value));
+    const updatedRows = computeUpdatedRows(adjustmentRows, id, field, value);
+    const shouldMarkSupplierManual = ['fixedPrice', 'coefficient', 'adjustmentType'].includes(field);
+    setAdjustmentRows(
+      updatedRows.map((row) =>
+        row.id === id && shouldMarkSupplierManual
+          ? { ...row, isSupplierFeeManual: true, supplierSource: 'Thủ công' }
+          : row
+      )
+    );
   };
 
   const handleRescueSelect = (unit: RescueUnit) => {
@@ -2041,6 +2153,25 @@ const GuestOrderDetails: React.FC<{
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
               <SectionHeader title="Thông tin phí" number={3} icon={<Banknote size={16} />} />
               <div className="p-5 space-y-6">
+                {feeSnapshot && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-xs text-blue-900">
+                    <div className="font-bold uppercase tracking-wide text-[10px] mb-1">Snapshot bảng phí</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div>
+                        NCC: <span className="font-semibold">{feeSnapshot.supplierTableCode}</span> —{' '}
+                        {feeSnapshot.supplierTableName} (v{feeSnapshot.supplierVersion})
+                      </div>
+                      <div>
+                        KH:{' '}
+                        <span className="font-semibold">
+                          {feeSnapshot.customerFeeMode === 'RETAIL_MARKUP'
+                            ? `Hệ số lẻ ×${feeSnapshot.retailMarkupFactor ?? getRetailMarkupFactor()}`
+                            : `${feeSnapshot.customerTableCode ?? '—'} — ${feeSnapshot.customerTableName ?? ''}`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* Provider Payment Section */}
                 <div className="pt-2 border-t border-gray-100">
                   <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
@@ -2277,7 +2408,7 @@ const GuestOrderDetails: React.FC<{
                           <th className="p-2 text-right border font-bold w-40">Chênh lệch giá</th>
                           <th className="p-2 text-right border font-bold w-40">Giá cố định</th>
                           <th className="p-2 text-center border font-bold w-40">Hệ số điều chỉnh</th>
-                          <th className="p-2 text-left border font-bold w-40">Loại điều chỉnh</th>
+                          <th className="p-2 text-left border font-bold w-72">Loại điều chỉnh</th>
                           <th className="p-2 text-center border font-bold w-20">Thao tác</th>
                         </tr>
                         </thead>
@@ -2287,21 +2418,63 @@ const GuestOrderDetails: React.FC<{
                           return (
                               <tr key={row.id} className={`border-b hover:bg-gray-50 transition-colors`}>
                                 <td className="p-2 border text-center font-medium">{idx + 1}</td>
-                                <td className="p-2 border font-bold text-gray-800">{row.serviceName}</td>
-                                <td className="p-2 border text-right font-medium">
-                                  <Input
-                                      value={row.customerPaid}
-                                      readOnly={true}
-                                      className="text-right font-bold text-blue-600 bg-gray-50"
-                                  />
+                                <td className="p-2 border font-bold text-gray-800">
+                                  {row.isCustom ? (
+                                    <Input
+                                      value={row.serviceName}
+                                      onChange={(val) => handleAdjustmentChange(row.id, 'serviceName', val)}
+                                      readOnly={!isEditing}
+                                      className={`font-bold text-gray-800 ${!isEditing ? 'bg-gray-50' : ''}`}
+                                    />
+                                  ) : (
+                                    row.serviceName
+                                  )}
                                 </td>
                                 <td className="p-2 border text-right font-medium">
-                                  <Input
+                                  {isEditing ? (
+                                    <Input
+                                      value={row.customerPaid}
+                                      onChange={(val) => handleCustomerPaidChange(row.id, val)}
+                                      readOnly={false}
+                                      className="text-right font-bold text-blue-600"
+                                    />
+                                  ) : (
+                                    <div className="space-y-1">
+                                      <div className="text-right font-bold text-blue-600">
+                                        {row.customerPaid}
+                                      </div>
+                                      <div className="flex justify-end">
+                                        <span className="text-[9px] font-semibold text-blue-700">
+                                          {row.isCustomerFeeManual
+                                            ? 'Thủ công'
+                                            : row.customerSource || customerFeeSourceText}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="p-2 border text-right font-medium">
+                                  {isEditing ? (
+                                    <Input
                                       value={row.totalPrice}
                                       onChange={(val) => handleProviderPriceChange(row.id, val)}
-                                      readOnly={!isEditing || adjustmentRows.length === 1}
-                                      className={`text-right font-bold text-gray-800 ${!isEditing || adjustmentRows.length === 1 ? 'bg-gray-50' : ''}`}
-                                  />
+                                      readOnly={adjustmentRows.length === 1}
+                                      className={`text-right font-bold text-gray-800 ${adjustmentRows.length === 1 ? 'bg-gray-50' : ''}`}
+                                    />
+                                  ) : (
+                                    <div className="space-y-1">
+                                      <div className="text-right font-bold text-gray-800">
+                                        {row.totalPrice}
+                                      </div>
+                                      <div className="flex justify-end">
+                                        <span className="text-[9px] font-semibold text-gray-700">
+                                          {row.isSupplierFeeManual
+                                            ? 'Thủ công'
+                                            : row.supplierSource || supplierFeeSourceText}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="p-2 border text-right font-medium">
                                   <div className={`flex items-center justify-end space-x-1 font-bold ${
@@ -2327,17 +2500,52 @@ const GuestOrderDetails: React.FC<{
                                   </div>
                                 </td>
                                 <td className="p-2 border text-right font-medium text-gray-700">
-                                  {row.fixedPrice}
+                                  {isEditing ? (
+                                    <Input
+                                      value={row.fixedPrice}
+                                      onChange={(val) => handleAdjustmentChange(row.id, 'fixedPrice', val)}
+                                      readOnly={false}
+                                      className="text-right font-bold text-gray-700"
+                                    />
+                                  ) : (
+                                    <div className="text-right font-bold text-gray-700">{row.fixedPrice}</div>
+                                  )}
                                 </td>
                                  <td className={`p-2 text-center border font-bold text-gray-700`}>
-                                   {row.coefficient}
+                                   {isEditing ? (
+                                     <Input
+                                       value={row.coefficient}
+                                       onChange={(val) => handleAdjustmentChange(row.id, 'coefficient', val)}
+                                       readOnly={false}
+                                       className="text-center font-bold text-gray-700"
+                                     />
+                                   ) : (
+                                     <div className="text-center font-bold text-gray-700">{row.coefficient}</div>
+                                   )}
                                 </td>
                                 <td className="p-2 border">
-                                  <AdjustmentTypeSelect
+                                  {isEditing ? (
+                                    <AdjustmentTypeSelect
                                       value={row.adjustmentType}
                                       onChange={(val) => handleAdjustmentChange(row.id, 'adjustmentType', val)}
-                                      disabled={true}
-                                  />
+                                      disabled={false}
+                                    />
+                                  ) : (
+                                    <div className="flex flex-wrap justify-start gap-1">
+                                      {(row.adjustmentType || '')
+                                        .split(',')
+                                        .map((s) => s.trim())
+                                        .filter(Boolean)
+                                        .map((opt) => (
+                                          <span
+                                            key={`${row.id}-${opt}`}
+                                            className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 border border-blue-100"
+                                          >
+                                            {opt}
+                                          </span>
+                                        ))}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="p-2 border text-center">
                                   <button
@@ -2419,6 +2627,7 @@ const GuestOrderDetails: React.FC<{
                     </div>
                   </div>
                 </div>
+
               </div>
             </div>
           </div>
@@ -2464,75 +2673,10 @@ const GuestOrderDetails: React.FC<{
                   </div>
                 </div>
 
-                {/* Timeline Sidebar */}
-                <div className="lg:col-span-4 border-l p-0 flex flex-col bg-white overflow-hidden text-left">
-                  <div className="p-4 border-b bg-gray-50/50 flex justify-between items-center">
-                    <h4 className="text-xs font-black text-gray-500 uppercase tracking-widest">Nhật ký hành trình</h4>
-                  </div>
-                  <div className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar text-left">
-                    <div className="relative border-l-2 border-gray-100 ml-3 pl-8 space-y-8">
-                      {isOrderCancelled && (
-                        <div className="relative">
-                          <div className="absolute -left-[44px] top-0 w-6 h-6 rounded-full bg-red-500 border-4 border-white shadow-md flex items-center justify-center">
-                            <X size={12} className="text-white" strokeWidth={3} />
-                          </div>
-                          <div className="text-left">
-                            <p className="text-xs font-black text-red-600 uppercase">Hủy đơn</p>
-                            <p className="text-xs text-gray-700 font-medium mt-1">
-                              Lý do: <span className="text-gray-900">{orderCancelReason || '—'}</span>
-                            </p>
-                            <p className="text-[10px] text-gray-400 mt-2 flex items-center">
-                              <Clock size={10} className="mr-1" /> 02/02/2026 14:20:00
-                            </p>
-                            <button
-                              type="button"
-                              onClick={handleOpenEditCancelReasonModal}
-                              className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 text-[11px] font-bold hover:bg-red-100 transition-colors"
-                            >
-                              <Pencil size={12} />
-                              Chỉnh sửa lý do hủy
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {!isOrderCancelled && (
-                        <>
-                      <div className="relative">
-                        <div className="absolute -left-[44px] top-0 w-6 h-6 rounded-full bg-green-500 border-4 border-white shadow-md flex items-center justify-center">
-                          <div className="w-1 h-1 bg-white rounded-full"></div>
-                        </div>
-                        <div className="text-left">
-                          <p className="text-xs font-black text-green-600 uppercase">Cứu hộ đang thực hiện</p>
-                          <p className="text-xs text-gray-700 font-medium mt-1">Xe cứu hộ đã đến hiện trường và đang xử lý lỗi ắc quy.</p>
-                          <p className="text-[10px] text-gray-400 mt-2 flex items-center">
-                            <Clock size={10} className="mr-1" /> 02/02/2026 14:15:00
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="relative">
-                        <div className="absolute -left-[44px] top-0 w-6 h-6 rounded-full bg-blue-500 border-4 border-white shadow-md"></div>
-                        <div className="text-left">
-                          <p className="text-xs font-black text-blue-600 uppercase">Đang di chuyển</p>
-                          <p className="text-xs text-gray-600 font-medium mt-1">Bắt đầu di chuyển từ trạm cứu hộ Hà Nội.</p>
-                          <p className="text-[10px] text-gray-400 mt-2">02/02/2026 14:00:30</p>
-                        </div>
-                      </div>
-
-                      <div className="relative">
-                        <div className="absolute -left-[44px] top-0 w-6 h-6 rounded-full bg-gray-200 border-4 border-white shadow-md"></div>
-                        <div className="text-left">
-                          <p className="text-xs font-black text-gray-400 uppercase">Tài xế đã nhận đơn</p>
-                          <p className="text-xs text-gray-500 mt-1">Hệ thống ghi nhận tài xế Nguyễn Văn Tài tiếp nhận.</p>
-                          <p className="text-[10px] text-gray-400 mt-2">02/02/2026 13:55:12</p>
-                        </div>
-                      </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="p-4 bg-gray-50 border-t">
+                {/* Timeline — VnetGPS map/playback */}
+                <div className="lg:col-span-4 border-l flex flex-col bg-white overflow-hidden text-left min-h-0">
+                  <RescueGpsPlaybackSection />
+                  <div className="p-4 bg-gray-50 border-t shrink-0">
                     {!isOrderCancelled && (
                     <button 
                       onClick={() => setIsStatusUpdateModalOpen(true)}
@@ -2786,7 +2930,7 @@ const GuestOrderDetails: React.FC<{
                     {AVAILABLE_SERVICES.map((serviceName) => (
                         <button
                             key={serviceName}
-                            onClick={() => handleAddService(serviceName)}
+                            onClick={() => handleSelectServiceFromModal(serviceName)}
                             className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl shadow-sm hover:border-vetc-green hover:shadow-md transition-all text-left group active:scale-95"
                         >
                           <div className="flex items-center space-x-3">
@@ -2799,6 +2943,56 @@ const GuestOrderDetails: React.FC<{
                         </button>
                     ))}
                   </div>
+                  {isOtherServiceFormOpen && (
+                    <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-3">
+                      <div className="text-xs font-bold text-blue-700 uppercase tracking-wide">Dịch vụ khác</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <Label required>Loại phí phát sinh</Label>
+                          <select
+                            value={otherServiceKey}
+                            onChange={(e) => {
+                              const selectedKey = e.target.value;
+                              setOtherServiceKey(selectedKey);
+                              const selectedOption = OTHER_SERVICE_OPTIONS.find((opt) => opt.value === selectedKey);
+                              if (selectedOption) {
+                                setOtherServicePrice(selectedOption.suggestedPrice.toLocaleString('en-US'));
+                              } else {
+                                setOtherServicePrice('');
+                              }
+                            }}
+                            className="w-full border rounded px-3 py-1.5 text-xs outline-none focus:border-vetc-green bg-white"
+                          >
+                            <option value="">-- Chọn loại phí --</option>
+                            {OTHER_SERVICE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label} ({opt.suggestedPrice.toLocaleString('en-US')})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <Label required>Giá NCC</Label>
+                          <Input
+                            value={otherServicePrice}
+                            onChange={(val) => setOtherServicePrice(formatMoneyInput(val))}
+                            placeholder="Nhập số tiền"
+                            className="text-right"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleSaveOtherService}
+                          disabled={!otherServiceKey || parseMoney(otherServicePrice) <= 0}
+                          className="px-4 py-2 rounded-lg bg-vetc-green text-white text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-700 transition-colors"
+                        >
+                          Lưu dịch vụ
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-4 bg-white border-t flex justify-end space-x-3">
