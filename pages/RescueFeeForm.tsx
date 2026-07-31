@@ -7,7 +7,7 @@ import {
   Download,
   FileJson,
   FileSpreadsheet,
-  Layers3,
+  GripVertical,
   Plus,
   Save,
   SlidersHorizontal,
@@ -32,6 +32,9 @@ import {
   emptyPriceTable,
   rescueFeeTables,
   upsertPriceTable,
+  resolveFeeServiceType,
+  isTimeSurchargeCriterion,
+  DEFAULT_TIME_RANGE,
   type FeeCriterion,
   type FeeRuleCondition,
   type FeeTableKind,
@@ -100,6 +103,46 @@ const PRIMARY_CRITERION_CONFIG: Record<
 const getCriterionConfig = (label: string) =>
   feeCriterionDefinitions.find((definition) => definition.label === label) ??
   PRIMARY_CRITERION_CONFIG[label];
+
+const formatConditionSummary = (condition: FeeRuleCondition): string => {
+  const values = Array.isArray(condition.value)
+    ? condition.value.map(String).map((value) => value.trim()).filter(Boolean)
+    : [String(condition.value ?? '').trim()].filter(Boolean);
+  const separator = condition.operator === 'BETWEEN' ? ' – ' : ', ';
+  const formattedValue = values.join(separator);
+  return formattedValue
+    ? `${condition.criterionLabel}: ${formattedValue}`
+    : condition.criterionLabel;
+};
+
+const parseMoneyInput = (value: string): number =>
+  parseInt(value.replace(/\D/g, ''), 10) || 0;
+
+const isConditionValueEmpty = (condition: FeeRuleCondition): boolean => {
+  if (condition.operator === 'BETWEEN') {
+    if (!Array.isArray(condition.value) || condition.value.length < 2) return true;
+    return String(condition.value[0]).trim() === '' || String(condition.value[1]).trim() === '';
+  }
+  if (condition.operator === 'IN') {
+    if (Array.isArray(condition.value)) {
+      return condition.value.length === 0 || condition.value.every((item) => String(item).trim() === '');
+    }
+    return String(condition.value ?? '').trim() === '';
+  }
+  if (Array.isArray(condition.value)) {
+    return condition.value.every((item) => String(item).trim() === '');
+  }
+  return String(condition.value ?? '').trim() === '';
+};
+
+const defaultValueForOperator = (
+  operator: FeeRuleCondition['operator'],
+  allowedValues?: string[]
+): FeeRuleCondition['value'] => {
+  if (operator === 'BETWEEN') return ['', ''];
+  if (operator === 'IN') return [];
+  return allowedValues?.[0] ?? '';
+};
 
 const buildCriterion = (
   label: string,
@@ -253,6 +296,7 @@ const RescueFeeForm: React.FC = () => {
   const [error, setError] = useState('');
   const [expandedRuleIds, setExpandedRuleIds] = useState<string[]>([]);
   const [criteriaRuleId, setCriteriaRuleId] = useState<string | null>(null);
+  const [criteriaModalError, setCriteriaModalError] = useState('');
   const [importServiceDetail, setImportServiceDetail] = useState<string | null>(null);
   const [importJsonText, setImportJsonText] = useState('');
   const [importError, setImportError] = useState('');
@@ -262,9 +306,8 @@ const RescueFeeForm: React.FC = () => {
   const [tableImportError, setTableImportError] = useState('');
   const [tableImportFileName, setTableImportFileName] = useState('');
   const excelInputRef = useRef<HTMLInputElement>(null);
-  const [bulkCriterionId, setBulkCriterionId] = useState(
-    initial.priceCriteria?.find((c) => c.role !== 'SURCHARGE')?.id ?? ''
-  );
+  const [draggedPriceRuleId, setDraggedPriceRuleId] = useState<string | null>(null);
+  const [dragOverPriceRuleId, setDragOverPriceRuleId] = useState<string | null>(null);
 
   const update = <K extends keyof PriceTable>(key: K, value: PriceTable[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -302,15 +345,23 @@ const RescueFeeForm: React.FC = () => {
       setActiveTab('matrix');
       return;
     }
+    const emptyCondition = form.serviceRules.some((rule) =>
+      (rule.conditions ?? []).some((condition) => isConditionValueEmpty(condition))
+    );
+    if (emptyCondition) {
+      setError('Vui lòng nhập đủ giá trị cho tất cả tiêu chí (không được để trống)');
+      setActiveTab('matrix');
+      return;
+    }
     const invalidRange = form.serviceRules.some((rule) =>
       (rule.conditions ?? []).some((condition) => {
         if (condition.operator !== 'BETWEEN' || !Array.isArray(condition.value)) return false;
         const [from, to] = condition.value;
-        return from === '' || to === '' || Number(from) > Number(to);
+        return Number(from) > Number(to);
       })
     );
     if (invalidRange) {
-      setError('Khoảng Từ – Đến phải nhập đủ và giá trị Từ không được lớn hơn Đến');
+      setError('Khoảng Từ – Đến: giá trị Từ không được lớn hơn Đến');
       setActiveTab('matrix');
       return;
     }
@@ -325,6 +376,18 @@ const RescueFeeForm: React.FC = () => {
     }
     if (form.surchargeRules.some((s) => !s.conditions.length)) {
       setError('Mỗi phụ phí bắt buộc phải chọn ít nhất một tiêu chí phụ');
+      setActiveTab('surcharges');
+      return;
+    }
+    if (
+      form.surchargeRules.some((s) => {
+        const condition = s.conditions[0];
+        if (!condition || !isTimeSurchargeCriterion(condition.criterionKey)) return false;
+        if (!Array.isArray(condition.value) || condition.value.length < 2) return true;
+        return !String(condition.value[0]).trim() || !String(condition.value[1]).trim();
+      })
+    ) {
+      setError('Phụ phí thời gian bắt buộc nhập đủ khoảng Từ – Đến');
       setActiveTab('surcharges');
       return;
     }
@@ -362,14 +425,16 @@ const RescueFeeForm: React.FC = () => {
   };
 
   const addServiceHead = (serviceDetail: string) => {
-    const option = SERVICE_OPTIONS.find((item) => item.value === serviceDetail);
-    if (!option || form.serviceRules.some((rule) => rule.serviceDetail === serviceDetail)) return;
+    if (form.serviceRules.some((rule) => rule.serviceDetail === serviceDetail)) return;
+    const serviceType = resolveFeeServiceType(serviceDetail);
+    if (!serviceType) return;
     setForm((prev) => {
+      if (prev.serviceRules.some((rule) => rule.serviceDetail === serviceDetail)) return prev;
       return {
         ...prev,
         serviceRules: [
           ...prev.serviceRules,
-          ...createDemoServiceRules(option.value, option.type),
+          ...createDemoServiceRules(serviceDetail, serviceType),
         ],
       };
     });
@@ -387,15 +452,47 @@ const RescueFeeForm: React.FC = () => {
     else removeServiceHead(serviceDetail);
   };
 
-  const loadServiceDemo = (serviceDetail: string) => {
+  const toggleServiceParent = (parentValue: string, checked: boolean) => {
+    const parent = SERVICE_OPTIONS.find((item) => item.value === parentValue);
+    if (!parent?.children?.length) return;
+    if (checked) {
+      setForm((prev) => {
+        let nextRules = [...prev.serviceRules];
+        parent.children!.forEach((child, childIndex) => {
+          if (nextRules.some((rule) => rule.serviceDetail === child)) return;
+          const generated = createDemoServiceRules(child, parent.type).map((rule, index) => ({
+            ...rule,
+            id: `sr-demo-${Date.now()}-${childIndex}-${index}`,
+          }));
+          nextRules = [...nextRules, ...generated];
+        });
+        return { ...prev, serviceRules: nextRules };
+      });
+      return;
+    }
+    const removeSet = new Set<string>([parentValue, ...parent.children]);
+    update(
+      'serviceRules',
+      form.serviceRules.filter((rule) => !removeSet.has(rule.serviceDetail))
+    );
+  };
+
+  const addPriceLineForService = (serviceDetail: string) => {
     const serviceType =
       form.serviceRules.find((rule) => rule.serviceDetail === serviceDetail)?.serviceType ??
-      SERVICE_OPTIONS.find((option) => option.value === serviceDetail)?.type;
-    if (!serviceType) return;
-    update('serviceRules', [
-      ...form.serviceRules.filter((rule) => rule.serviceDetail !== serviceDetail),
-      ...createDemoServiceRules(serviceDetail, serviceType),
-    ]);
+      resolveFeeServiceType(serviceDetail) ??
+      'ONSITE';
+    const primary = buildPrimaryCondition(serviceType);
+    const rule: ServicePriceRule = {
+      id: `sr-${Date.now()}`,
+      serviceType,
+      serviceDetail,
+      basePrice: 0,
+      pricingMode: 'FIXED',
+      unit: SERVICE_CONFIG[serviceType].unit,
+      conditions: primary ? [primary] : [],
+    };
+    update('serviceRules', [...form.serviceRules, rule]);
   };
 
   const updateServiceRule = (ruleId: string, patch: Partial<ServicePriceRule>) => {
@@ -420,7 +517,36 @@ const RescueFeeForm: React.FC = () => {
       id: `sr-${Date.now()}`,
       conditions: (source.conditions ?? []).map((condition) => ({ ...condition })),
     };
-    update('serviceRules', [...form.serviceRules, copy]);
+    const index = form.serviceRules.findIndex((rule) => rule.id === ruleId);
+    const next = [...form.serviceRules];
+    next.splice(Math.max(index, 0) + 1, 0, copy);
+    update('serviceRules', next);
+  };
+
+  const reorderServiceRules = (
+    serviceDetail: string,
+    fromId: string,
+    toId: string
+  ) => {
+    if (fromId === toId) return;
+    setForm((prev) => {
+      const fromIndex = prev.serviceRules.findIndex((rule) => rule.id === fromId);
+      const toIndex = prev.serviceRules.findIndex((rule) => rule.id === toId);
+      if (fromIndex < 0 || toIndex < 0) return prev;
+      const fromRule = prev.serviceRules[fromIndex];
+      const toRule = prev.serviceRules[toIndex];
+      if (
+        fromRule.serviceDetail !== serviceDetail ||
+        toRule.serviceDetail !== serviceDetail
+      ) {
+        return prev;
+      }
+      const next = [...prev.serviceRules];
+      const [moved] = next.splice(fromIndex, 1);
+      const insertAt = next.findIndex((rule) => rule.id === toId);
+      next.splice(insertAt < 0 ? next.length : insertAt, 0, moved);
+      return { ...prev, serviceRules: next };
+    });
   };
 
   const buildConditionsSample = (): Record<string, unknown> => ({
@@ -551,7 +677,7 @@ const RescueFeeForm: React.FC = () => {
   const openImportJson = (serviceDetail: string) => {
     const serviceType =
       form.serviceRules.find((rule) => rule.serviceDetail === serviceDetail)?.serviceType ??
-      SERVICE_OPTIONS.find((option) => option.value === serviceDetail)?.type ??
+      resolveFeeServiceType(serviceDetail) ??
       'ONSITE';
     setImportServiceDetail(serviceDetail);
     setImportJsonText(JSON.stringify(buildImportSample(serviceDetail, serviceType), null, 2));
@@ -609,10 +735,9 @@ const RescueFeeForm: React.FC = () => {
         setImportError('JSON phải chứa ít nhất một dòng cấu hình');
         return;
       }
-      const option = SERVICE_OPTIONS.find((item) => item.value === importServiceDetail);
       const serviceType =
         form.serviceRules.find((rule) => rule.serviceDetail === importServiceDetail)?.serviceType ??
-        option?.type ??
+        resolveFeeServiceType(importServiceDetail) ??
         'ONSITE';
       const primaryConditionBase = buildPrimaryCondition(serviceType);
       const importedRules: ServicePriceRule[] = rows.map((row, index) => {
@@ -690,18 +815,18 @@ const RescueFeeForm: React.FC = () => {
     ],
     surcharges: [
       {
-        name: 'Khung giờ',
+        name: 'Thời gian yêu cầu cứu hộ',
         type: 'COEFFICIENT',
         value: 1.15,
         criterionKey: 'timeWindow',
-        criterionValue: 'Ban đêm',
+        criterionValue: '22:00-06:00',
       },
       {
         name: 'Tuyến cao tốc',
         type: 'FIXED',
         value: 150000,
         criterionKey: 'isHighway',
-        criterionValue: 'Có',
+        criterionValue: 'Cao tốc Bắc – Nam phía Đông (CT.01)',
       },
     ],
   });
@@ -714,10 +839,9 @@ const RescueFeeForm: React.FC = () => {
       item.service ?? item.DichVu ?? item.serviceDetail ?? ''
     ).trim();
     if (!serviceDetail) return null;
-    const option = SERVICE_OPTIONS.find((entry) => entry.value === serviceDetail);
     const serviceType =
       (item.serviceType as ServiceType | undefined) ??
-      option?.type ??
+      resolveFeeServiceType(serviceDetail) ??
       (String(item.LoaiDichVu ?? '').includes('Kéo')
         ? 'TOWING'
         : String(item.LoaiDichVu ?? '').includes('Cẩu')
@@ -786,27 +910,36 @@ const RescueFeeForm: React.FC = () => {
     const criterionMeta =
       SURCHARGE_CRITERIA_CATALOG.find((entry) => entry.key === criterionKey) ??
       SURCHARGE_CRITERIA_CATALOG.find((entry) => entry.label === criterionKey);
-    const criterionValue =
-      item.criterionValue ??
-      item.GiaTriTieuChi ??
-      catalog?.value ??
-      criterionMeta?.values[0] ??
-      '';
+    const rawCriterionValue = String(
+      item.criterionValue ?? item.GiaTriTieuChi ?? catalog?.value ?? criterionMeta?.values[0] ?? ''
+    ).trim();
+    const isTime = isTimeSurchargeCriterion(criterionMeta?.key ?? criterionKey);
+    const timeParts = rawCriterionValue.includes('-')
+      ? rawCriterionValue.split('-').map((part) => part.trim())
+      : [];
+    const criterionValue = isTime
+      ? ([
+          timeParts[0] || criterionMeta?.values[0] || DEFAULT_TIME_RANGE[0],
+          timeParts[1] || criterionMeta?.values[1] || DEFAULT_TIME_RANGE[1],
+        ] as [string, string])
+      : rawCriterionValue || criterionMeta?.values[0] || '';
     return {
       id: `su-table-import-${Date.now()}-${index}`,
       name,
       type,
       value: Number(item.value ?? item.GiaTri ?? 0) || 0,
       activeWhen: criterionMeta
-        ? `${criterionMeta.key}=${criterionValue}`
-        : `${criterionKey}=${criterionValue}`,
+        ? isTime
+          ? `${criterionMeta.key}=${criterionValue[0]}-${criterionValue[1]}`
+          : `${criterionMeta.key}=${criterionValue}`
+        : `${criterionKey}=${rawCriterionValue}`,
       conditions: criterionMeta
         ? [
             {
               criterionKey: criterionMeta.key,
               criterionLabel: criterionMeta.label,
-              operator: '=',
-              value: String(criterionValue),
+              operator: isTime ? 'BETWEEN' : '=',
+              value: criterionValue,
             },
           ]
         : [],
@@ -913,7 +1046,6 @@ const RescueFeeForm: React.FC = () => {
       serviceRules: importedRules.length ? importedRules : prev.serviceRules,
       surchargeRules: importedSurcharges.length ? importedSurcharges : prev.surchargeRules,
     }));
-    setBulkCriterionId(nextCriteria.find((item) => item.role !== 'SURCHARGE')?.id ?? '');
     setTableImportOpen(false);
     setActiveTab('matrix');
     setError('');
@@ -999,18 +1131,18 @@ const RescueFeeForm: React.FC = () => {
     ]);
     const surchargeSheet = XLSX.utils.json_to_sheet([
       {
-        TenPhuPhi: 'Khung giờ',
+        TenPhuPhi: 'Thời gian yêu cầu cứu hộ',
         Kieu: 'Hệ số',
         GiaTri: 1.15,
         TieuChi: 'timeWindow',
-        GiaTriTieuChi: 'Ban đêm',
+        GiaTriTieuChi: '22:00-06:00',
       },
       {
         TenPhuPhi: 'Tuyến cao tốc',
         Kieu: 'Cố định',
         GiaTri: 150000,
         TieuChi: 'isHighway',
-        GiaTriTieuChi: 'Có',
+        GiaTriTieuChi: 'Cao tốc Bắc – Nam phía Đông (CT.01)',
       },
     ]);
     XLSX.utils.book_append_sheet(wb, infoSheet, 'ThongTin');
@@ -1069,35 +1201,6 @@ const RescueFeeForm: React.FC = () => {
     }
   };
 
-  const generateRulesFromCriterion = (ruleId: string) => {
-    const source = form.serviceRules.find((rule) => rule.id === ruleId);
-    const criterion = (form.priceCriteria ?? []).find((item) => item.id === bulkCriterionId);
-    if (!source || !criterion?.allowedValues?.length) {
-      setError('Vui lòng chọn tiêu chí có danh sách giá trị trước khi sinh dòng');
-      return;
-    }
-    const generated = criterion.allowedValues.map((value, index) => ({
-      ...source,
-      id: `sr-${Date.now()}-${index}`,
-      conditions: [
-        ...(source.conditions ?? []).filter(
-          (condition) => condition.criterionKey !== criterion.key
-        ),
-        {
-          criterionKey: criterion.key,
-          criterionLabel: criterion.label,
-          operator: '=' as const,
-          value,
-        },
-      ],
-    }));
-    update('serviceRules', [
-      ...form.serviceRules.filter((rule) => rule.id !== ruleId),
-      ...generated,
-    ]);
-    setError('');
-  };
-
   const toggleRule = (ruleId: string) => {
     setExpandedRuleIds((ids) =>
       ids.includes(ruleId) ? ids.filter((id) => id !== ruleId) : [...ids, ruleId]
@@ -1113,7 +1216,6 @@ const RescueFeeForm: React.FC = () => {
     if (!available) return;
     const c = buildCriterion(available.label);
     update('priceCriteria', [...(form.priceCriteria ?? []), c]);
-    if (!bulkCriterionId) setBulkCriterionId(c.id);
   };
 
   const toggleMatrixCriterion = (label: string, key: string, checked: boolean) => {
@@ -1121,7 +1223,6 @@ const RescueFeeForm: React.FC = () => {
     if (checked && !selected) {
       const criterion = buildCriterion(label);
       update('priceCriteria', [...(form.priceCriteria ?? []), criterion]);
-      if (!bulkCriterionId) setBulkCriterionId(criterion.id);
       return;
     }
     if (!checked && selected) removeCriterion(selected.id);
@@ -1192,7 +1293,6 @@ const RescueFeeForm: React.FC = () => {
         }))
       );
     }
-    if (bulkCriterionId === cid) setBulkCriterionId('');
   };
 
   const isPrimaryCriterionInUse = (_criterionKey: string): boolean => false;
@@ -1200,18 +1300,23 @@ const RescueFeeForm: React.FC = () => {
   const addSurchargeHead = (name: string) => {
     const head = SURCHARGE_HEAD_OPTIONS.find((item) => item.name === name);
     if (!head || form.surchargeRules.some((rule) => rule.name === name)) return;
+    const isTime = isTimeSurchargeCriterion(head.criterionKey);
+    const timeRange: [string, string] = [...DEFAULT_TIME_RANGE];
+    const criterionValue = isTime ? timeRange : head.value;
     const rule: SurchargeRule = {
       id: `su-${Date.now()}`,
       name: head.name,
       type: 'FIXED',
       value: 0,
-      activeWhen: `${head.criterionKey}=${head.value}`,
+      activeWhen: isTime
+        ? `${head.criterionKey}=${timeRange[0]}-${timeRange[1]}`
+        : `${head.criterionKey}=${head.value}`,
       conditions: [
         {
           criterionKey: head.criterionKey,
           criterionLabel: head.criterionLabel,
-          operator: '=',
-          value: head.value,
+          operator: isTime ? 'BETWEEN' : '=',
+          value: criterionValue,
         },
       ],
       holidayDates: 'requiresHolidayDates' in head && head.requiresHolidayDates ? [] : undefined,
@@ -1250,7 +1355,19 @@ const RescueFeeForm: React.FC = () => {
       conditions: source.conditions.map((condition) => ({ ...condition })),
       holidayDates: source.holidayDates ? [...source.holidayDates] : undefined,
     };
-    update('surchargeRules', [...form.surchargeRules, copy]);
+    const index = form.surchargeRules.findIndex((rule) => rule.id === sid);
+    const next = [...form.surchargeRules];
+    next.splice(Math.max(index, 0) + 1, 0, copy);
+    update('surchargeRules', next);
+  };
+
+  const addSurchargeLine = (name: string) => {
+    const source = form.surchargeRules.find((rule) => rule.name === name);
+    if (source) {
+      duplicateSurcharge(source.id);
+      return;
+    }
+    addSurchargeHead(name);
   };
 
   const toggleSurchargeHead = (name: string, checked: boolean) => {
@@ -1275,10 +1392,10 @@ const RescueFeeForm: React.FC = () => {
       criterionKey: criterion.key,
       criterionLabel: criterion.label,
       operator: criterion.valueType === 'RANGE' ? 'BETWEEN' : '=',
-      value:
-        criterion.valueType === 'RANGE'
-          ? ['', '']
-          : criterion.allowedValues?.[0] ?? '',
+      value: defaultValueForOperator(
+        criterion.valueType === 'RANGE' ? 'BETWEEN' : '=',
+        criterion.allowedValues
+      ),
     };
     updateServiceRule(ruleId, {
       conditions: [...(rule.conditions ?? []), condition],
@@ -1286,8 +1403,8 @@ const RescueFeeForm: React.FC = () => {
   };
 
   const syncServiceRule = (ruleId: string, serviceDetail: string) => {
-    const option = SERVICE_OPTIONS.find((item) => item.value === serviceDetail);
-    if (!option) return;
+    const serviceType = resolveFeeServiceType(serviceDetail);
+    if (!serviceType) return;
     setForm((prev) => {
       return {
         ...prev,
@@ -1299,13 +1416,13 @@ const RescueFeeForm: React.FC = () => {
               condition.criterionKey !== 'roadDistance' &&
               condition.criterionKey !== 'roadPosition'
           );
-          const primaryCondition = buildPrimaryCondition(option.type);
+          const primaryCondition = buildPrimaryCondition(serviceType);
           return {
             ...rule,
-            serviceType: option.type,
-            serviceDetail: option.value,
-            unit: SERVICE_CONFIG[option.type].unit,
-            pricingMode: option.type === 'ONSITE' ? 'FIXED' : rule.pricingMode ?? 'FIXED',
+            serviceType,
+            serviceDetail,
+            unit: SERVICE_CONFIG[serviceType].unit,
+            pricingMode: serviceType === 'ONSITE' ? 'FIXED' : rule.pricingMode ?? 'FIXED',
             includedKm: undefined,
             pricePerExtraKm: undefined,
             conditions: primaryCondition
@@ -1362,17 +1479,25 @@ const RescueFeeForm: React.FC = () => {
       updateSurcharge(sid, { conditions: [] });
       return;
     }
+    const isTime = isTimeSurchargeCriterion(meta.key);
+    const timeRange: [string, string] = [
+      meta.values[0] ?? DEFAULT_TIME_RANGE[0],
+      meta.values[1] ?? DEFAULT_TIME_RANGE[1],
+    ];
+    const value = isTime ? timeRange : meta.values[0] ?? '';
     updateSurcharge(sid, {
       name:
         FEE_SURCHARGE_CATALOG.find((item) => item.criterionKey === criterionKey)?.name ??
         meta.label,
-      activeWhen: `${criterionKey}=${meta.values[0]}`,
+      activeWhen: isTime
+        ? `${criterionKey}=${timeRange[0]}-${timeRange[1]}`
+        : `${criterionKey}=${meta.values[0]}`,
       conditions: [
         {
           criterionKey: meta.key,
           criterionLabel: meta.label,
-          operator: '=',
-          value: meta.values[0],
+          operator: isTime ? 'BETWEEN' : '=',
+          value,
         },
       ],
       holidayDates: criterionKey === 'holiday' ? [] : undefined,
@@ -1389,26 +1514,42 @@ const RescueFeeForm: React.FC = () => {
     });
   };
 
+  const setSurchargeTimeRange = (sid: string, from: string, to: string) => {
+    const surcharge = form.surchargeRules.find((s) => s.id === sid);
+    const current = surcharge?.conditions[0];
+    if (!current) return;
+    updateSurcharge(sid, {
+      activeWhen: `${current.criterionKey}=${from}-${to}`,
+      conditions: [
+        {
+          ...current,
+          operator: 'BETWEEN',
+          value: [from, to],
+        },
+      ],
+    });
+  };
+
   const kindOptions = (Object.keys(FEE_KIND_LABELS) as FeeTableKind[]).filter((k) =>
     form.target === 'CUSTOMER' ? k.startsWith('CUSTOMER_') : k.startsWith('SUPPLIER_')
   );
   const selectedServiceHeads: string[] = Array.from(
     new Set<string>(form.serviceRules.map((rule) => rule.serviceDetail))
   );
-  const serviceHeadOptions = [
-    ...SERVICE_OPTIONS,
-    ...selectedServiceHeads
-      .filter((service) => !SERVICE_OPTIONS.some((option) => option.value === service))
-      .map((service) => ({
-        value: service,
-        type:
-          form.serviceRules.find((rule) => rule.serviceDetail === service)?.serviceType ??
-          ('ONSITE' as ServiceType),
-      })),
-  ];
+  const catalogLeafServices = SERVICE_OPTIONS.flatMap((option) =>
+    option.children?.length ? [...option.children] : [option.value]
+  );
+  const orphanServiceHeads = selectedServiceHeads.filter(
+    (service) => !catalogLeafServices.includes(service)
+  );
+  const selectableServiceCount = catalogLeafServices.length + orphanServiceHeads.length;
   const selectedSurchargeHeads: string[] = Array.from(
     new Set<string>(form.surchargeRules.map((rule) => rule.name))
   );
+  const surchargeGroups = selectedSurchargeHeads.map((name) => ({
+    name,
+    rules: form.surchargeRules.filter((rule) => rule.name === name),
+  }));
   const criteriaRule = form.serviceRules.find((rule) => rule.id === criteriaRuleId);
   const criteriaRulePrimaryLabel = criteriaRule
     ? PRIMARY_CRITERION_BY_SERVICE[criteriaRule.serviceType]
@@ -1428,6 +1569,26 @@ const RescueFeeForm: React.FC = () => {
       criterion.key !== criteriaRulePrimaryKey &&
       !criteriaRuleUsedKeys.has(criterion.key)
   );
+
+  const completeCriteriaModal = () => {
+    const hasEmpty = criteriaRuleConditions.some(({ condition }) =>
+      isConditionValueEmpty(condition)
+    );
+    if (hasEmpty) {
+      setCriteriaModalError('Vui lòng nhập giá trị cho tất cả tiêu chí bổ sung');
+      return;
+    }
+    const invalidRange = criteriaRuleConditions.some(({ condition }) => {
+      if (condition.operator !== 'BETWEEN' || !Array.isArray(condition.value)) return false;
+      return Number(condition.value[0]) > Number(condition.value[1]);
+    });
+    if (invalidRange) {
+      setCriteriaModalError('Khoảng Từ – Đến: giá trị Từ không được lớn hơn Đến');
+      return;
+    }
+    setCriteriaModalError('');
+    setCriteriaRuleId(null);
+  };
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 w-full min-w-0 max-w-full">
@@ -1903,33 +2064,131 @@ const RescueFeeForm: React.FC = () => {
                     <div className="mb-3">
                       <div className="text-xs font-bold text-gray-700">Đầu dịch vụ</div>
                       <div className="mt-0.5 text-[10px] text-gray-400">
-                        {selectedServiceHeads.length}/{serviceHeadOptions.length} dịch vụ đã chọn
+                        {selectedServiceHeads.length}/{selectableServiceCount} dịch vụ đã chọn
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {serviceHeadOptions.map((option) => {
-                        const checked = selectedServiceHeads.includes(option.value);
-                        return (
-                          <label
-                            key={option.value}
-                            className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${
-                              checked
-                                ? 'border-green-200 bg-green-50 text-green-800'
-                                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              className="accent-vetc-green"
-                              checked={checked}
-                              onChange={(e) =>
-                                toggleServiceHead(option.value, e.target.checked)
-                              }
-                            />
-                            <span className="font-semibold">{option.value}</span>
-                          </label>
-                        );
-                      })}
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {SERVICE_OPTIONS.filter((option) => !option.children?.length).map(
+                          (option) => {
+                            const checked = selectedServiceHeads.includes(option.value);
+                            return (
+                              <label
+                                key={option.value}
+                                className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${
+                                  checked
+                                    ? 'border-green-200 bg-green-50 text-green-800'
+                                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="accent-vetc-green"
+                                  checked={checked}
+                                  onChange={(e) =>
+                                    toggleServiceHead(option.value, e.target.checked)
+                                  }
+                                />
+                                <span className="font-semibold">{option.value}</span>
+                              </label>
+                            );
+                          }
+                        )}
+                      </div>
+
+                      {SERVICE_OPTIONS.filter((option) => option.children?.length).map(
+                        (option) => {
+                          const children = [...(option.children ?? [])];
+                          const selectedChildren = children.filter((child) =>
+                            selectedServiceHeads.includes(child)
+                          );
+                          const legacyParentSelected = selectedServiceHeads.includes(
+                            option.value
+                          );
+                          const allSelected =
+                            children.length > 0 && selectedChildren.length === children.length;
+                          const someSelected =
+                            selectedChildren.length > 0 || legacyParentSelected;
+                          const orphanChildren = orphanServiceHeads.filter(
+                            (service) =>
+                              resolveFeeServiceType(service) === option.type &&
+                              !children.includes(service) &&
+                              service !== option.value
+                          );
+                          const displayChildren = [...children, ...orphanChildren];
+
+                          return (
+                            <div
+                              key={option.value}
+                              className={`rounded-lg border p-3 ${
+                                someSelected
+                                  ? 'border-green-200 bg-green-50/40'
+                                  : 'border-gray-200 bg-white'
+                              }`}
+                            >
+                              <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-800">
+                                <input
+                                  type="checkbox"
+                                  className="accent-vetc-green"
+                                  checked={allSelected}
+                                  ref={(el) => {
+                                    if (el) {
+                                      el.indeterminate = someSelected && !allSelected;
+                                    }
+                                  }}
+                                  onChange={(e) =>
+                                    toggleServiceParent(option.value, e.target.checked)
+                                  }
+                                />
+                                <span className="font-bold">{option.value}</span>
+                                <span className="text-[10px] font-medium text-gray-500">
+                                  {selectedChildren.length}/{children.length} dịch vụ con
+                                </span>
+                              </label>
+                              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                {displayChildren.map((child) => {
+                                  const checked = selectedServiceHeads.includes(child);
+                                  return (
+                                    <label
+                                      key={child}
+                                      className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${
+                                        checked
+                                          ? 'border-green-200 bg-green-50 text-green-800'
+                                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        className="accent-vetc-green"
+                                        checked={checked}
+                                        onChange={(e) =>
+                                          toggleServiceHead(child, e.target.checked)
+                                        }
+                                      />
+                                      <span className="font-semibold">{child}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              {legacyParentSelected && (
+                                <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                  <input
+                                    type="checkbox"
+                                    className="accent-vetc-green"
+                                    checked
+                                    onChange={(e) =>
+                                      toggleServiceHead(option.value, e.target.checked)
+                                    }
+                                  />
+                                  <span className="font-semibold">
+                                    {option.value} (cấu hình cũ)
+                                  </span>
+                                </label>
+                              )}
+                            </div>
+                          );
+                        }
+                      )}
                     </div>
                   </div>
 
@@ -2035,28 +2294,6 @@ const RescueFeeForm: React.FC = () => {
               <SectionHeader
                 title="Dòng giá theo tổ hợp tiêu chí"
                 number={1}
-                actions={
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-medium text-white/80">Tiêu chí sinh dòng:</span>
-                    <div className="w-56">
-                      <AppSelect
-                        value={bulkCriterionId}
-                        placeholder="Chọn tiêu chí"
-                        options={(form.priceCriteria ?? [])
-                          .filter(
-                            (criterion) =>
-                              criterion.role !== 'SURCHARGE' &&
-                              (criterion.valueType ?? 'LIST') === 'LIST'
-                          )
-                          .map((criterion) => ({
-                            value: criterion.id,
-                            label: `${criterion.label} (${criterion.allowedValues?.length ?? 0} giá trị)`,
-                          }))}
-                        onChange={setBulkCriterionId}
-                      />
-                    </div>
-                  </div>
-                }
               />
               <div className="space-y-4 p-4">
                 {selectedServiceHeads.map((serviceDetail, serviceIndex) => {
@@ -2081,12 +2318,12 @@ const RescueFeeForm: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => loadServiceDemo(serviceDetail)}
-                            className="inline-flex items-center gap-1 rounded border border-green-200 bg-green-50 px-3 py-1.5 text-[10px] font-bold text-green-700 hover:bg-green-100"
-                            title="Thay các dòng hiện tại bằng dữ liệu mẫu"
+                            onClick={() => addPriceLineForService(serviceDetail)}
+                            className="inline-flex items-center gap-1 rounded border border-vetc-green bg-white px-3 py-1.5 text-[10px] font-bold text-vetc-green hover:bg-green-50"
+                            title="Thêm dòng phí mới cho dịch vụ này"
                           >
-                            <Layers3 size={13} />
-                            Nạp mẫu
+                            <Plus size={13} />
+                            Thêm dòng
                           </button>
                           <button
                             type="button"
@@ -2102,6 +2339,9 @@ const RescueFeeForm: React.FC = () => {
                         <table className="w-full min-w-[1120px] border-collapse text-xs">
                           <thead>
                             <tr className="bg-white text-[10px] font-bold uppercase tracking-wide text-gray-600">
+                              <th className="w-[40px] border-b border-r px-2 py-2 text-center" title="Kéo thả để sắp xếp">
+                                <GripVertical size={12} className="mx-auto text-gray-400" />
+                              </th>
                               <th className="w-[340px] border-b border-r px-3 py-2 text-left">Tiêu chí chính</th>
                               <th className="w-[190px] border-b border-r px-3 py-2 text-left">Cách tính</th>
                               <th className="w-[150px] border-b border-r px-3 py-2 text-right">Mức giá</th>
@@ -2128,9 +2368,45 @@ const RescueFeeForm: React.FC = () => {
                         .map((condition, index) => ({ condition, index }))
                         .filter(({ condition }) => condition.criterionKey !== primaryConfig?.key);
                       const primaryUnit = rule.serviceType === 'CRANE' ? 'm' : 'km';
+                      const isDragging = draggedPriceRuleId === rule.id;
+                      const isDragOver =
+                        dragOverPriceRuleId === rule.id && draggedPriceRuleId !== rule.id;
 
                       return (
-                        <tr key={rule.id} className="align-top even:bg-gray-50/40">
+                        <tr
+                          key={rule.id}
+                          draggable
+                          onDragStart={() => setDraggedPriceRuleId(rule.id)}
+                          onDragEnd={() => {
+                            setDraggedPriceRuleId(null);
+                            setDragOverPriceRuleId(null);
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            if (dragOverPriceRuleId !== rule.id) {
+                              setDragOverPriceRuleId(rule.id);
+                            }
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggedPriceRuleId) {
+                              reorderServiceRules(serviceDetail, draggedPriceRuleId, rule.id);
+                            }
+                            setDraggedPriceRuleId(null);
+                            setDragOverPriceRuleId(null);
+                          }}
+                          className={`align-top even:bg-gray-50/40 ${
+                            isDragging ? 'opacity-50' : ''
+                          } ${isDragOver ? 'bg-green-50 ring-1 ring-inset ring-vetc-green/40' : ''}`}
+                        >
+                          <td className="border-b border-r p-2">
+                            <div
+                              className="mx-auto flex h-[34px] w-full cursor-grab items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 active:cursor-grabbing"
+                              title="Kéo để sắp xếp dòng giá"
+                            >
+                              <GripVertical size={14} />
+                            </div>
+                          </td>
                           <td className="border-b border-r p-2">
                             {!primaryConfig || !primaryCondition ? (
                               <div className="flex h-[34px] items-center rounded bg-gray-50 px-3 text-gray-400">
@@ -2224,14 +2500,16 @@ const RescueFeeForm: React.FC = () => {
                           </td>
                           <td className="border-b border-r p-2">
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="numeric"
                               className={`${inputClass} text-right font-semibold`}
-                              value={rule.basePrice}
+                              value={rule.basePrice ? rule.basePrice.toLocaleString('en-US') : ''}
                               onChange={(e) =>
                                 updateServiceRule(rule.id, {
-                                  basePrice: Number(e.target.value) || 0,
+                                  basePrice: parseMoneyInput(e.target.value),
                                 })
                               }
+                              placeholder="0"
                             />
                           </td>
                           <td className="border-b border-r p-2">
@@ -2240,10 +2518,10 @@ const RescueFeeForm: React.FC = () => {
                                 {additionalConditions.slice(0, 3).map(({ condition, index }) => (
                                   <span
                                     key={`${rule.id}-summary-${index}`}
-                                    className="max-w-[150px] truncate rounded-full border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700"
-                                    title={condition.criterionLabel}
+                                    className="max-w-[320px] whitespace-normal break-words rounded-full border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700"
+                                    title={formatConditionSummary(condition)}
                                   >
-                                    {condition.criterionLabel}
+                                    {formatConditionSummary(condition)}
                                   </span>
                                 ))}
                                 {additionalConditions.length > 3 && (
@@ -2257,7 +2535,10 @@ const RescueFeeForm: React.FC = () => {
                               </div>
                               <button
                                 type="button"
-                                onClick={() => setCriteriaRuleId(rule.id)}
+                                onClick={() => {
+                                  setCriteriaModalError('');
+                                  setCriteriaRuleId(rule.id);
+                                }}
                                 className="inline-flex shrink-0 items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1.5 text-[10px] font-bold text-gray-600 hover:border-vetc-green hover:text-vetc-green"
                               >
                                 <SlidersHorizontal size={12} />
@@ -2274,15 +2555,6 @@ const RescueFeeForm: React.FC = () => {
                                 title="Nhân bản dòng"
                               >
                                 <Copy size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={!bulkCriterionId}
-                                onClick={() => generateRulesFromCriterion(rule.id)}
-                                className="rounded p-1.5 text-vetc-green hover:bg-green-50 disabled:text-gray-300"
-                                title="Sinh dòng theo tiêu chí"
-                              >
-                                <Layers3 size={14} />
                               </button>
                               <button
                                 type="button"
@@ -2392,7 +2664,10 @@ const RescueFeeForm: React.FC = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setCriteriaRuleId(null)}
+                        onClick={() => {
+                          setCriteriaModalError('');
+                          setCriteriaRuleId(null);
+                        }}
                         className="rounded p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
                       >
                         <X size={18} />
@@ -2412,9 +2687,14 @@ const RescueFeeForm: React.FC = () => {
                             (item) => item.key === condition.criterionKey
                           );
                           const hasListValues = (criterion?.allowedValues?.length ?? 0) > 0;
-                          const useRangeInput =
-                            condition.operator === 'BETWEEN' ||
-                            criterion?.valueType === 'RANGE';
+                          const selectedInValues = Array.isArray(condition.value)
+                            ? condition.value.map(String)
+                            : String(condition.value ?? '').trim()
+                              ? [String(condition.value)]
+                              : [];
+                          const singleValue = Array.isArray(condition.value)
+                            ? String(condition.value[0] ?? '')
+                            : String(condition.value ?? '');
                           return (
                             <div
                               key={`${criteriaRule.id}-modal-${index}`}
@@ -2444,15 +2724,15 @@ const RescueFeeForm: React.FC = () => {
                                       (item) => item.key === value
                                     );
                                     if (!next) return;
+                                    const operator: FeeRuleCondition['operator'] =
+                                      next.valueType === 'RANGE' ? 'BETWEEN' : '=';
                                     updatePriceCondition(criteriaRule.id, index, {
                                       criterionKey: next.key,
                                       criterionLabel: next.label,
-                                      operator: next.valueType === 'RANGE' ? 'BETWEEN' : '=',
-                                      value:
-                                        next.valueType === 'RANGE'
-                                          ? ['', '']
-                                          : next.allowedValues?.[0] ?? '',
+                                      operator,
+                                      value: defaultValueForOperator(operator, next.allowedValues),
                                     });
+                                    setCriteriaModalError('');
                                   }}
                                 />
                               </div>
@@ -2469,22 +2749,24 @@ const RescueFeeForm: React.FC = () => {
                                     { value: '>=', label: '≥' },
                                     { value: '<=', label: '≤' },
                                   ]}
-                                  onChange={(value) =>
+                                  onChange={(value) => {
+                                    const operator = value as FeeRuleCondition['operator'];
                                     updatePriceCondition(criteriaRule.id, index, {
-                                      operator: value as FeeRuleCondition['operator'],
-                                      value:
-                                        value === 'BETWEEN'
-                                          ? ['', '']
-                                          : criterion?.allowedValues?.[0] ?? '',
-                                    })
-                                  }
+                                      operator,
+                                      value: defaultValueForOperator(
+                                        operator,
+                                        criterion?.allowedValues
+                                      ),
+                                    });
+                                    setCriteriaModalError('');
+                                  }}
                                 />
                               </div>
                               <div className="min-w-0">
                                 <div className="mb-1 text-[10px] font-bold uppercase text-gray-400 md:hidden">
                                   Giá trị
                                 </div>
-                                {useRangeInput ? (
+                                {condition.operator === 'BETWEEN' ? (
                                   <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                                     <input
                                       type="number"
@@ -2503,6 +2785,7 @@ const RescueFeeForm: React.FC = () => {
                                           operator: 'BETWEEN',
                                           value: [e.target.value, current[1] ?? ''],
                                         });
+                                        setCriteriaModalError('');
                                       }}
                                     />
                                     <span className="text-gray-400">–</span>
@@ -2523,35 +2806,56 @@ const RescueFeeForm: React.FC = () => {
                                           operator: 'BETWEEN',
                                           value: [current[0] ?? '', e.target.value],
                                         });
+                                        setCriteriaModalError('');
                                       }}
                                     />
                                   </div>
-                                ) : hasListValues ? (
-                                  <AppSelect
-                                    value={String(condition.value)}
-                                    options={(criterion?.allowedValues ?? []).map((value) => ({
-                                      value,
-                                      label: value,
-                                    }))}
-                                    onChange={(value) =>
-                                      updatePriceCondition(criteriaRule.id, index, { value })
-                                    }
-                                  />
+                                ) : condition.operator === 'IN' ? (
+                                  hasListValues ? (
+                                    <AppSelect
+                                      value={selectedInValues[0] ?? ''}
+                                      placeholder="Chọn giá trị từ danh sách"
+                                      options={(criterion?.allowedValues ?? []).map((value) => ({
+                                        value,
+                                        label: value,
+                                      }))}
+                                      onChange={(value) => {
+                                        updatePriceCondition(criteriaRule.id, index, {
+                                          value: value ? [value] : [],
+                                        });
+                                        setCriteriaModalError('');
+                                      }}
+                                    />
+                                  ) : (
+                                    <input
+                                      type="text"
+                                      className={inputClass}
+                                      placeholder="Nhập giá trị"
+                                      value={selectedInValues.join(', ')}
+                                      onChange={(e) => {
+                                        const parts = e.target.value
+                                          .split(',')
+                                          .map((item) => item.trim())
+                                          .filter(Boolean);
+                                        updatePriceCondition(criteriaRule.id, index, {
+                                          value: parts,
+                                        });
+                                        setCriteriaModalError('');
+                                      }}
+                                    />
+                                  )
                                 ) : (
                                   <input
                                     type="text"
                                     className={inputClass}
                                     placeholder="Nhập giá trị"
-                                    value={
-                                      Array.isArray(condition.value)
-                                        ? condition.value.join(' - ')
-                                        : String(condition.value ?? '')
-                                    }
-                                    onChange={(e) =>
+                                    value={singleValue}
+                                    onChange={(e) => {
                                       updatePriceCondition(criteriaRule.id, index, {
                                         value: e.target.value,
-                                      })
-                                    }
+                                      });
+                                      setCriteriaModalError('');
+                                    }}
                                   />
                                 )}
                               </div>
@@ -2572,6 +2876,9 @@ const RescueFeeForm: React.FC = () => {
                           </div>
                         )}
                       </div>
+                      {criteriaModalError && (
+                        <p className="mt-3 text-xs font-semibold text-red-600">{criteriaModalError}</p>
+                      )}
                       <button
                         type="button"
                         disabled={!canAddCriteriaRuleCondition}
@@ -2589,7 +2896,7 @@ const RescueFeeForm: React.FC = () => {
                       </span>
                       <button
                         type="button"
-                        onClick={() => setCriteriaRuleId(null)}
+                        onClick={completeCriteriaModal}
                         className="rounded bg-vetc-green px-5 py-2 text-xs font-bold text-white hover:bg-green-700"
                       >
                         Hoàn tất
@@ -2643,15 +2950,6 @@ const RescueFeeForm: React.FC = () => {
                         title="Nhân bản dòng"
                       >
                         <Copy size={13} /> Nhân bản
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!bulkCriterionId}
-                        onClick={() => generateRulesFromCriterion(rule.id)}
-                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold text-vetc-green hover:bg-white disabled:text-gray-300"
-                        title="Tạo một dòng cho mỗi giá trị tiêu chí"
-                      >
-                        <Layers3 size={13} /> Sinh dòng
                       </button>
                       <button
                         type="button"
@@ -3063,152 +3361,281 @@ const RescueFeeForm: React.FC = () => {
                 Chưa có đầu phụ phí. Vui lòng chọn tại tab 1.
               </div>
             ) : (
-              <div className="space-y-3">
-                {form.surchargeRules.map((s) => {
-                  const isHoliday = s.name === 'Lễ/Tết' || s.conditions[0]?.criterionKey === 'holiday';
+              <div className="space-y-4">
+                {surchargeGroups.map((group, groupIndex) => {
+                  const first = group.rules[0];
+                  const groupCriterionKey = first?.conditions[0]?.criterionKey;
+                  const groupCriterionLabel =
+                    first?.conditions[0]?.criterionLabel || 'Chưa gắn tiêu chí';
+                  const isHolidayGroup =
+                    group.name === 'Lễ/Tết' || groupCriterionKey === 'holiday';
+                  const isTimeGroup = isTimeSurchargeCriterion(groupCriterionKey);
                   return (
-                    <div key={s.id} className="rounded-lg border bg-white p-4 shadow-sm">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-bold text-gray-800">{s.name}</div>
-                          <div className="text-[10px] text-gray-400">
-                            {s.conditions[0]?.criterionLabel || 'Chưa gắn tiêu chí'}
-                            {s.conditions[0]?.value ? ` = ${s.conditions[0].value}` : ''}
+                    <div
+                      key={group.name}
+                      className="overflow-hidden rounded-lg border bg-white shadow-sm"
+                    >
+                      <div className="flex items-center justify-between border-b bg-gray-50 px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-vetc-green text-xs font-black text-white">
+                            {groupIndex + 1}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => duplicateSurcharge(s.id)}
-                            className="rounded p-1.5 text-gray-500 hover:bg-gray-100"
-                            title="Sao chép phụ phí"
-                          >
-                            <Copy size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeSurcharge(s.id)}
-                            className="rounded p-1.5 text-red-500 hover:bg-red-50"
-                            title="Xóa phụ phí"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-                        <div>
-                          <label className={labelClass}>Kiểu</label>
-                          <AppSelect
-                            value={s.type}
-                            options={[
-                              { value: 'FIXED', label: 'Cố định' },
-                              { value: 'COEFFICIENT', label: 'Hệ số' },
-                            ]}
-                            onChange={(value) =>
-                              updateSurcharge(s.id, { type: value as SurchargeType })
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className={labelClass}>
-                            {s.type === 'COEFFICIENT' ? 'Hệ số' : 'Giá trị'}
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            className={`${inputClass} text-right`}
-                            value={s.value}
-                            onChange={(e) =>
-                              updateSurcharge(s.id, { value: Number(e.target.value) || 0 })
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label className={labelClass}>Tiêu chí phụ</label>
-                          <AppSelect
-                            value={s.conditions[0]?.criterionKey ?? ''}
-                            placeholder="Chọn tiêu chí"
-                            className={!s.conditions.length ? 'border-red-300' : ''}
-                            options={SURCHARGE_CRITERIA_CATALOG.map((criterion) => ({
-                              value: criterion.key,
-                              label: criterion.label,
-                              disabled: form.surchargeRules.some(
-                                (item) =>
-                                  item.id !== s.id &&
-                                  item.conditions[0]?.criterionKey === criterion.key
-                              ),
-                            }))}
-                            onChange={(value) => setSurchargeCriterion(s.id, value)}
-                          />
-                        </div>
-                        <div>
-                          <label className={labelClass}>Giá trị tiêu chí</label>
-                          <AppSelect
-                            disabled={!s.conditions.length || isHoliday}
-                            value={String(s.conditions[0]?.value ?? '')}
-                            placeholder="Chọn giá trị"
-                            options={(SURCHARGE_CRITERIA_CATALOG.find(
-                              (criterion) => criterion.key === s.conditions[0]?.criterionKey
-                            )?.values ?? []).map((value) => ({ value, label: value }))}
-                            onChange={(value) => setSurchargeConditionValue(s.id, value)}
-                          />
-                        </div>
-                      </div>
-
-                      {isHoliday && (
-                        <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50/60 p-3">
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <div>
-                              <div className="text-xs font-bold text-amber-800">Ngày holiday áp dụng</div>
-                              <div className="text-[10px] text-amber-700">
-                                Chỉ thu phụ phí Lễ/Tết khi ngày đơn thuộc danh sách này.
-                              </div>
+                          <div>
+                            <div className="text-sm font-bold text-gray-800">{group.name}</div>
+                            <div className="text-[10px] text-gray-500">
+                              {groupCriterionLabel} · {group.rules.length} dòng điều kiện
                             </div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateSurcharge(s.id, {
-                                  holidayDates: [...(s.holidayDates ?? []), ''],
-                                })
-                              }
-                              className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-1 text-[10px] font-bold text-amber-700"
-                            >
-                              <Plus size={12} /> Thêm ngày
-                            </button>
                           </div>
-                          <div className="space-y-2">
-                            {(s.holidayDates ?? []).map((date, index) => (
-                              <div key={`${s.id}-holiday-${index}`} className="flex items-center gap-2">
-                                <input
-                                  type="date"
-                                  className={inputClass}
-                                  value={date}
-                                  onChange={(e) => {
-                                    const next = [...(s.holidayDates ?? [])];
-                                    next[index] = e.target.value;
-                                    updateSurcharge(s.id, { holidayDates: next });
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    updateSurcharge(s.id, {
-                                      holidayDates: (s.holidayDates ?? []).filter((_, i) => i !== index),
-                                    })
-                                  }
-                                  className="rounded p-1.5 text-red-500 hover:bg-red-50"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            ))}
-                            {(s.holidayDates ?? []).length === 0 && (
-                              <div className="text-xs text-amber-700">
-                                Chưa có ngày holiday. Nhấn “Thêm ngày” để cấu hình.
-                              </div>
-                            )}
-                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => addSurchargeLine(group.name)}
+                            className="inline-flex items-center gap-1 rounded border border-vetc-green bg-white px-3 py-1.5 text-[10px] font-bold text-vetc-green hover:bg-green-50"
+                            title="Thêm dòng điều kiện cùng loại"
+                          >
+                            <Plus size={13} />
+                            Thêm dòng
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeSurchargeHead(group.name)}
+                            className="inline-flex items-center gap-1 rounded border border-red-200 bg-white px-3 py-1.5 text-[10px] font-bold text-red-600 hover:bg-red-50"
+                            title="Xóa nhóm phụ phí"
+                          >
+                            <Trash2 size={13} />
+                            Xóa
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[960px] border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-white text-[10px] font-bold uppercase tracking-wide text-gray-600">
+                              <th className="w-[160px] border-b border-r px-3 py-2 text-left">Kiểu</th>
+                              <th className="w-[140px] border-b border-r px-3 py-2 text-right">
+                                Giá trị / Hệ số
+                              </th>
+                              <th className="w-[220px] border-b border-r px-3 py-2 text-left">
+                                Tiêu chí phụ
+                              </th>
+                              <th className="border-b border-r px-3 py-2 text-left">
+                                {isTimeGroup ? 'Khoảng thời gian' : 'Giá trị tiêu chí'}
+                              </th>
+                              <th className="w-[100px] border-b px-3 py-2 text-center">Thao tác</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.rules.map((s) => {
+                              const isHoliday =
+                                s.name === 'Lễ/Tết' || s.conditions[0]?.criterionKey === 'holiday';
+                              const isTimeCriterion = isTimeSurchargeCriterion(
+                                s.conditions[0]?.criterionKey
+                              );
+                              const timeFrom = Array.isArray(s.conditions[0]?.value)
+                                ? String(s.conditions[0]?.value[0] ?? '')
+                                : '';
+                              const timeTo = Array.isArray(s.conditions[0]?.value)
+                                ? String(s.conditions[0]?.value[1] ?? '')
+                                : '';
+                              return (
+                                <React.Fragment key={s.id}>
+                                  <tr className="align-top even:bg-gray-50/40">
+                                    <td className="border-b border-r p-2">
+                                      <AppSelect
+                                        value={s.type}
+                                        options={[
+                                          { value: 'FIXED', label: 'Cố định' },
+                                          { value: 'COEFFICIENT', label: 'Hệ số' },
+                                        ]}
+                                        onChange={(value) =>
+                                          updateSurcharge(s.id, {
+                                            type: value as SurchargeType,
+                                          })
+                                        }
+                                      />
+                                    </td>
+                                    <td className="border-b border-r p-2">
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        className={`${inputClass} text-right font-semibold`}
+                                        value={s.value}
+                                        onChange={(e) =>
+                                          updateSurcharge(s.id, {
+                                            value: Number(e.target.value) || 0,
+                                          })
+                                        }
+                                      />
+                                    </td>
+                                    <td className="border-b border-r p-2">
+                                      <AppSelect
+                                        value={s.conditions[0]?.criterionKey ?? ''}
+                                        placeholder="Chọn tiêu chí"
+                                        className={!s.conditions.length ? 'border-red-300' : ''}
+                                        options={SURCHARGE_CRITERIA_CATALOG.map((criterion) => ({
+                                          value: criterion.key,
+                                          label: criterion.label,
+                                          disabled: form.surchargeRules.some(
+                                            (item) =>
+                                              item.name !== s.name &&
+                                              item.conditions[0]?.criterionKey === criterion.key
+                                          ),
+                                        }))}
+                                        onChange={(value) => setSurchargeCriterion(s.id, value)}
+                                      />
+                                    </td>
+                                    <td className="border-b border-r p-2">
+                                      {isTimeCriterion ? (
+                                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                                          <input
+                                            type="time"
+                                            className={inputClass}
+                                            value={timeFrom}
+                                            onChange={(e) =>
+                                              setSurchargeTimeRange(
+                                                s.id,
+                                                e.target.value,
+                                                timeTo
+                                              )
+                                            }
+                                          />
+                                          <span className="text-xs font-semibold text-gray-400">
+                                            –
+                                          </span>
+                                          <input
+                                            type="time"
+                                            className={inputClass}
+                                            value={timeTo}
+                                            onChange={(e) =>
+                                              setSurchargeTimeRange(
+                                                s.id,
+                                                timeFrom,
+                                                e.target.value
+                                              )
+                                            }
+                                          />
+                                        </div>
+                                      ) : (
+                                        <AppSelect
+                                          disabled={!s.conditions.length || isHoliday}
+                                          value={String(s.conditions[0]?.value ?? '')}
+                                          placeholder="Chọn giá trị"
+                                          options={(SURCHARGE_CRITERIA_CATALOG.find(
+                                            (criterion) =>
+                                              criterion.key === s.conditions[0]?.criterionKey
+                                          )?.values ?? []).map((value) => ({
+                                            value,
+                                            label: value,
+                                          }))}
+                                          onChange={(value) =>
+                                            setSurchargeConditionValue(s.id, value)
+                                          }
+                                        />
+                                      )}
+                                    </td>
+                                    <td className="border-b p-2">
+                                      <div className="flex items-center justify-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => duplicateSurcharge(s.id)}
+                                          className="rounded p-1.5 text-gray-500 hover:bg-gray-100"
+                                          title="Nhân bản dòng"
+                                        >
+                                          <Copy size={14} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeSurcharge(s.id)}
+                                          disabled={group.rules.length <= 1}
+                                          className="rounded p-1.5 text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300"
+                                          title={
+                                            group.rules.length <= 1
+                                              ? 'Giữ ít nhất 1 dòng — dùng nút Xóa nhóm'
+                                              : 'Xóa dòng'
+                                          }
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                  {isHoliday && (
+                                    <tr className="bg-amber-50/40">
+                                      <td colSpan={5} className="border-b px-3 py-3">
+                                        <div className="mb-2 flex items-center justify-between gap-2">
+                                          <div>
+                                            <div className="text-xs font-bold text-amber-800">
+                                              Ngày holiday áp dụng
+                                            </div>
+                                            <div className="text-[10px] text-amber-700">
+                                              Chỉ thu phụ phí Lễ/Tết khi ngày đơn thuộc danh sách
+                                              này.
+                                            </div>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              updateSurcharge(s.id, {
+                                                holidayDates: [...(s.holidayDates ?? []), ''],
+                                              })
+                                            }
+                                            className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-1 text-[10px] font-bold text-amber-700"
+                                          >
+                                            <Plus size={12} /> Thêm ngày
+                                          </button>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                          {(s.holidayDates ?? []).map((date, index) => (
+                                            <div
+                                              key={`${s.id}-holiday-${index}`}
+                                              className="flex items-center gap-1"
+                                            >
+                                              <input
+                                                type="date"
+                                                className={`${inputClass} w-auto`}
+                                                value={date}
+                                                onChange={(e) => {
+                                                  const next = [...(s.holidayDates ?? [])];
+                                                  next[index] = e.target.value;
+                                                  updateSurcharge(s.id, { holidayDates: next });
+                                                }}
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  updateSurcharge(s.id, {
+                                                    holidayDates: (s.holidayDates ?? []).filter(
+                                                      (_, i) => i !== index
+                                                    ),
+                                                  })
+                                                }
+                                                className="rounded p-1.5 text-red-500 hover:bg-red-50"
+                                              >
+                                                <Trash2 size={13} />
+                                              </button>
+                                            </div>
+                                          ))}
+                                          {(s.holidayDates ?? []).length === 0 && (
+                                            <div className="text-xs text-amber-700">
+                                              Chưa có ngày holiday. Nhấn “Thêm ngày” để cấu hình.
+                                            </div>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {isHolidayGroup && group.rules.length > 1 && (
+                        <div className="border-t bg-amber-50/50 px-4 py-2 text-[10px] text-amber-700">
+                          Mỗi dòng Lễ/Tết có thể cấu hình danh sách ngày riêng.
                         </div>
                       )}
                     </div>

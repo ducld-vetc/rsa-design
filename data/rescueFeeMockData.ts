@@ -143,9 +143,15 @@ export interface FeeCalculationInput {
   supplierName?: string;
   weather?: 'NORMAL' | 'RAIN' | 'STORM';
   isNight?: boolean;
+  /** Giờ yêu cầu cứu hộ (HH:mm) — khớp tiêu chí timeWindow From–To */
+  requestTime?: string;
+  /** Giờ thực hiện cứu hộ (HH:mm) — khớp tiêu chí executionTimeWindow From–To */
+  executionTime?: string;
   severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   locationType?: 'ROAD' | 'BASEMENT' | 'ALLEY' | 'SLOPE';
   isHighway?: boolean;
+  /** Tuyến cao tốc cụ thể (CT.01 … CT.42) — dùng khớp tiêu chí Vị trí trên cao tốc */
+  highwayRoute?: string;
   packageBenefitAmount?: number;
   asOfDate?: string;
   lines: FeeServiceLineInput[];
@@ -246,14 +252,45 @@ export const upsertFeeCriterionDefinition = (definition: FeeCriterionDefinition)
       : [...feeCriterionDefinitions, definition];
 };
 
-export const FEE_SERVICE_CATALOG: { value: string; type: ServiceType }[] = [
+export const FEE_SERVICE_CATALOG: Array<{
+  value: string;
+  type: ServiceType;
+  /** Dịch vụ con — áp dụng cho Kéo xe / Cẩu xe */
+  children?: readonly string[];
+}> = [
   { value: 'Kích bình ắc quy', type: 'ONSITE' },
   { value: 'Thay lốp dự phòng', type: 'ONSITE' },
   { value: 'Cung cấp nhiên liệu khẩn cấp (xăng, dầu, nước làm mát)', type: 'ONSITE' },
   { value: 'Thủy kích', type: 'ONSITE' },
-  { value: 'Kéo xe', type: 'TOWING' },
-  { value: 'Cẩu xe', type: 'CRANE' },
+  {
+    value: 'Kéo xe',
+    type: 'TOWING',
+    children: [
+      'Kéo xe về gara',
+      'Kéo xe đường dài',
+      'Kéo xe bằng sàn trượt',
+      'Kéo xe không giới hạn khoảng cách',
+    ],
+  },
+  {
+    value: 'Cẩu xe',
+    type: 'CRANE',
+    children: [
+      'Cẩu xe mặt đường',
+      'Cẩu xe dưới mặt đường',
+      'Cẩu xe taluy/mương',
+      'Cẩu xe từ tầng hầm',
+    ],
+  },
 ];
+
+/** Resolve loại dịch vụ từ tên đầu dịch vụ hoặc dịch vụ con */
+export const resolveFeeServiceType = (serviceDetail: string): ServiceType | undefined => {
+  const direct = FEE_SERVICE_CATALOG.find((item) => item.value === serviceDetail);
+  if (direct) return direct.type;
+  const parent = FEE_SERVICE_CATALOG.find((item) => item.children?.includes(serviceDetail));
+  return parent?.type;
+};
 
 export const FEE_SURCHARGE_CATALOG = [
   {
@@ -287,10 +324,16 @@ export const FEE_SURCHARGE_CATALOG = [
     value: 'Nặng',
   },
   {
-    name: 'Khung giờ',
+    name: 'Thời gian yêu cầu cứu hộ',
     criterionKey: 'timeWindow',
-    criterionLabel: 'Khung giờ',
-    value: 'Ban đêm',
+    criterionLabel: 'Thời gian yêu cầu cứu hộ',
+    value: '22:00-06:00',
+  },
+  {
+    name: 'Thời gian thực hiện cứu hộ',
+    criterionKey: 'executionTimeWindow',
+    criterionLabel: 'Thời gian thực hiện cứu hộ',
+    value: '22:00-06:00',
   },
   {
     name: 'Khu vực đặc biệt (Hầm)',
@@ -301,8 +344,8 @@ export const FEE_SURCHARGE_CATALOG = [
   {
     name: 'Tuyến cao tốc',
     criterionKey: 'isHighway',
-    criterionLabel: 'Vị trí cao tốc',
-    value: 'Có',
+    criterionLabel: 'Vị trí trên cao tốc',
+    value: 'Cao tốc Bắc – Nam phía Đông (CT.01)',
   },
   {
     name: 'Lễ/Tết',
@@ -311,6 +354,52 @@ export const FEE_SURCHARGE_CATALOG = [
     value: 'Có',
     requiresHolidayDates: true,
   },
+] as const;
+
+/** Danh mục tuyến cao tốc — giá trị tiêu chí Vị trí trên cao tốc */
+export const HIGHWAY_ROUTE_VALUES = [
+  'Cao tốc Bắc – Nam phía Đông (CT.01)',
+  'Cao tốc Bắc – Nam phía Tây (CT.02)',
+  'Hà Nội – Hòa Bình – Sơn La – Điện Biên (CT.03)',
+  'Hà Nội – Hải Phòng (CT.04)',
+  'Nội Bài – Hạ Long – Móng Cái (CT.05)',
+  'Hà Nội – Lào Cai (CT.06)',
+  'Tuyên Quang – Phú Thọ (CT.07)',
+  'Ninh Bình – Hải Phòng (CT.08)',
+  'Ninh Bình – Thanh Hóa (CT.09)',
+  'Thanh Hóa – Hà Tĩnh (CT.10)',
+  'Phủ Lý – Nam Định (CT.11)',
+  'Tuyến nối Hà Nội – Lào Cai với Hà Giang (CT.12)',
+  'Bảo Hà – Lai Châu (CT.13)',
+  'Chợ Bến – Yên Mỹ (CT.14)',
+  'Tuyên Quang – Hà Giang (CT.15)',
+  'Hưng Yên – Thái Bình (CT.16)',
+  'Vinh – Thanh Thủy (CT.17)',
+  'Vũng Áng – Cha Lo (CT.18)',
+  'Cam Lộ – Lao Bảo (CT.19)',
+  'Quy Nhơn – Pleiku – Lệ Thanh (CT.20)',
+  'Đà Nẵng – Thạch Mỹ – Ngọc Hồi – Bờ Y (CT.21)',
+  'Quảng Ngãi – Kon Tum (CT.22)',
+  'Quảng Ngãi – Quy Nhơn (CT.23)',
+  'Quy Nhơn – Nha Trang (CT.24)',
+  'Nha Trang – Liên Khương (CT.25)',
+  'Nha Trang – Buôn Ma Thuột (CT.26)',
+  'Dầu Giây – Liên Khương (CT.27)',
+  'Biên Hòa – Vũng Tàu (CT.28)',
+  'Thành phố Hồ Chí Minh – Chơn Thành – Hoa Lư (CT.29)',
+  'Thành phố Hồ Chí Minh – Mộc Bài (CT.30)',
+  'Thành phố Hồ Chí Minh – Trung Lương – Mỹ Thuận – Cần Thơ – Cà Mau (CT.31)',
+  'Châu Đốc – Cần Thơ – Sóc Trăng (CT.32)',
+  'Hà Tiên – Rạch Giá – Bạc Liêu (CT.33)',
+  'Hồng Ngự – Trà Vinh (CT.34)',
+  'Thành phố Hồ Chí Minh – Tiền Giang – Bến Tre – Trà Vinh – Sóc Trăng (CT.35)',
+  'Cần Thơ – Cà Mau (CT.36)',
+  'Vành đai 3 Hà Nội (CT.37)',
+  'Vành đai 4 Hà Nội (CT.38)',
+  'Vành đai 5 Hà Nội (CT.39)',
+  'Vành đai 3 Thành phố Hồ Chí Minh (CT.40)',
+  'Vành đai 4 Thành phố Hồ Chí Minh (CT.41)',
+  'Vành đai 5 Thành phố Hồ Chí Minh (CT.42)',
 ] as const;
 
 export const SURCHARGE_CRITERIA_CATALOG = [
@@ -341,8 +430,15 @@ export const SURCHARGE_CRITERIA_CATALOG = [
   },
   {
     key: 'timeWindow',
-    label: 'Khung giờ',
-    values: ['Giờ hành chính', 'Ngoài giờ', 'Ban đêm'],
+    label: 'Thời gian yêu cầu cứu hộ',
+    valueType: 'TIME_RANGE' as const,
+    values: ['22:00', '06:00'],
+  },
+  {
+    key: 'executionTimeWindow',
+    label: 'Thời gian thực hiện cứu hộ',
+    valueType: 'TIME_RANGE' as const,
+    values: ['22:00', '06:00'],
   },
   {
     key: 'locationType',
@@ -351,8 +447,8 @@ export const SURCHARGE_CRITERIA_CATALOG = [
   },
   {
     key: 'isHighway',
-    label: 'Vị trí cao tốc',
-    values: ['Có', 'Không'],
+    label: 'Vị trí trên cao tốc',
+    values: [...HIGHWAY_ROUTE_VALUES],
   },
   {
     key: 'holiday',
@@ -360,6 +456,51 @@ export const SURCHARGE_CRITERIA_CATALOG = [
     values: ['Có', 'Không'],
   },
 ] as const;
+
+export const TIME_SURCHARGE_CRITERION_KEYS = new Set([
+  'timeWindow',
+  'executionTimeWindow',
+]);
+
+export const isTimeSurchargeCriterion = (key?: string): boolean =>
+  Boolean(key && TIME_SURCHARGE_CRITERION_KEYS.has(key));
+
+export const DEFAULT_TIME_RANGE: [string, string] = ['22:00', '06:00'];
+
+export const parseTimeToMinutes = (time: string): number | null => {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(time).trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes) || hours > 23 || minutes > 59) {
+    return null;
+  }
+  return hours * 60 + minutes;
+};
+
+/** Khoảng giờ có thể qua đêm (VD 22:00–06:00). */
+export const isTimeInRange = (
+  actual: string | number | undefined,
+  from: string,
+  to: string
+): boolean => {
+  const actualMin =
+    typeof actual === 'number' && Number.isFinite(actual)
+      ? actual
+      : parseTimeToMinutes(String(actual ?? ''));
+  const fromMin = parseTimeToMinutes(from);
+  const toMin = parseTimeToMinutes(to);
+  if (actualMin == null || fromMin == null || toMin == null) return false;
+  if (fromMin <= toMin) return actualMin >= fromMin && actualMin <= toMin;
+  return actualMin >= fromMin || actualMin <= toMin;
+};
+
+export const formatTimeRangeLabel = (value: FeeRuleCondition['value']): string => {
+  if (Array.isArray(value) && value.length >= 2) {
+    return `${value[0] || '—'} – ${value[1] || '—'}`;
+  }
+  return String(value ?? '');
+};
 
 export const FEE_KIND_LABELS: Record<FeeTableKind, string> = {
   CUSTOMER_PUBLIC: 'KH Public (gói)',
@@ -404,16 +545,16 @@ export const FEE_TARGET_LABELS: Record<FeeTarget, string> = {
 const sharedSurcharges: SurchargeRule[] = [
   {
     id: 'time-window',
-    name: 'Khung giờ',
+    name: 'Thời gian yêu cầu cứu hộ',
     type: 'COEFFICIENT',
     value: 1.15,
-    activeWhen: 'timeWindow=Ban đêm',
+    activeWhen: 'timeWindow=22:00-06:00',
     conditions: [
       {
         criterionKey: 'timeWindow',
-        criterionLabel: 'Khung giờ',
-        operator: '=',
-        value: 'Ban đêm',
+        criterionLabel: 'Thời gian yêu cầu cứu hộ',
+        operator: 'BETWEEN',
+        value: ['22:00', '06:00'],
       },
     ],
     stackable: true,
@@ -997,6 +1138,13 @@ const valueMatchesCondition = (
   if (condition.operator === '>=') return Number(actual) >= Number(condition.value);
   if (condition.operator === '<=') return Number(actual) <= Number(condition.value);
   if (condition.operator === 'BETWEEN' && Array.isArray(condition.value)) {
+    if (isTimeSurchargeCriterion(condition.criterionKey)) {
+      return isTimeInRange(
+        typeof actual === 'boolean' ? undefined : actual,
+        String(condition.value[0] ?? ''),
+        String(condition.value[1] ?? '')
+      );
+    }
     return Number(actual) >= Number(condition.value[0]) && Number(actual) <= Number(condition.value[1]);
   }
   return false;
@@ -1024,8 +1172,9 @@ const buildRuleContext = (
         : input.severity === 'MEDIUM'
           ? 'Trung bình'
           : 'Nhẹ',
-  timeWindow: input.isNight ? 'Ban đêm' : 'Giờ hành chính',
-  isHighway: input.isHighway ? 'Có' : 'Không',
+  timeWindow: input.requestTime ?? (input.isNight ? '23:00' : '10:00'),
+  executionTimeWindow: input.executionTime ?? (input.isNight ? '23:00' : '10:00'),
+  isHighway: input.highwayRoute ?? (input.isHighway ? HIGHWAY_ROUTE_VALUES[0] : undefined),
   distanceKm: line?.distanceKm,
   roadPosition:
     line?.roadPosition === 'BELOW_ROAD'
