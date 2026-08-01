@@ -1068,13 +1068,41 @@ const RescueFeeForm: React.FC = () => {
 
   const downloadPartnerExcelTemplate = () => {
     const wb = XLSX.utils.book_new();
+    const guideSheet = XLSX.utils.aoa_to_sheet([
+      ['Sheet', 'MoTa'],
+      ['ThongTin', 'Thông tin chung bảng phí (mỗi dòng = 1 trường)'],
+      ['DichVu', 'Các dòng giá dịch vụ — mỗi dòng Excel = 1 dòng giá'],
+      ['PhuPhi', 'Các dòng phụ phí có điều kiện — mỗi dòng Excel = 1 dòng phụ phí'],
+      [],
+      ['Cot DichVu', 'Y Nghia'],
+      ['DichVu', 'Tên dịch vụ / dịch vụ con (VD: Kích bình ắc quy, Kéo xe về gara, Cẩu xe mặt đường)'],
+      ['CachTinh', 'Theo lượt | Theo đơn vị'],
+      ['MucGia', 'Mức giá (VNĐ)'],
+      ['Tu', 'Tiêu chí chính Từ (km/m) — để trống nếu dịch vụ tại chỗ'],
+      ['Den', 'Tiêu chí chính Đến (km/m)'],
+      ['TrongTaiTu', 'Trọng tải từ (tấn) — tùy chọn'],
+      ['TrongTaiDen', 'Trọng tải đến (tấn) — tùy chọn'],
+      ['SoCho', 'Số chỗ — tùy chọn'],
+      ['LoaiPTGapSuCo', 'Xe chở người | Xe chở hàng'],
+      ['LoaiPTCuuHo', 'Xe máy | Xe van | Xe sàn trượt | Xe cẩu, kéo'],
+      [],
+      ['Cot PhuPhi', 'Y Nghia'],
+      ['TenPhuPhi', 'Tên đầu phụ phí (VD: Thời gian yêu cầu cứu hộ, Tuyến cao tốc, Thời tiết)'],
+      ['Kieu', 'Cố định | Hệ số'],
+      ['GiaTri', 'Số tiền (Cố định) hoặc hệ số (VD: 1.15)'],
+      ['TieuChi', 'Key tiêu chí: timeWindow | executionTimeWindow | isHighway | weather | holiday | ...'],
+      [
+        'GiaTriTieuChi',
+        'Giá trị tiêu chí. Thời gian: 22:00-06:00. Cao tốc: tên tuyến (CT.xx). Khác: giá trị danh sách',
+      ],
+    ]);
     const infoSheet = XLSX.utils.aoa_to_sheet([
       ['Truong', 'GiaTri'],
       ['code', form.code || 'SUP-EXT-PARTNER'],
-      ['name', form.name || 'Bảng phí đối tác'],
-      ['target', 'SUPPLIER'],
-      ['kind', 'SUPPLIER_EXTERNAL'],
-      ['status', 'DRAFT'],
+      ['name', form.name || 'Bảng phí đối tác mẫu'],
+      ['target', form.target || 'SUPPLIER'],
+      ['kind', form.kind || 'SUPPLIER_EXTERNAL'],
+      ['status', form.status || 'DRAFT'],
       ['retailMarkupFactor', form.settings.retailMarkupFactor],
       ['roundMode', form.settings.roundMode],
       ['stackSurcharges', form.settings.stackSurcharges ? 'Nhân hệ số' : 'Hệ số cao nhất'],
@@ -1093,7 +1121,19 @@ const RescueFeeForm: React.FC = () => {
         LoaiPTCuuHo: '',
       },
       {
-        DichVu: 'Kéo xe',
+        DichVu: 'Thay lốp dự phòng',
+        CachTinh: 'Theo lượt',
+        MucGia: 400000,
+        Tu: '',
+        Den: '',
+        TrongTaiTu: '',
+        TrongTaiDen: '',
+        SoCho: '',
+        LoaiPTGapSuCo: 'Xe chở người',
+        LoaiPTCuuHo: '',
+      },
+      {
+        DichVu: 'Kéo xe về gara',
         CachTinh: 'Theo lượt',
         MucGia: 100000,
         Tu: 0,
@@ -1105,7 +1145,7 @@ const RescueFeeForm: React.FC = () => {
         LoaiPTCuuHo: 'Xe sàn trượt',
       },
       {
-        DichVu: 'Kéo xe',
+        DichVu: 'Kéo xe về gara',
         CachTinh: 'Theo đơn vị',
         MucGia: 10000,
         Tu: 10,
@@ -1117,7 +1157,19 @@ const RescueFeeForm: React.FC = () => {
         LoaiPTCuuHo: 'Xe sàn trượt',
       },
       {
-        DichVu: 'Cẩu xe',
+        DichVu: 'Kéo xe đường dài',
+        CachTinh: 'Theo đơn vị',
+        MucGia: 15000,
+        Tu: 20,
+        Den: 50,
+        TrongTaiTu: '',
+        TrongTaiDen: '',
+        SoCho: '',
+        LoaiPTGapSuCo: 'Xe chở hàng',
+        LoaiPTCuuHo: 'Xe sàn trượt',
+      },
+      {
+        DichVu: 'Cẩu xe mặt đường',
         CachTinh: 'Theo lượt',
         MucGia: 900000,
         Tu: 0,
@@ -1126,6 +1178,18 @@ const RescueFeeForm: React.FC = () => {
         TrongTaiDen: '',
         SoCho: '',
         LoaiPTGapSuCo: 'Xe chở người',
+        LoaiPTCuuHo: 'Xe cẩu, kéo',
+      },
+      {
+        DichVu: 'Cẩu xe dưới mặt đường',
+        CachTinh: 'Theo lượt',
+        MucGia: 1500000,
+        Tu: 1,
+        Den: 3,
+        TrongTaiTu: '',
+        TrongTaiDen: '',
+        SoCho: '',
+        LoaiPTGapSuCo: 'Xe chở hàng',
         LoaiPTCuuHo: 'Xe cẩu, kéo',
       },
     ]);
@@ -1138,13 +1202,42 @@ const RescueFeeForm: React.FC = () => {
         GiaTriTieuChi: '22:00-06:00',
       },
       {
+        TenPhuPhi: 'Thời gian thực hiện cứu hộ',
+        Kieu: 'Hệ số',
+        GiaTri: 1.1,
+        TieuChi: 'executionTimeWindow',
+        GiaTriTieuChi: '18:00-22:00',
+      },
+      {
         TenPhuPhi: 'Tuyến cao tốc',
         Kieu: 'Cố định',
         GiaTri: 150000,
         TieuChi: 'isHighway',
         GiaTriTieuChi: 'Cao tốc Bắc – Nam phía Đông (CT.01)',
       },
+      {
+        TenPhuPhi: 'Tuyến cao tốc',
+        Kieu: 'Cố định',
+        GiaTri: 180000,
+        TieuChi: 'isHighway',
+        GiaTriTieuChi: 'Hà Nội – Hải Phòng (CT.04)',
+      },
+      {
+        TenPhuPhi: 'Thời tiết',
+        Kieu: 'Cố định',
+        GiaTri: 250000,
+        TieuChi: 'weather',
+        GiaTriTieuChi: 'Bão',
+      },
+      {
+        TenPhuPhi: 'Lễ/Tết',
+        Kieu: 'Hệ số',
+        GiaTri: 1.2,
+        TieuChi: 'holiday',
+        GiaTriTieuChi: 'Có',
+      },
     ]);
+    XLSX.utils.book_append_sheet(wb, guideSheet, 'HuongDan');
     XLSX.utils.book_append_sheet(wb, infoSheet, 'ThongTin');
     XLSX.utils.book_append_sheet(wb, serviceSheet, 'DichVu');
     XLSX.utils.book_append_sheet(wb, surchargeSheet, 'PhuPhi');
@@ -1728,7 +1821,7 @@ const RescueFeeForm: React.FC = () => {
                       Chọn file Excel bảng phí đối tác
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      Hỗ trợ .xlsx, .xls, .csv · Sheet: ThongTin, DichVu, PhuPhi
+                      Hỗ trợ .xlsx, .xls, .csv · Sheet bắt buộc: ThongTin, DichVu, PhuPhi (HuongDan tùy chọn)
                     </p>
                     {tableImportFileName && (
                       <p className="mt-2 text-xs font-semibold text-vetc-green">

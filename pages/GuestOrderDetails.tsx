@@ -1,5 +1,6 @@
-import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
-import { useLocation } from 'react-router-dom';
+import React, {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import { createPortal } from 'react-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {AnimatePresence, motion} from 'framer-motion';
 import {
   Activity,
@@ -19,6 +20,7 @@ import {
   Eye,
   FileText,
   Hash,
+  Info,
   LifeBuoy,
   Loader2,
   Mail,
@@ -38,6 +40,7 @@ import {
   Sparkles,
   Star,
   Pencil,
+  Table2,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -68,6 +71,7 @@ import CustomerFeeChangeWarningModal, {
   CustomerFeeWarningType
 } from '../shared/CustomerFeeChangeWarningModal';
 import GuaranteeRateChangeWarningModal from '../shared/GuaranteeRateChangeWarningModal';
+import ManualFeeRecalcWarningModal from '../shared/ManualFeeRecalcWarningModal';
 import UnpaidDepositRemainingWarningModal from '../shared/UnpaidDepositRemainingWarningModal';
 import ProviderPaymentConfirmDialog from '../shared/ProviderPaymentConfirmDialog';
 import UsageHistoryModal, {
@@ -94,7 +98,18 @@ import {
   calculateRescueFees,
   getRetailMarkupFactor,
   formatMoneyVi,
+  getActiveIncidentalFeeOptions,
+  formatTimeRangeLabel,
+  isTimeSurchargeCriterion,
+  inferServiceType,
+  rescueFeeTables,
+  FEE_KIND_LABELS,
+  FEE_STATUS_LABELS,
   type FeeSnapshot,
+  type FeeRuleCondition,
+  type FeeCalculationInput,
+  type PriceTable,
+  type SurchargeBreakdownItem,
 } from '../data/rescueFeeMockData';
 
 interface ActualService {
@@ -214,6 +229,12 @@ type AdjustmentRow = {
   serviceName: string;
   fixedPrice: string;
   adjustmentType: string;
+  supplierAdjustmentType?: string;
+  /** Hệ số phía KH */
+  customerCoefficient: string;
+  /** Hệ số phía NCC */
+  supplierCoefficient: string;
+  /** @deprecated dùng supplierCoefficient — giữ để tương thích edit logic cũ */
   coefficient: string;
   ceilingPrice: string;
   discount: string;
@@ -224,6 +245,10 @@ type AdjustmentRow = {
   isSupplierFeeManual?: boolean;
   customerSource?: string;
   supplierSource?: string;
+  customerSurchargeItems?: SurchargeBreakdownItem[];
+  supplierSurchargeItems?: SurchargeBreakdownItem[];
+  customerCoefficientFormula?: string;
+  supplierCoefficientFormula?: string;
 };
 
 const parseMoney = (value: string) => parseFloat(value.replace(/,/g, '')) || 0;
@@ -246,13 +271,253 @@ const calculateCustomerTotal = (rows: AdjustmentRow[]) =>
 const calculateProviderTotal = (rows: AdjustmentRow[]) =>
   rows.reduce((sum, row) => sum + parseMoney(row.totalPrice), 0);
 
+const hasManualFeeOverrides = (rows: AdjustmentRow[]) =>
+  rows.some(
+    (row) =>
+      row.isCustomerFeeManual === true ||
+      row.isSupplierFeeManual === true ||
+      row.customerSource === 'Thủ công' ||
+      row.supplierSource === 'Thủ công'
+  );
+
+const mapUiWeatherToEngine = (label: string): NonNullable<FeeCalculationInput['weather']> => {
+  const normalized = label.toLowerCase();
+  if (normalized.includes('thiên') || normalized.includes('bão')) return 'STORM';
+  if (normalized.includes('mưa') || normalized.includes('ngập')) return 'RAIN';
+  return 'NORMAL';
+};
+
+const mapUiSeverityToEngine = (label: string): NonNullable<FeeCalculationInput['severity']> => {
+  if (label === 'Nguy hiểm') return 'HIGH';
+  if (label === 'Mắc kẹt') return 'MEDIUM';
+  return 'LOW';
+};
+
+type FeeCriteriaPatch = Partial<{
+  weather: string;
+  severityLevel: string;
+  rescueDistance: string;
+  selectedEnterprise: string;
+  partnerName: string;
+  stationName: string;
+}>;
+
+type PendingFeeCriteriaChange = {
+  description: string;
+  patch: FeeCriteriaPatch;
+};
+
+/** Phân bổ tổng mới theo tỷ lệ hiện tại; dòng cuối nhận phần dư để khớp đúng tổng. */
+const distributeTotalAcrossRows = (
+  rows: AdjustmentRow[],
+  targetTotal: number,
+  getAmount: (row: AdjustmentRow) => number,
+  applyAmount: (row: AdjustmentRow, amount: number) => AdjustmentRow
+): AdjustmentRow[] => {
+  if (rows.length === 0) return rows;
+  const safeTarget = Math.max(0, Math.round(targetTotal));
+  const currentTotal = rows.reduce((sum, row) => sum + getAmount(row), 0);
+
+  if (currentTotal <= 0) {
+    const base = Math.floor(safeTarget / rows.length);
+    let remainder = safeTarget - base * rows.length;
+    return rows.map((row) => {
+      const amount = base + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder -= 1;
+      return applyAmount(row, amount);
+    });
+  }
+
+  const ratio = safeTarget / currentTotal;
+  let allocated = 0;
+  return rows.map((row, index) => {
+    if (index === rows.length - 1) {
+      return applyAmount(row, Math.max(0, safeTarget - allocated));
+    }
+    const next = Math.round(getAmount(row) * ratio);
+    allocated += next;
+    return applyAmount(row, next);
+  });
+};
+
+const supplierCoefOf = (row: AdjustmentRow) =>
+  parseFloat(row.supplierCoefficient ?? row.coefficient) || 0;
+
+const parseAdjustmentLabels = (value?: string) =>
+  (value || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+const formatSurchargeRate = (item: SurchargeBreakdownItem): string => {
+  if (item.type === 'FIXED') {
+    return `+${item.value.toLocaleString('en-US')}đ`;
+  }
+  return `×${Number(item.value)}`;
+};
+
+const formatSurchargeTypeLabel = (type: SurchargeBreakdownItem['type']): string =>
+  type === 'FIXED' ? 'Cố định' : 'Hệ số';
+
+const buildItemsFromAdjustmentLabels = (labels: string[]): SurchargeBreakdownItem[] => {
+  const items: SurchargeBreakdownItem[] = [];
+  labels.forEach((label) => {
+    ADJUSTMENT_OPTIONS.forEach((cat) => {
+      const opt = cat.options.find((o) => o.label === label);
+      if (opt) {
+        items.push({ name: label, type: 'COEFFICIENT', value: opt.coef });
+      }
+    });
+  });
+  return items;
+};
+
+const buildCoefFormulaFromItems = (items: SurchargeBreakdownItem[]): string => {
+  const coefs = items.filter((i) => i.type === 'COEFFICIENT').map((i) => i.value);
+  if (coefs.length === 0) return 'Không có hệ số phụ phí (×1)';
+  if (coefs.length === 1) return `Hệ số = ${coefs[0]} (lấy max khi chọn nhiều loại)`;
+  const max = Math.max(...coefs);
+  return `Lấy hệ số lớn nhất: max(${coefs.join(', ')}) = ${max}`;
+};
+
+const CoefficientWithTooltip = ({
+  value,
+  items,
+  formula,
+  highlight,
+  tone = 'neutral',
+}: {
+  value?: string;
+  items: SurchargeBreakdownItem[];
+  formula?: string;
+  highlight?: boolean;
+  tone?: 'customer' | 'neutral';
+}) => {
+  const hasDetail = items.length > 0 || Boolean(formula);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number; placeBelow: boolean }>({
+    top: 0,
+    left: 0,
+    placeBelow: false,
+  });
+
+  const textTone = highlight
+    ? 'text-amber-700'
+    : tone === 'customer'
+      ? 'text-blue-700'
+      : 'text-gray-700';
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const update = () => {
+      if (!triggerRef.current) return;
+      const rect = triggerRef.current.getBoundingClientRect();
+      const estimatedHeight = 16 + (items.length > 0 ? 28 + items.length * 18 : 0) + (formula ? 40 : 0);
+      const placeBelow = rect.top < estimatedHeight + 12;
+      setCoords({
+        top: placeBelow ? rect.bottom + 8 : rect.top - 8,
+        left: Math.min(Math.max(rect.left + rect.width / 2, 140), window.innerWidth - 140),
+        placeBelow,
+      });
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [open, items.length, formula]);
+
+  return (
+    <div
+      ref={triggerRef}
+      className={`inline-flex items-center justify-center gap-1 ${textTone}`}
+      onMouseEnter={() => hasDetail && setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => hasDetail && setOpen(true)}
+      onBlur={() => setOpen(false)}
+    >
+      {value != null && value !== '' ? <span className="font-bold">{value}</span> : null}
+      {hasDetail ? (
+        <Info
+          size={11}
+          className={`shrink-0 cursor-help opacity-70 hover:opacity-100 ${
+            tone === 'customer' ? 'text-blue-500' : 'text-gray-500'
+          }`}
+          aria-label={
+            items.length
+              ? `Loại phụ phí: ${items
+                  .map((i) => `${i.name} ${formatSurchargeTypeLabel(i.type)} ${formatSurchargeRate(i)}`)
+                  .join('; ')}`
+              : formula
+          }
+        />
+      ) : null}
+      {open &&
+        hasDetail &&
+        createPortal(
+          <div
+            role="tooltip"
+            style={{
+              position: 'fixed',
+              top: coords.top,
+              left: coords.left,
+              transform: coords.placeBelow ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
+            }}
+            className="pointer-events-none z-[9999] w-max max-w-[280px] rounded-md bg-gray-900 px-2.5 py-2 text-left text-[10px] font-medium leading-relaxed text-white shadow-lg"
+          >
+            {items.length > 0 ? (
+              <div className="mb-1.5">
+                <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-gray-300">
+                  Loại phụ phí & tỷ lệ
+                </div>
+                <ul className="space-y-1">
+                  {items.map((item) => (
+                    <li
+                      key={`${item.name}-${item.type}-${item.value}`}
+                      className="flex items-start justify-between gap-3"
+                    >
+                      <span className="text-white">• {item.name}</span>
+                      <span className="shrink-0 text-right text-gray-200">
+                        <span className="text-gray-400">{formatSurchargeTypeLabel(item.type)}</span>{' '}
+                        <span className="font-bold text-amber-300">{formatSurchargeRate(item)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {formula ? (
+              <div className={items.length > 0 ? 'border-t border-gray-700 pt-1.5' : ''}>
+                <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-300">
+                  Cách tính hệ số
+                </div>
+                <div className="text-gray-100">{formula}</div>
+              </div>
+            ) : null}
+            <div
+              className={`absolute left-1/2 h-0 w-0 -translate-x-1/2 border-x-4 border-transparent ${
+                coords.placeBelow
+                  ? 'bottom-full border-b-4 border-b-gray-900'
+                  : 'top-full border-t-4 border-t-gray-900'
+              }`}
+            />
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+};
+
 const applyTotalPriceToRow = (
   row: AdjustmentRow,
   totalPrice: number,
   options?: { retailMarkup?: number; preserveCustomerPaid?: boolean }
 ): AdjustmentRow => {
   const fixed = parseMoney(row.fixedPrice);
-  const coef = parseFloat(row.coefficient) || 0;
+  const coef = supplierCoefOf(row);
   const diff = fixed * coef - totalPrice;
   const markup = options?.retailMarkup ?? getRetailMarkupFactor();
 
@@ -275,7 +540,7 @@ const recalculateRowsFromFixedPrices = (rows: AdjustmentRow[]): AdjustmentRow[] 
       return applyTotalPriceToRow(row, parseMoney(row.totalPrice), { preserveCustomerPaid: true });
     }
     const fixed = parseMoney(row.fixedPrice);
-    const coef = parseFloat(row.coefficient) || 1;
+    const coef = supplierCoefOf(row) || 1;
     return applyTotalPriceToRow(row, Math.round(fixed * coef), {
       preserveCustomerPaid: row.isCustomerFeeManual,
     });
@@ -309,6 +574,17 @@ const computeUpdatedRows = (
       }
     }
 
+    if (field === 'supplierCoefficient' || field === 'coefficient') {
+      updatedRow.supplierCoefficient = processedValue;
+      updatedRow.coefficient = processedValue;
+    }
+
+    if (field === 'customerCoefficient') {
+      const fixed = parseMoney(updatedRow.fixedPrice);
+      const custCoef = parseFloat(processedValue) || 0;
+      updatedRow.customerPaid = Math.round(fixed * custCoef).toLocaleString('en-US');
+    }
+
     if (field === 'adjustmentType') {
       const selectedLabels = processedValue.split(',').map(s => s.trim()).filter(s => s !== '');
       let maxCoef = 1.0;
@@ -322,13 +598,31 @@ const computeUpdatedRows = (
         });
       });
 
-      updatedRow.coefficient = maxCoef.toFixed(2);
+      const coefStr = maxCoef.toFixed(2);
+      updatedRow.coefficient = coefStr;
+      updatedRow.supplierCoefficient = coefStr;
+      const detailItems = buildItemsFromAdjustmentLabels(selectedLabels);
+      updatedRow.supplierSurchargeItems = detailItems;
+      updatedRow.supplierAdjustmentType = selectedLabels.join(', ');
+      updatedRow.supplierCoefficientFormula = buildCoefFormulaFromItems(detailItems);
     }
 
-    if (field === 'fixedPrice' || field === 'coefficient' || field === 'totalPrice' || field === 'adjustmentType') {
+    if (
+      field === 'fixedPrice' ||
+      field === 'coefficient' ||
+      field === 'supplierCoefficient' ||
+      field === 'totalPrice' ||
+      field === 'adjustmentType'
+    ) {
       const fixed = parseMoney(updatedRow.fixedPrice);
-      const coef = parseFloat(updatedRow.coefficient) || 0;
-      if ((field === 'fixedPrice' || field === 'coefficient' || field === 'adjustmentType') && !updatedRow.isSupplierFeeManual) {
+      const coef = supplierCoefOf(updatedRow);
+      if (
+        (field === 'fixedPrice' ||
+          field === 'coefficient' ||
+          field === 'supplierCoefficient' ||
+          field === 'adjustmentType') &&
+        !updatedRow.isSupplierFeeManual
+      ) {
         const nextTotal = Math.round(fixed * coef);
         updatedRow.totalPrice = nextTotal.toLocaleString('en-US');
         if (!updatedRow.isCustomerFeeManual) {
@@ -501,15 +795,6 @@ const AVAILABLE_SERVICES = [
   'Dịch vụ khác'
 ];
 
-const OTHER_SERVICE_OPTIONS = [
-  { value: 'night-support', label: 'Hỗ trợ ngoài giờ', suggestedPrice: 250000 },
-  { value: 'highway-support', label: 'Phụ phí cao tốc', suggestedPrice: 300000 },
-  { value: 'rain-storm-support', label: 'Phụ phí mưa bão', suggestedPrice: 350000 },
-  { value: 'remote-area-support', label: 'Phụ phí khu vực xa', suggestedPrice: 400000 },
-  { value: 'parking-basement-support', label: 'Hỗ trợ tầng hầm/bãi đỗ', suggestedPrice: 280000 },
-  { value: 'custom-other', label: 'Khác', suggestedPrice: 200000 },
-];
-
 const CANCEL_REASONS = [
   "Không còn cần dịch vụ",
   "Tìm được dịch vụ khác",
@@ -563,6 +848,286 @@ const Input = ({
     />
 );
 
+const formatConditionValue = (condition: FeeRuleCondition): string => {
+  if (isTimeSurchargeCriterion(condition.criterionKey) && condition.operator === 'BETWEEN') {
+    return formatTimeRangeLabel(condition.value);
+  }
+  if (condition.operator === 'BETWEEN' && Array.isArray(condition.value)) {
+    return `từ ${condition.value[0]} đến ${condition.value[1]}`;
+  }
+  const valueText = Array.isArray(condition.value)
+    ? condition.value.join(', ')
+    : String(condition.value ?? '');
+  return `${condition.operator} ${valueText}`;
+};
+
+const AppliedPriceTableView: React.FC<{ table: PriceTable }> = ({ table }) => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 text-[11px]">
+      <div className="rounded border bg-gray-50 px-3 py-2">
+        <div className="text-gray-500">Mã / phiên bản</div>
+        <div className="font-bold text-gray-800">
+          {table.code} · v{table.version}
+        </div>
+      </div>
+      <div className="rounded border bg-gray-50 px-3 py-2">
+        <div className="text-gray-500">Loại bảng</div>
+        <div className="font-bold text-gray-800">{FEE_KIND_LABELS[table.kind]}</div>
+      </div>
+      <div className="rounded border bg-gray-50 px-3 py-2">
+        <div className="text-gray-500">Trạng thái</div>
+        <div className="font-bold text-gray-800">{FEE_STATUS_LABELS[table.status]}</div>
+      </div>
+      <div className="rounded border bg-gray-50 px-3 py-2">
+        <div className="text-gray-500">Hiệu lực</div>
+        <div className="font-bold text-gray-800">
+          {table.validFrom} — {table.validTo}
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-gray-500">
+        Ma trận giá dịch vụ ({table.serviceRules.length})
+      </div>
+      <div className="overflow-x-auto rounded border">
+        <table className="w-full min-w-[720px] border-collapse text-[11px]">
+          <thead>
+            <tr className="bg-gray-50 text-gray-600 border-b">
+              <th className="p-2 text-left font-bold">Dịch vụ</th>
+              <th className="p-2 text-left font-bold">Tiêu chí</th>
+              <th className="p-2 text-right font-bold">Giá</th>
+              <th className="p-2 text-right font-bold">Km gồm</th>
+              <th className="p-2 text-right font-bold">Giá/km vượt</th>
+            </tr>
+          </thead>
+          <tbody>
+            {table.serviceRules.map((rule) => (
+              <tr key={rule.id} className="border-b align-top">
+                <td className="p-2 font-semibold text-gray-800">{rule.serviceDetail}</td>
+                <td className="p-2">
+                  {(rule.conditions ?? []).length === 0 ? (
+                    <span className="text-gray-400">Giá mặc định</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {(rule.conditions ?? []).map((condition, index) => (
+                        <span
+                          key={`${rule.id}-${condition.criterionKey}-${index}`}
+                          className="rounded-full border border-blue-100 bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold text-blue-700"
+                        >
+                          {condition.criterionLabel} {formatConditionValue(condition)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </td>
+                <td className="p-2 text-right font-bold text-gray-800">
+                  {formatMoneyVi(rule.basePrice)}
+                  {rule.pricingMode === 'PER_UNIT' ? `/${rule.unit || 'đv'}` : ''}
+                </td>
+                <td className="p-2 text-right">{rule.includedKm ?? '—'}</td>
+                <td className="p-2 text-right">
+                  {rule.pricePerExtraKm != null ? formatMoneyVi(rule.pricePerExtraKm) : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div>
+      <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-gray-500">
+        Phụ phí ({table.surchargeRules.length})
+      </div>
+      {table.surchargeRules.length === 0 ? (
+        <p className="text-[11px] text-gray-400">Không có phụ phí</p>
+      ) : (
+        <div className="space-y-2">
+          {table.surchargeRules.map((surcharge) => (
+            <div
+              key={surcharge.id}
+              className="flex flex-wrap items-start justify-between gap-2 rounded border bg-gray-50 px-3 py-2 text-[11px]"
+            >
+              <div className="min-w-0">
+                <div className="font-bold text-gray-800">{surcharge.name}</div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {surcharge.conditions.map((condition, index) => (
+                    <span
+                      key={`${surcharge.id}-${condition.criterionKey}-${index}`}
+                      className="rounded bg-white px-1.5 py-0.5 text-[9px] font-semibold text-blue-700"
+                    >
+                      {condition.criterionLabel} {formatConditionValue(condition)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="shrink-0 font-bold text-amber-700">
+                {surcharge.type === 'COEFFICIENT'
+                  ? `×${surcharge.value}`
+                  : `+${formatMoneyVi(surcharge.value)}`}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+const AppliedFeeTablesModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  snapshot: FeeSnapshot | null;
+}> = ({ open, onClose, snapshot }) => {
+  const navigate = useNavigate();
+  const supplierTable = useMemo(
+    () =>
+      snapshot?.supplierTableId
+        ? rescueFeeTables.find((table) => table.id === snapshot.supplierTableId) ?? null
+        : null,
+    [snapshot]
+  );
+  const customerTable = useMemo(
+    () =>
+      snapshot?.customerTableId
+        ? rescueFeeTables.find((table) => table.id === snapshot.customerTableId) ?? null
+        : null,
+    [snapshot]
+  );
+
+  const [activeTab, setActiveTab] = useState<'SUPPLIER' | 'CUSTOMER'>('SUPPLIER');
+
+  useEffect(() => {
+    if (open) setActiveTab('SUPPLIER');
+  }, [open]);
+
+  const configTableId =
+    activeTab === 'SUPPLIER'
+      ? snapshot?.supplierTableId
+      : snapshot?.customerTableId || snapshot?.supplierTableId;
+
+  const handleOpenFeeConfig = () => {
+    if (!configTableId) {
+      onClose();
+      navigate('/rescue-fee-config');
+      return;
+    }
+    onClose();
+    navigate(`/rescue-fee-config/${configTableId}`);
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border-t-4 border-vetc-green bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between bg-vetc-green px-4 py-3 text-white">
+          <div className="flex items-center gap-2">
+            <Table2 size={20} />
+            <div>
+              <h3 className="text-sm font-bold">Bảng phí đang áp dụng</h3>
+              <p className="text-[10px] text-white/80">
+                Theo snapshot tính phí của đơn
+                {snapshot?.calculatedAt
+                  ? ` · ${new Date(snapshot.calculatedAt).toLocaleString('vi-VN')}`
+                  : ''}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1 hover:bg-white/20"
+            aria-label="Đóng"
+          >
+            <X size={22} />
+          </button>
+        </div>
+
+        <div className="flex gap-2 border-b bg-gray-50 px-4 pt-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab('SUPPLIER')}
+            className={`rounded-t-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wide ${
+              activeTab === 'SUPPLIER'
+                ? 'bg-white text-vetc-green border border-b-white border-gray-200 -mb-px'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Bảng NCC
+            {snapshot?.supplierTableCode ? ` · ${snapshot.supplierTableCode}` : ''}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('CUSTOMER')}
+            className={`rounded-t-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wide ${
+              activeTab === 'CUSTOMER'
+                ? 'bg-white text-blue-700 border border-b-white border-gray-200 -mb-px'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Bảng KH
+            {snapshot?.customerFeeMode === 'RETAIL_MARKUP'
+              ? ' · Markup'
+              : snapshot?.customerTableCode
+                ? ` · ${snapshot.customerTableCode}`
+                : ''}
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {activeTab === 'SUPPLIER' ? (
+            supplierTable ? (
+              <AppliedPriceTableView table={supplierTable} />
+            ) : (
+              <p className="text-sm text-gray-500">Không tìm thấy bảng phí NCC trên snapshot.</p>
+            )
+          ) : snapshot?.customerFeeMode === 'RETAIL_MARKUP' ? (
+            <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-blue-900">
+              <div className="font-bold">Khách lẻ — hệ số markup</div>
+              <p className="mt-1 text-xs leading-relaxed">
+                Đơn không dùng bảng phí KH riêng. Phí KH = Giá NCC ×{' '}
+                <span className="font-bold">
+                  {snapshot.retailMarkupFactor ?? getRetailMarkupFactor()}
+                </span>
+                .
+              </p>
+              {supplierTable ? (
+                <p className="mt-2 text-[11px] text-blue-800">
+                  Tham chiếu bảng NCC: {supplierTable.code} — {supplierTable.name}
+                </p>
+              ) : null}
+            </div>
+          ) : customerTable ? (
+            <AppliedPriceTableView table={customerTable} />
+          ) : (
+            <p className="text-sm text-gray-500">Không tìm thấy bảng phí KH trên snapshot.</p>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t bg-gray-50 px-4 py-3">
+          <button
+            type="button"
+            onClick={handleOpenFeeConfig}
+            className="inline-flex items-center gap-1.5 rounded bg-vetc-green px-4 py-2 text-xs font-bold text-white hover:bg-green-700"
+          >
+            <Settings size={14} />
+            Xem cấu hình phí
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+          >
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const GuestOrderDetails: React.FC<{
   role?: 'OSA' | 'ADMIN' | 'CSKH' | 'STATION' | 'DRIVER';
 }> = ({ role = 'CSKH' }) => {
@@ -578,9 +1143,11 @@ const GuestOrderDetails: React.FC<{
     { id: '2', name: 'Kích bình ắc quy', price: '100,000' }
   ]);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+  const [isFeeTableModalOpen, setIsFeeTableModalOpen] = useState(false);
   const [isOtherServiceFormOpen, setIsOtherServiceFormOpen] = useState(false);
   const [otherServiceKey, setOtherServiceKey] = useState('');
   const [otherServicePrice, setOtherServicePrice] = useState('');
+  const otherServiceOptions = getActiveIncidentalFeeOptions();
   const [incidentDescription, setIncidentDescription] = useState(
       '- Hiện tượng: Xe không đề được, đề yếu.\n' +
       '- Khả năng di chuyển: Không di chuyển được.\n' +
@@ -614,6 +1181,7 @@ const GuestOrderDetails: React.FC<{
   const [rescueVehicleType, setRescueVehicleType] = useState('Xe kéo cẩu');
   const [rescueLicensePlate, setRescueLicensePlate] = useState('30G-888.88');
   const [rescueDistance, setRescueDistance] = useState('8');
+  const committedRescueDistanceRef = useRef('8');
   const [towingDestination, setTowingDestination] = useState('Ngõ 119 Hồ Đắc Di, Khu tập thể Nam Đồng, Phường Kim Liên, Quận Đống Đa, Thành phố Hà Nội, 11415, Việt Nam');
   const [towingCoords, setTowingCoords] = useState('21.01088443501316, 105.82813622447911');
   const [workshopStation, setWorkshopStation] = useState('Carpla Service Thái Bình');
@@ -719,6 +1287,34 @@ const GuestOrderDetails: React.FC<{
   };
 
   // Adjustment Coefficients Data state — khởi tạo từ engine bảng phí
+  const mapBreakdownLinesToRows = (
+    lines: ReturnType<typeof calculateRescueFees>['lines'],
+    idOffset = 0
+  ): AdjustmentRow[] =>
+    lines.map((line, idx) => ({
+      id: idOffset + idx + 1,
+      serviceName: line.serviceName,
+      fixedPrice: formatMoneyVi(line.fixedPrice),
+      adjustmentType: line.adjustmentLabels.join(', '),
+      supplierAdjustmentType: (line.supplierAdjustmentLabels || []).join(', '),
+      customerCoefficient: String(line.coefficient),
+      supplierCoefficient: String(line.supplierCoefficient),
+      coefficient: String(line.supplierCoefficient),
+      ceilingPrice: '0',
+      discount: formatMoneyVi(line.discount),
+      totalPrice: formatMoneyVi(line.supplierAmount),
+      customerPaid: formatMoneyVi(line.customerAmount),
+      isCustom: false,
+      isCustomerFeeManual: false,
+      isSupplierFeeManual: false,
+      customerSource: line.customerSource,
+      supplierSource: line.supplierSource,
+      customerSurchargeItems: line.customerSurchargeItems ?? [],
+      supplierSurchargeItems: line.supplierSurchargeItems ?? [],
+      customerCoefficientFormula: line.customerCoefficientFormula,
+      supplierCoefficientFormula: line.supplierCoefficientFormula,
+    }));
+
   const buildInitialFeeRows = (): { rows: AdjustmentRow[]; snapshot: FeeSnapshot | null } => {
     const breakdown = calculateRescueFees({
       customerType: 'PACKAGE',
@@ -733,30 +1329,28 @@ const GuestOrderDetails: React.FC<{
       ],
     });
 
-    const rows: AdjustmentRow[] = breakdown.lines.map((line, idx) => ({
-      id: idx + 1,
-      serviceName: line.serviceName,
-      fixedPrice: formatMoneyVi(line.fixedPrice),
-      adjustmentType: line.adjustmentLabels.join(', '),
-      coefficient: String(line.coefficient),
-      ceilingPrice: '0',
-      discount: formatMoneyVi(line.discount),
-      totalPrice: formatMoneyVi(line.supplierAmount),
-      customerPaid: formatMoneyVi(line.customerAmount),
-      isCustom: false,
-      isCustomerFeeManual: false,
-      isSupplierFeeManual: false,
-      customerSource: line.customerSource,
-      supplierSource: line.supplierSource,
-    }));
-
-    return { rows, snapshot: breakdown.snapshot };
+    return { rows: mapBreakdownLinesToRows(breakdown.lines), snapshot: breakdown.snapshot };
   };
 
   const initialFeeBundle = buildInitialFeeRows();
   const [adjustmentRows, setAdjustmentRows] = useState<AdjustmentRow[]>(initialFeeBundle.rows);
   const [feeSnapshot, setFeeSnapshot] = useState<FeeSnapshot | null>(initialFeeBundle.snapshot);
   const [customerTotalOverride, setCustomerTotalOverride] = useState<string | null>(null);
+  const [feeCriteriaOutOfSync, setFeeCriteriaOutOfSync] = useState(false);
+  const [isManualFeeRecalcWarningOpen, setIsManualFeeRecalcWarningOpen] = useState(false);
+  const [pendingFeeCriteriaChange, setPendingFeeCriteriaChange] =
+    useState<PendingFeeCriteriaChange | null>(null);
+  const pendingFeeCriteriaExtraApplyRef = useRef<(() => void) | null>(null);
+  /** Sticky flag — tránh miss modal vì state dòng chưa kịp sync khi đổi tiêu chí ngay sau sửa phí */
+  const manualFeeTouchedRef = useRef(false);
+
+  const markManualFeeTouched = () => {
+    manualFeeTouchedRef.current = true;
+  };
+
+  const clearManualFeeTouched = () => {
+    manualFeeTouchedRef.current = false;
+  };
 
   // One order must use a single customer fee table source.
   const customerFeeSourceText =
@@ -918,21 +1512,25 @@ const GuestOrderDetails: React.FC<{
 
 
   // Calculate Max Coefficient for Highlighting
-  const maxCoefficient = adjustmentRows.length > 0 ? Math.max(...adjustmentRows.map(r => parseFloat(r.coefficient))) : 0;
+  const maxCoefficient =
+    adjustmentRows.length > 0
+      ? Math.max(
+          ...adjustmentRows.flatMap((r) => [
+            parseFloat(r.customerCoefficient) || 0,
+            parseFloat(r.supplierCoefficient ?? r.coefficient) || 0,
+          ])
+        )
+      : 0;
 
-  // Tổng phí = tổng các dòng (không cân bằng dòng khác)
+  // Tổng phí = tổng các dòng; sửa tổng phía trên sẽ phân bổ lại xuống bảng (2 chiều)
   const providerTotal = calculateProviderTotal(adjustmentRows);
   const displayProviderTotal = providerTotal;
 
   const providerVatValue = parseFloat(vat) || 0;
   const totalProviderPriceBeforeTax = displayProviderTotal / (1 + providerVatValue / 100);
 
-  // Calculate total customer price from adjustmentRows
   const grossCustomerTotal = calculateCustomerTotal(adjustmentRows);
-  const displayGrossCustomerTotal =
-    customerTotalOverride !== null ? parseMoney(customerTotalOverride) : grossCustomerTotal;
-  const customerTotalMismatch =
-    customerTotalOverride !== null && parseMoney(customerTotalOverride) !== grossCustomerTotal;
+  const displayGrossCustomerTotal = grossCustomerTotal;
 
   const tableTotals = {
     customerPaid: grossCustomerTotal,
@@ -974,28 +1572,44 @@ const GuestOrderDetails: React.FC<{
   };
 
   const handleProviderTotalChange = (value: string) => {
-    // Tổng phía trên chỉ phản ánh tổng dòng; không phân bổ lại.
-    // Cho phép ghi đè tạm hiển thị bằng cách scale tỷ lệ nếu user chủ động sửa (hiếm).
-    const formatted = formatMoneyInput(value);
-    const newTotal = parseMoney(formatted);
-    const current = calculateProviderTotal(adjustmentRows);
-    if (current <= 0 || adjustmentRows.length === 0) return;
-    const ratio = newTotal / current;
+    if (!isEditing || adjustmentRows.length === 0) return;
+    const newTotal = parseMoney(formatMoneyInput(value));
     setCustomerTotalOverride(null);
+    markManualFeeTouched();
     setAdjustmentRows((prev) =>
-      prev.map((row) => {
-        const nextSupplier = Math.round(parseMoney(row.totalPrice) * ratio);
-        return {
-          ...applyTotalPriceToRow(row, nextSupplier, { preserveCustomerPaid: row.isCustomerFeeManual }),
+      distributeTotalAcrossRows(
+        prev,
+        newTotal,
+        (row) => parseMoney(row.totalPrice),
+        (row, amount) => ({
+          ...applyTotalPriceToRow(row, amount, {
+            preserveCustomerPaid: row.isCustomerFeeManual,
+          }),
           isSupplierFeeManual: true,
           supplierSource: 'Thủ công',
-        };
-      })
+        })
+      )
     );
   };
 
   const handleCustomerTotalChange = (value: string) => {
-    setCustomerTotalOverride(formatMoneyInput(value));
+    if (!isEditing || adjustmentRows.length === 0) return;
+    const newTotal = parseMoney(formatMoneyInput(value));
+    setCustomerTotalOverride(null);
+    markManualFeeTouched();
+    setAdjustmentRows((prev) =>
+      distributeTotalAcrossRows(
+        prev,
+        newTotal,
+        (row) => parseMoney(row.customerPaid),
+        (row, amount) => ({
+          ...row,
+          customerPaid: amount.toLocaleString('en-US'),
+          isCustomerFeeManual: true,
+          customerSource: 'Thủ công',
+        })
+      )
+    );
   };
 
   const handleRefreshProviderTotal = () => {
@@ -1100,11 +1714,15 @@ const GuestOrderDetails: React.FC<{
     const supplierAmount = parseMoney(defaultPrice);
     const customerAmount = Math.round(supplierAmount * getRetailMarkupFactor());
 
+    const markupCoef = String(getRetailMarkupFactor());
     const newRow: AdjustmentRow = {
       id: Date.now(),
       serviceName: serviceName,
       fixedPrice: defaultPrice,
       adjustmentType: '',
+      supplierAdjustmentType: '',
+      customerCoefficient: markupCoef,
+      supplierCoefficient: defaultCoefficient,
       coefficient: defaultCoefficient,
       ceilingPrice: '0',
       discount: '0',
@@ -1116,6 +1734,7 @@ const GuestOrderDetails: React.FC<{
       customerSource: customPrice ? 'Thủ công' : customerFeeSourceText,
       supplierSource: customPrice ? 'Thủ công' : supplierFeeSourceText,
     };
+    if (customPrice) markManualFeeTouched();
     setCustomerTotalOverride(null);
     setAdjustmentRows((prev) => [...prev, newRow]);
     setOtherServiceKey('');
@@ -1133,7 +1752,7 @@ const GuestOrderDetails: React.FC<{
   };
 
   const handleSaveOtherService = () => {
-    const selectedOtherService = OTHER_SERVICE_OPTIONS.find((opt) => opt.value === otherServiceKey);
+    const selectedOtherService = otherServiceOptions.find((opt) => opt.value === otherServiceKey);
     const normalizedName = selectedOtherService?.label?.trim() ?? '';
     const normalizedPrice = parseMoney(otherServicePrice);
     if (!normalizedName || normalizedPrice <= 0) return;
@@ -1225,6 +1844,7 @@ const GuestOrderDetails: React.FC<{
 
   const handleProviderPriceChange = (id: number, value: string) => {
     setCustomerTotalOverride(null);
+    markManualFeeTouched();
     const nextPrice = Math.max(0, parseMoney(formatMoneyInput(value)));
     setAdjustmentRows((prev) =>
       prev.map((row) =>
@@ -1244,6 +1864,7 @@ const GuestOrderDetails: React.FC<{
   const handleCustomerPaidChange = (id: number, value: string) => {
     if (!isEditing) return;
     setCustomerTotalOverride(null);
+    markManualFeeTouched();
     setAdjustmentRows((prev) =>
       prev.map((row) =>
         row.id === id
@@ -1264,33 +1885,237 @@ const GuestOrderDetails: React.FC<{
     setAdjustmentRows((prev) => prev.filter((row) => row.id !== id));
   };
 
+  const applyFeeCriteriaPatch = (patch: FeeCriteriaPatch) => {
+    if (patch.weather != null) setWeather(patch.weather);
+    if (patch.severityLevel != null) setSeverityLevel(patch.severityLevel);
+    if (patch.rescueDistance != null) {
+      setRescueDistance(patch.rescueDistance);
+      committedRescueDistanceRef.current = patch.rescueDistance;
+    }
+    if (patch.partnerName != null) setPartnerName(patch.partnerName);
+    if (patch.stationName != null) setStationName(patch.stationName);
+    if (patch.selectedEnterprise != null) {
+      setSelectedEnterprise(patch.selectedEnterprise);
+      if (!patch.selectedEnterprise) {
+        setHasGuarantee('no');
+        setGuaranteeNote('');
+        setGuaranteeRate('');
+        setGuaranteeRateDraft('');
+        setEnterpriseEstimatedCost('0');
+      }
+    }
+  };
+
+  const buildFeeCalculationInput = (patch: FeeCriteriaPatch = {}): FeeCalculationInput => {
+    const nextWeather = patch.weather ?? weather;
+    const nextSeverity = patch.severityLevel ?? severityLevel;
+    const nextDistance = parseFloat(patch.rescueDistance ?? rescueDistance) || 0;
+    const nextEnterprise = patch.selectedEnterprise ?? selectedEnterprise;
+    const nextPartner = patch.partnerName ?? partnerName;
+    const isInternal =
+      nextPartner.toLowerCase().includes('vetc') ||
+      nextPartner.toLowerCase().includes('carpla');
+
+    const catalogLines = adjustmentRows
+      .filter((row) => !row.isCustom)
+      .map((row) => ({
+        serviceName: row.serviceName,
+        serviceType: inferServiceType(row.serviceName),
+        distanceKm: nextDistance,
+      }));
+
+    return {
+      customerType: nextEnterprise ? 'RETAIL_BUSINESS' : 'PACKAGE',
+      supplierType: isInternal ? 'INTERNAL' : 'EXTERNAL',
+      enterpriseCode: nextEnterprise || undefined,
+      supplierName: nextPartner,
+      packageBenefitAmount: nextEnterprise ? undefined : 800000,
+      weather: mapUiWeatherToEngine(nextWeather),
+      severity: mapUiSeverityToEngine(nextSeverity),
+      isNight: true,
+      lines:
+        catalogLines.length > 0
+          ? catalogLines
+          : [{ serviceName: 'Xe hết pin', serviceType: 'ONSITE', distanceKm: nextDistance }],
+    };
+  };
+
+  const recalculateFeesFromEngine = (patch: FeeCriteriaPatch = {}) => {
+    const breakdown = calculateRescueFees(buildFeeCalculationInput(patch));
+    const customRows = adjustmentRows.filter((row) => row.isCustom);
+    const engineRows = mapBreakdownLinesToRows(breakdown.lines);
+    const maxEngineId = engineRows.reduce((max, row) => Math.max(max, row.id), 0);
+    const preservedCustom = customRows.map((row, index) => ({
+      ...row,
+      id: maxEngineId + index + 1,
+    }));
+    setAdjustmentRows([...engineRows, ...preservedCustom]);
+    setFeeSnapshot(breakdown.snapshot);
+    setCustomerTotalOverride(null);
+    setFeeCriteriaOutOfSync(false);
+    clearManualFeeTouched();
+  };
+
+  const requestFeeCriteriaChange = (
+    description: string,
+    patch: FeeCriteriaPatch,
+    extraApply?: () => void
+  ) => {
+    const applyAll = () => {
+      applyFeeCriteriaPatch(patch);
+      extraApply?.();
+    };
+
+    const hasManual =
+      manualFeeTouchedRef.current || hasManualFeeOverrides(adjustmentRows);
+
+    // Không có phí thủ công → áp tiêu chí ngay (kể cả ngoài chế độ Cập nhật)
+    if (!hasManual) {
+      applyAll();
+      setFeeCriteriaOutOfSync(false);
+      return;
+    }
+
+    // Có phí thủ công → luôn hỏi, kể cả khi đang xem (một số CTA vẫn bấm được)
+    setPendingFeeCriteriaChange({ description, patch });
+    pendingFeeCriteriaExtraApplyRef.current = extraApply ?? null;
+    setIsManualFeeRecalcWarningOpen(true);
+  };
+
+  const closeManualFeeRecalcWarning = () => {
+    setIsManualFeeRecalcWarningOpen(false);
+    setPendingFeeCriteriaChange(null);
+    pendingFeeCriteriaExtraApplyRef.current = null;
+  };
+
+  const handleCancelFeeCriteriaChange = () => {
+    // Distance may have been typed ahead of confirm — revert to last committed value.
+    setRescueDistance(committedRescueDistanceRef.current);
+    closeManualFeeRecalcWarning();
+  };
+
+  const handleKeepManualAfterCriteriaChange = () => {
+    if (!pendingFeeCriteriaChange) return;
+    applyFeeCriteriaPatch(pendingFeeCriteriaChange.patch);
+    pendingFeeCriteriaExtraApplyRef.current?.();
+    setFeeCriteriaOutOfSync(true);
+    closeManualFeeRecalcWarning();
+  };
+
+  const handleRecalculateAfterCriteriaChange = () => {
+    if (!pendingFeeCriteriaChange) return;
+    const { patch } = pendingFeeCriteriaChange;
+    applyFeeCriteriaPatch(patch);
+    pendingFeeCriteriaExtraApplyRef.current?.();
+    recalculateFeesFromEngine(patch);
+    closeManualFeeRecalcWarning();
+  };
+
+  const handleEnterpriseFeeAwareChange = (value: string) => {
+    if (value === selectedEnterprise) return;
+    const fromLabel =
+      ENTERPRISE_OPTIONS.find((opt) => opt.value === selectedEnterprise)?.label || 'Không có';
+    const toLabel = ENTERPRISE_OPTIONS.find((opt) => opt.value === value)?.label || 'Không có';
+    requestFeeCriteriaChange(`Doanh nghiệp: ${fromLabel} → ${toLabel}`, {
+      selectedEnterprise: value,
+    });
+  };
+
+  const handleWeatherChange = (next: string) => {
+    if (next === weather) return;
+    requestFeeCriteriaChange(`Thời tiết: ${weather} → ${next}`, { weather: next });
+  };
+
+  const handleSeverityChange = (next: string) => {
+    if (next === severityLevel) return;
+    requestFeeCriteriaChange(`Mức độ nghiêm trọng: ${severityLevel} → ${next}`, {
+      severityLevel: next,
+    });
+  };
+
+  const handleRescueDistanceBlur = () => {
+    const next = rescueDistance.trim() || '0';
+    if (next === committedRescueDistanceRef.current) return;
+
+    const hasManual =
+      manualFeeTouchedRef.current || hasManualFeeOverrides(adjustmentRows);
+
+    if (!hasManual) {
+      committedRescueDistanceRef.current = next;
+      setRescueDistance(next);
+      return;
+    }
+
+    const previous = committedRescueDistanceRef.current;
+    setRescueDistance(previous);
+    requestFeeCriteriaChange(
+      `Khoảng cách cứu hộ: ${previous} km → ${next} km`,
+      { rescueDistance: next }
+    );
+  };
+
+  const handlePartnerFeeAwareChange = (next: string) => {
+    if (next === partnerName) return;
+    requestFeeCriteriaChange(`Nhà cung cấp: ${partnerName} → ${next}`, {
+      partnerName: next,
+    });
+  };
+
   const handleAdjustmentChange = (id: number, field: string, value: string) => {
     if (field === 'totalPrice') return;
     setCustomerTotalOverride(null);
     const updatedRows = computeUpdatedRows(adjustmentRows, id, field, value);
-    const shouldMarkSupplierManual = ['fixedPrice', 'coefficient', 'adjustmentType'].includes(field);
+    const shouldMarkSupplierManual = [
+      'fixedPrice',
+      'coefficient',
+      'supplierCoefficient',
+      'adjustmentType',
+    ].includes(field);
+    const shouldMarkCustomerManual = field === 'customerCoefficient';
+    if (shouldMarkSupplierManual || shouldMarkCustomerManual) {
+      markManualFeeTouched();
+    }
     setAdjustmentRows(
-      updatedRows.map((row) =>
-        row.id === id && shouldMarkSupplierManual
-          ? { ...row, isSupplierFeeManual: true, supplierSource: 'Thủ công' }
-          : row
-      )
+      updatedRows.map((row) => {
+        if (row.id !== id) return row;
+        let next = row;
+        if (shouldMarkSupplierManual) {
+          next = { ...next, isSupplierFeeManual: true, supplierSource: 'Thủ công' };
+        }
+        if (shouldMarkCustomerManual) {
+          next = { ...next, isCustomerFeeManual: true, customerSource: 'Thủ công' };
+        }
+        return next;
+      })
     );
   };
 
   const handleRescueSelect = (unit: RescueUnit) => {
-    setPartnerName(unit.partner);
-    setStationName(unit.name);
-    setRescueDistance(unit.distance.toString());
-    if (unit.vehicleType) setRescueVehicleType(unit.vehicleType);
-    setIsSearchModalOpen(false);
+    requestFeeCriteriaChange(
+      `Đơn vị cứu hộ: ${stationName} → ${unit.name} (${unit.distance} km)`,
+      {
+        partnerName: unit.partner,
+        stationName: unit.name,
+        rescueDistance: unit.distance.toString(),
+      },
+      () => {
+        if (unit.vehicleType) setRescueVehicleType(unit.vehicleType);
+        setIsSearchModalOpen(false);
+      }
+    );
   };
 
   const handleManualRescueSelect = (station: any) => {
-    setStationName(station.name);
-    setPartnerName(station.partner);
-    setRescueDistance(station.distance.replace(' km', ''));
-    setIsManualSearchModalOpen(false);
+    const nextDistance = String(station.distance).replace(' km', '');
+    requestFeeCriteriaChange(
+      `Đơn vị cứu hộ: ${stationName} → ${station.name} (${nextDistance} km)`,
+      {
+        partnerName: station.partner,
+        stationName: station.name,
+        rescueDistance: nextDistance,
+      },
+      () => setIsManualSearchModalOpen(false)
+    );
   };
 
   const selectedDriver = DRIVERS_MOCK.find(d => d.id === selectedDriverId);
@@ -1569,7 +2394,7 @@ const GuestOrderDetails: React.FC<{
                     <select
                       value={selectedEnterprise}
                       disabled={!isEditing}
-                      onChange={(e) => handleEnterpriseChange(e.target.value)}
+                      onChange={(e) => handleEnterpriseFeeAwareChange(e.target.value)}
                       className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all ${!isEditing ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
                     >
                       {ENTERPRISE_OPTIONS.map((opt) => (
@@ -1897,7 +2722,7 @@ const GuestOrderDetails: React.FC<{
                             <button
                                 key={level.label}
                                 disabled={!isEditing}
-                                onClick={() => setSeverityLevel(level.label)}
+                                onClick={() => handleSeverityChange(level.label)}
                                 className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                                     severityLevel === level.label
                                         ? level.activeColor
@@ -1921,7 +2746,7 @@ const GuestOrderDetails: React.FC<{
                             <button
                                 key={level.label}
                                 disabled={!isEditing}
-                                onClick={() => setWeather(level.label)}
+                                onClick={() => handleWeatherChange(level.label)}
                                 className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                                     weather === level.label
                                         ? level.activeColor
@@ -2032,7 +2857,7 @@ const GuestOrderDetails: React.FC<{
                     <Label required>Đối tác cung cấp</Label>
                     <PartnerSelect 
                       value={partnerName}
-                      onChange={setPartnerName}
+                      onChange={handlePartnerFeeAwareChange}
                       onCreate={(data) => {
                         setStationName(data.stationName);
                         setRescueVehicleType(data.stationSupportedVehicleTypes.join(', '));
@@ -2139,7 +2964,13 @@ const GuestOrderDetails: React.FC<{
                   <div>
                     <Label>Khoảng cách (Ước tính)</Label>
                     <div className="flex items-center space-x-2">
-                      <Input value={rescueDistance} onChange={setRescueDistance} className="font-bold" readOnly={!isEditing} />
+                      <Input
+                        value={rescueDistance}
+                        onChange={setRescueDistance}
+                        onBlur={handleRescueDistanceBlur}
+                        className="font-bold"
+                        readOnly={!isEditing}
+                      />
                       <span className="text-[10px] font-bold text-gray-400">KM</span>
                     </div>
                   </div>
@@ -2170,6 +3001,21 @@ const GuestOrderDetails: React.FC<{
                         </span>
                       </div>
                     </div>
+                    {feeCriteriaOutOfSync ? (
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                        <span>
+                          Tiêu chí đã đổi nhưng đang <span className="font-bold">giữ phí thủ công</span> — phí có thể không còn khớp bảng phí.
+                        </span>
+                        <button
+                          type="button"
+                          disabled={!isEditing}
+                          onClick={() => recalculateFeesFromEngine()}
+                          className={`inline-flex items-center gap-1 rounded bg-amber-500 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-amber-600 ${!isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <RefreshCw size={11} /> Tính lại phí
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 )}
                 {/* Provider Payment Section */}
@@ -2221,6 +3067,11 @@ const GuestOrderDetails: React.FC<{
                           <RefreshCw size={12} />
                         </button>
                       </div>
+                      {isEditing ? (
+                        <p className="mt-1 text-[9px] text-gray-500 leading-snug">
+                          Đồng bộ với cột Giá NCC trong bảng bên dưới (phân bổ theo tỷ lệ).
+                        </p>
+                      ) : null}
                     </div>
                     <div className="hidden lg:block" aria-hidden="true" />
                   </div>
@@ -2260,20 +3111,16 @@ const GuestOrderDetails: React.FC<{
                       <div className="min-w-0">
                         <Label>Tổng thanh toán (Sau thuế)</Label>
                         <Input
-                            value={
-                              customerTotalOverride !== null
-                                ? customerTotalOverride
-                                : displayGrossCustomerTotal.toLocaleString('en-US')
-                            }
+                            value={displayGrossCustomerTotal.toLocaleString('en-US')}
                             onChange={handleCustomerTotalChange}
                             readOnly={!isEditing}
-                            className={`w-full font-black text-red-600 text-right bg-red-50 ${customerTotalMismatch ? 'border-red-400 ring-1 ring-red-200' : ''}`}
+                            className="w-full font-black text-red-600 text-right bg-red-50"
                         />
-                        {customerTotalMismatch && isEditing && (
-                          <p className="text-[9px] text-red-600 font-medium mt-1">
-                            Tổng KH trả phí trong bảng ({grossCustomerTotal.toLocaleString('en-US')}) chưa khớp
+                        {isEditing ? (
+                          <p className="mt-1 text-[9px] text-gray-500 leading-snug">
+                            Đồng bộ với cột KH trả phí trong bảng bên dưới (phân bổ theo tỷ lệ).
                           </p>
-                        )}
+                        ) : null}
                       </div>
                       <div className="hidden lg:block" aria-hidden="true" />
                     </div>
@@ -2397,24 +3244,47 @@ const GuestOrderDetails: React.FC<{
                     Dịch vụ thực tế & Chi phí
                   </h3>
                   <div className="space-y-3">
+                    {isEditing ? (
+                      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] leading-relaxed text-amber-900">
+                        <span className="font-bold">Sửa phí trên dòng:</span> chỉ chỉnh <span className="font-semibold">KH trả phí</span> / <span className="font-semibold">Giá NCC</span>.
+                        Hệ số &amp; loại phụ phí chỉ xem (tooltip) — cấu hình ở bảng phí / chức năng tính lại phía trên.
+                        <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                          <li>
+                            Sửa <span className="font-semibold">KH trả phí</span> → gắn nhãn <span className="font-semibold">Thủ công</span>; không đổi Giá NCC / hệ số; tổng KH &amp; còn lại phía trên = cộng các dòng.
+                          </li>
+                          <li>
+                            Sửa <span className="font-semibold">Giá NCC</span> → <span className="font-semibold">Thủ công</span>; không nhân lại giá cố định × hệ số. Nếu phí KH chưa thủ công thì KH = Giá NCC × markup khách lẻ; nếu KH đã thủ công thì giữ nguyên.
+                          </li>
+                        </ul>
+                      </div>
+                    ) : null}
                     <div className="overflow-x-auto">
                       <table className="w-full border-collapse text-[11px]">
                         <thead>
                         <tr className="bg-green-50/50 text-gray-600 border-b">
                           <th className="p-2 text-center border font-bold w-10">STT</th>
                           <th className="p-2 text-left border font-bold w-80">Tên dịch vụ</th>
-                          <th className="p-2 text-right border font-bold w-60">KH trả phí</th>
-                          <th className="p-2 text-right border font-bold w-60">Giá NCC</th>
+                          <th className="p-2 text-right border font-bold w-48">KH trả phí</th>
+                          <th className="p-2 text-center border font-bold w-24">
+                            Hệ số
+                            <div className="text-[9px] font-semibold text-blue-600 normal-case tracking-normal">Phí KH</div>
+                          </th>
+                          <th className="p-2 text-right border font-bold w-48">Giá NCC</th>
+                          <th className="p-2 text-center border font-bold w-24">
+                            Hệ số
+                            <div className="text-[9px] font-semibold text-gray-600 normal-case tracking-normal">Giá NCC</div>
+                          </th>
                           <th className="p-2 text-right border font-bold w-40">Chênh lệch giá</th>
                           <th className="p-2 text-right border font-bold w-40">Giá cố định</th>
-                          <th className="p-2 text-center border font-bold w-40">Hệ số điều chỉnh</th>
-                          <th className="p-2 text-left border font-bold w-72">Loại điều chỉnh</th>
                           <th className="p-2 text-center border font-bold w-20">Thao tác</th>
                         </tr>
                         </thead>
                         <tbody>
                         {adjustmentRows.map((row, idx) => {
-                          const isMax = parseFloat(row.coefficient) === maxCoefficient && maxCoefficient > 1;
+                          const customerCoef = parseFloat(row.customerCoefficient) || 0;
+                          const supplierCoef = parseFloat(row.supplierCoefficient ?? row.coefficient) || 0;
+                          const isMaxCustomer = customerCoef === maxCoefficient && maxCoefficient > 1;
+                          const isMaxSupplier = supplierCoef === maxCoefficient && maxCoefficient > 1;
                           return (
                               <tr key={row.id} className={`border-b hover:bg-gray-50 transition-colors`}>
                                 <td className="p-2 border text-center font-medium">{idx + 1}</td>
@@ -2432,19 +3302,28 @@ const GuestOrderDetails: React.FC<{
                                 </td>
                                 <td className="p-2 border text-right font-medium">
                                   {isEditing ? (
-                                    <Input
-                                      value={row.customerPaid}
-                                      onChange={(val) => handleCustomerPaidChange(row.id, val)}
-                                      readOnly={false}
-                                      className="text-right font-bold text-blue-600"
-                                    />
+                                    <div className="space-y-1">
+                                      <Input
+                                        value={row.customerPaid}
+                                        onChange={(val) => handleCustomerPaidChange(row.id, val)}
+                                        readOnly={false}
+                                        className="text-right font-bold text-blue-600"
+                                      />
+                                      <div className="flex justify-end">
+                                        <span className={`text-[9px] font-semibold ${row.isCustomerFeeManual ? 'text-amber-700' : 'text-blue-700'}`}>
+                                          {row.isCustomerFeeManual
+                                            ? 'Thủ công'
+                                            : row.customerSource || customerFeeSourceText}
+                                        </span>
+                                      </div>
+                                    </div>
                                   ) : (
                                     <div className="space-y-1">
                                       <div className="text-right font-bold text-blue-600">
                                         {row.customerPaid}
                                       </div>
                                       <div className="flex justify-end">
-                                        <span className="text-[9px] font-semibold text-blue-700">
+                                        <span className={`text-[9px] font-semibold ${row.isCustomerFeeManual ? 'text-amber-700' : 'text-blue-700'}`}>
                                           {row.isCustomerFeeManual
                                             ? 'Thủ công'
                                             : row.customerSource || customerFeeSourceText}
@@ -2453,21 +3332,39 @@ const GuestOrderDetails: React.FC<{
                                     </div>
                                   )}
                                 </td>
+                                <td className={`p-2 text-center border ${isMaxCustomer ? 'bg-amber-50' : ''}`}>
+                                  <CoefficientWithTooltip
+                                    value={row.customerCoefficient}
+                                    items={row.customerSurchargeItems ?? []}
+                                    formula={row.customerCoefficientFormula}
+                                    highlight={isMaxCustomer}
+                                    tone="customer"
+                                  />
+                                </td>
                                 <td className="p-2 border text-right font-medium">
                                   {isEditing ? (
-                                    <Input
-                                      value={row.totalPrice}
-                                      onChange={(val) => handleProviderPriceChange(row.id, val)}
-                                      readOnly={adjustmentRows.length === 1}
-                                      className={`text-right font-bold text-gray-800 ${adjustmentRows.length === 1 ? 'bg-gray-50' : ''}`}
-                                    />
+                                    <div className="space-y-1">
+                                      <Input
+                                        value={row.totalPrice}
+                                        onChange={(val) => handleProviderPriceChange(row.id, val)}
+                                        readOnly={adjustmentRows.length === 1}
+                                        className={`text-right font-bold text-gray-800 ${adjustmentRows.length === 1 ? 'bg-gray-50' : ''}`}
+                                      />
+                                      <div className="flex justify-end">
+                                        <span className={`text-[9px] font-semibold ${row.isSupplierFeeManual ? 'text-amber-700' : 'text-gray-700'}`}>
+                                          {row.isSupplierFeeManual
+                                            ? 'Thủ công'
+                                            : row.supplierSource || supplierFeeSourceText}
+                                        </span>
+                                      </div>
+                                    </div>
                                   ) : (
                                     <div className="space-y-1">
                                       <div className="text-right font-bold text-gray-800">
                                         {row.totalPrice}
                                       </div>
                                       <div className="flex justify-end">
-                                        <span className="text-[9px] font-semibold text-gray-700">
+                                        <span className={`text-[9px] font-semibold ${row.isSupplierFeeManual ? 'text-amber-700' : 'text-gray-700'}`}>
                                           {row.isSupplierFeeManual
                                             ? 'Thủ công'
                                             : row.supplierSource || supplierFeeSourceText}
@@ -2475,6 +3372,15 @@ const GuestOrderDetails: React.FC<{
                                       </div>
                                     </div>
                                   )}
+                                </td>
+                                <td className={`p-2 text-center border ${isMaxSupplier ? 'bg-amber-50' : ''}`}>
+                                  <CoefficientWithTooltip
+                                    value={row.supplierCoefficient ?? row.coefficient}
+                                    items={row.supplierSurchargeItems ?? []}
+                                    formula={row.supplierCoefficientFormula}
+                                    highlight={isMaxSupplier}
+                                    tone="neutral"
+                                  />
                                 </td>
                                 <td className="p-2 border text-right font-medium">
                                   <div className={`flex items-center justify-end space-x-1 font-bold ${
@@ -2500,52 +3406,7 @@ const GuestOrderDetails: React.FC<{
                                   </div>
                                 </td>
                                 <td className="p-2 border text-right font-medium text-gray-700">
-                                  {isEditing ? (
-                                    <Input
-                                      value={row.fixedPrice}
-                                      onChange={(val) => handleAdjustmentChange(row.id, 'fixedPrice', val)}
-                                      readOnly={false}
-                                      className="text-right font-bold text-gray-700"
-                                    />
-                                  ) : (
-                                    <div className="text-right font-bold text-gray-700">{row.fixedPrice}</div>
-                                  )}
-                                </td>
-                                 <td className={`p-2 text-center border font-bold text-gray-700`}>
-                                   {isEditing ? (
-                                     <Input
-                                       value={row.coefficient}
-                                       onChange={(val) => handleAdjustmentChange(row.id, 'coefficient', val)}
-                                       readOnly={false}
-                                       className="text-center font-bold text-gray-700"
-                                     />
-                                   ) : (
-                                     <div className="text-center font-bold text-gray-700">{row.coefficient}</div>
-                                   )}
-                                </td>
-                                <td className="p-2 border">
-                                  {isEditing ? (
-                                    <AdjustmentTypeSelect
-                                      value={row.adjustmentType}
-                                      onChange={(val) => handleAdjustmentChange(row.id, 'adjustmentType', val)}
-                                      disabled={false}
-                                    />
-                                  ) : (
-                                    <div className="flex flex-wrap justify-start gap-1">
-                                      {(row.adjustmentType || '')
-                                        .split(',')
-                                        .map((s) => s.trim())
-                                        .filter(Boolean)
-                                        .map((opt) => (
-                                          <span
-                                            key={`${row.id}-${opt}`}
-                                            className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 border border-blue-100"
-                                          >
-                                            {opt}
-                                          </span>
-                                        ))}
-                                    </div>
-                                  )}
+                                  <div className="text-right font-bold text-gray-700">{row.fixedPrice}</div>
                                 </td>
                                 <td className="p-2 border text-center">
                                   <button
@@ -2568,9 +3429,11 @@ const GuestOrderDetails: React.FC<{
                           <td className="p-2 border text-right text-blue-600">
                             {tableTotals.customerPaid.toLocaleString('en-US')}
                           </td>
+                          <td className="p-2 border" />
                           <td className="p-2 border text-right text-gray-800">
                             {tableTotals.totalPrice.toLocaleString('en-US')}
                           </td>
+                          <td className="p-2 border" />
                           <td className={`p-2 border text-right ${
                             tableTotals.discount > 0
                               ? 'text-green-600'
@@ -2584,12 +3447,19 @@ const GuestOrderDetails: React.FC<{
                                 ? `-${Math.abs(tableTotals.discount).toLocaleString('en-US')}`
                                 : `+${Math.abs(tableTotals.discount).toLocaleString('en-US')}`}
                           </td>
-                          <td className="p-2 border" colSpan={4} />
+                          <td className="p-2 border" colSpan={2} />
                         </tr>
                         </tfoot>
                       </table>
                     </div>
-                    <div className="flex justify-end pt-2">
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button
+                          type="button"
+                          onClick={() => setIsFeeTableModalOpen(true)}
+                          className="text-[10px] text-vetc-green bg-white border border-vetc-green px-4 py-2 rounded-lg font-bold hover:bg-green-50 shadow-sm flex items-center transition-all active:scale-95"
+                      >
+                        <Table2 size={12} className="mr-1.5" /> Xem bảng phí
+                      </button>
                       <button
                           disabled={!isEditing}
                           onClick={() => setIsServiceModalOpen(true)}
@@ -2908,6 +3778,12 @@ const GuestOrderDetails: React.FC<{
             orders={packageOrders}
         />
 
+        <AppliedFeeTablesModal
+          open={isFeeTableModalOpen}
+          onClose={() => setIsFeeTableModalOpen(false)}
+          snapshot={feeSnapshot}
+        />
+
         {/* Actual Service Selection Modal */}
         {isServiceModalOpen && (
             <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -2954,7 +3830,7 @@ const GuestOrderDetails: React.FC<{
                             onChange={(e) => {
                               const selectedKey = e.target.value;
                               setOtherServiceKey(selectedKey);
-                              const selectedOption = OTHER_SERVICE_OPTIONS.find((opt) => opt.value === selectedKey);
+                              const selectedOption = otherServiceOptions.find((opt) => opt.value === selectedKey);
                               if (selectedOption) {
                                 setOtherServicePrice(selectedOption.suggestedPrice.toLocaleString('en-US'));
                               } else {
@@ -2964,7 +3840,7 @@ const GuestOrderDetails: React.FC<{
                             className="w-full border rounded px-3 py-1.5 text-xs outline-none focus:border-vetc-green bg-white"
                           >
                             <option value="">-- Chọn loại phí --</option>
-                            {OTHER_SERVICE_OPTIONS.map((opt) => (
+                            {otherServiceOptions.map((opt) => (
                               <option key={opt.value} value={opt.value}>
                                 {opt.label} ({opt.suggestedPrice.toLocaleString('en-US')})
                               </option>
@@ -3024,6 +3900,14 @@ const GuestOrderDetails: React.FC<{
             depositAmount={DEPOSIT_AMOUNT}
             totalAmount={individualCustomerPrice}
             remainingAmount={remainingAmount}
+        />
+
+        <ManualFeeRecalcWarningModal
+          isOpen={isManualFeeRecalcWarningOpen}
+          changeDescription={pendingFeeCriteriaChange?.description ?? ''}
+          onCancel={handleCancelFeeCriteriaChange}
+          onKeepManual={handleKeepManualAfterCriteriaChange}
+          onRecalculate={handleRecalculateAfterCriteriaChange}
         />
 
         <CustomerFeeChangeWarningModal

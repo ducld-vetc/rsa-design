@@ -157,15 +157,40 @@ export interface FeeCalculationInput {
   lines: FeeServiceLineInput[];
 }
 
+export interface SurchargeBreakdownItem {
+  name: string;
+  type: SurchargeType;
+  /** Hệ số (COEFFICIENT) hoặc số tiền (FIXED) */
+  value: number;
+}
+
+export interface SurchargeApplicationResult {
+  amount: number;
+  labels: string[];
+  coefficient: number;
+  items: SurchargeBreakdownItem[];
+  /** Mô tả cách ghép hệ số: nhân / lấy max */
+  coefficientFormula: string;
+  fixedTotal: number;
+}
+
 export interface CalculatedFeeLine {
   serviceName: string;
   serviceType: ServiceType;
   supplierAmount: number;
   customerAmount: number;
   fixedPrice: number;
+  /** Hệ số phụ phí phía KH (hoặc markup khách lẻ) */
   coefficient: number;
+  /** Hệ số phụ phí phía NCC */
+  supplierCoefficient: number;
   discount: number;
   adjustmentLabels: string[];
+  supplierAdjustmentLabels?: string[];
+  customerSurchargeItems?: SurchargeBreakdownItem[];
+  supplierSurchargeItems?: SurchargeBreakdownItem[];
+  customerCoefficientFormula?: string;
+  supplierCoefficientFormula?: string;
   supplierSource: FeeSourceLabel;
   customerSource: FeeSourceLabel;
   formulaNote: string;
@@ -250,6 +275,100 @@ export const upsertFeeCriterionDefinition = (definition: FeeCriterionDefinition)
           ...feeCriterionDefinitions.slice(index + 1),
         ]
       : [...feeCriterionDefinitions, definition];
+};
+
+/** Danh mục phí phát sinh — chọn khi thêm “Dịch vụ khác” trên đơn */
+export interface IncidentalFeeDefinition {
+  id: string;
+  code: string;
+  name: string;
+  suggestedPrice: number;
+  status: 'ACTIVE' | 'INACTIVE';
+  /** Mục “Khác” — luôn hiện cuối danh sách chọn */
+  isCatchAll?: boolean;
+  updatedAt: string;
+}
+
+const INITIAL_INCIDENTAL_FEES: IncidentalFeeDefinition[] = [
+  {
+    id: 'INCIDENTAL-1',
+    code: 'night-support',
+    name: 'Hỗ trợ ngoài giờ',
+    suggestedPrice: 250000,
+    status: 'ACTIVE',
+    updatedAt: '2026-07-30 10:00',
+  },
+  {
+    id: 'INCIDENTAL-2',
+    code: 'highway-support',
+    name: 'Phụ phí cao tốc',
+    suggestedPrice: 300000,
+    status: 'ACTIVE',
+    updatedAt: '2026-07-30 10:00',
+  },
+  {
+    id: 'INCIDENTAL-3',
+    code: 'rain-storm-support',
+    name: 'Phụ phí mưa bão',
+    suggestedPrice: 350000,
+    status: 'ACTIVE',
+    updatedAt: '2026-07-30 10:00',
+  },
+  {
+    id: 'INCIDENTAL-4',
+    code: 'remote-area-support',
+    name: 'Phụ phí khu vực xa',
+    suggestedPrice: 400000,
+    status: 'ACTIVE',
+    updatedAt: '2026-07-30 10:00',
+  },
+  {
+    id: 'INCIDENTAL-5',
+    code: 'parking-basement-support',
+    name: 'Hỗ trợ tầng hầm/bãi đỗ',
+    suggestedPrice: 280000,
+    status: 'ACTIVE',
+    updatedAt: '2026-07-30 10:00',
+  },
+  {
+    id: 'INCIDENTAL-6',
+    code: 'custom-other',
+    name: 'Khác',
+    suggestedPrice: 200000,
+    status: 'ACTIVE',
+    isCatchAll: true,
+    updatedAt: '2026-07-30 10:00',
+  },
+];
+
+export let incidentalFeeDefinitions: IncidentalFeeDefinition[] = [...INITIAL_INCIDENTAL_FEES];
+
+export const upsertIncidentalFeeDefinition = (definition: IncidentalFeeDefinition): void => {
+  const index = incidentalFeeDefinitions.findIndex((item) => item.id === definition.id);
+  incidentalFeeDefinitions =
+    index >= 0
+      ? [
+          ...incidentalFeeDefinitions.slice(0, index),
+          definition,
+          ...incidentalFeeDefinitions.slice(index + 1),
+        ]
+      : [...incidentalFeeDefinitions, definition];
+};
+
+/** Options ACTIVE cho droplist đơn hàng (Khác luôn cuối) */
+export const getActiveIncidentalFeeOptions = (): Array<{
+  value: string;
+  label: string;
+  suggestedPrice: number;
+}> => {
+  const active = incidentalFeeDefinitions.filter((item) => item.status === 'ACTIVE');
+  const normal = active.filter((item) => !item.isCatchAll);
+  const catchAll = active.filter((item) => item.isCatchAll);
+  return [...normal, ...catchAll].map((item) => ({
+    value: item.code,
+    label: item.name,
+    suggestedPrice: item.suggestedPrice,
+  }));
 };
 
 export const FEE_SERVICE_CATALOG: Array<{
@@ -1317,10 +1436,11 @@ const applySurchargesToBase = (
   rules: SurchargeRule[],
   input: FeeCalculationInput,
   multiplyCoefficients = true
-): { amount: number; labels: string[]; coefficient: number } => {
+): SurchargeApplicationResult => {
   let fixedExtra = 0;
   let coefficient = 1;
   const labels: string[] = [];
+  const items: SurchargeBreakdownItem[] = [];
   const usedExclusive = new Set<string>();
   const activeCoefficients: number[] = [];
 
@@ -1333,6 +1453,7 @@ const applySurchargesToBase = (
     }
 
     labels.push(rule.name);
+    items.push({ name: rule.name, type: rule.type, value: rule.value });
     if (rule.type === 'FIXED') {
       fixedExtra += rule.value;
     } else {
@@ -1340,10 +1461,21 @@ const applySurchargesToBase = (
     }
   }
 
+  let coefficientFormula = 'Không có hệ số phụ phí (×1)';
   if (activeCoefficients.length > 0) {
-    coefficient = multiplyCoefficients
-      ? activeCoefficients.reduce((product, value) => product * value, 1)
-      : Math.max(...activeCoefficients);
+    if (multiplyCoefficients) {
+      coefficient = activeCoefficients.reduce((product, value) => product * value, 1);
+      coefficientFormula =
+        activeCoefficients.length === 1
+          ? `Hệ số = ${activeCoefficients[0]}`
+          : `Nhân các hệ số: ${activeCoefficients.join(' × ')} = ${Number(coefficient.toFixed(4))}`;
+    } else {
+      coefficient = Math.max(...activeCoefficients);
+      coefficientFormula =
+        activeCoefficients.length === 1
+          ? `Hệ số = ${activeCoefficients[0]}`
+          : `Lấy hệ số lớn nhất: max(${activeCoefficients.join(', ')}) = ${coefficient}`;
+    }
   }
 
   let amount = Math.round(base * coefficient) + fixedExtra;
@@ -1352,7 +1484,14 @@ const applySurchargesToBase = (
     amount = Math.min(amount, base + rule.capAmount);
   }
 
-  return { amount, labels, coefficient };
+  return {
+    amount,
+    labels,
+    coefficient,
+    items,
+    coefficientFormula,
+    fixedTotal: fixedExtra,
+  };
 };
 
 export const resolveSupplierTable = (input: FeeCalculationInput): PriceTable | null => {
@@ -1515,7 +1654,9 @@ export const calculateRescueFees = (input: FeeCalculationInput): FeeBreakdown =>
     let formulaNote = '';
     let customerCoef = 1;
     let customerFixed = supplierBase;
-    let customerLabels = [...supplierWithSurcharge.labels];
+    let customerLabels: string[] = [];
+    let customerItems: SurchargeBreakdownItem[] = [];
+    let customerCoefFormula = 'Không có hệ số phụ phí (×1)';
 
     if (mode === 'RETAIL_MARKUP') {
       customerAmount = roundMoney(
@@ -1525,6 +1666,9 @@ export const calculateRescueFees = (input: FeeCalculationInput): FeeBreakdown =>
       formulaNote = `Khách lẻ: dòng NCC × ${markup}`;
       customerFixed = supplierAmount;
       customerCoef = markup;
+      customerLabels = ['Markup khách lẻ'];
+      customerItems = [{ name: 'Markup khách lẻ', type: 'COEFFICIENT', value: markup }];
+      customerCoefFormula = `Hệ số markup khách lẻ = ${markup}`;
     } else if ((mode === 'BUSINESS' || mode === 'RETAIL') && customerTable) {
       const base = calcServiceBase(customerTable, line, input);
       const withSur = applySurchargesToBase(
@@ -1537,6 +1681,8 @@ export const calculateRescueFees = (input: FeeCalculationInput): FeeBreakdown =>
       customerFixed = base;
       customerCoef = withSur.coefficient;
       customerLabels = withSur.labels;
+      customerItems = withSur.items;
+      customerCoefFormula = withSur.coefficientFormula;
       formulaNote =
         mode === 'RETAIL' ? `Bảng KH lẻ ${customerTable.code}` : `Bảng DN ${customerTable.code}`;
     } else if (customerTable) {
@@ -1554,6 +1700,8 @@ export const calculateRescueFees = (input: FeeCalculationInput): FeeBreakdown =>
       customerFixed = base;
       customerCoef = withSur.coefficient;
       customerLabels = withSur.labels;
+      customerItems = withSur.items;
+      customerCoefFormula = withSur.coefficientFormula;
       formulaNote =
         covered > 0
           ? `Public ${customerTable.code}; trừ quyền lợi ${formatMoneyVi(covered)}`
@@ -1568,9 +1716,15 @@ export const calculateRescueFees = (input: FeeCalculationInput): FeeBreakdown =>
       supplierAmount,
       customerAmount,
       fixedPrice: customerFixed || supplierBase,
-      coefficient: customerCoef || supplierWithSurcharge.coefficient,
+      coefficient: customerCoef || 1,
+      supplierCoefficient: supplierWithSurcharge.coefficient || 1,
       discount,
-      adjustmentLabels: customerLabels.length ? customerLabels : supplierWithSurcharge.labels,
+      adjustmentLabels: customerLabels,
+      supplierAdjustmentLabels: supplierWithSurcharge.labels,
+      customerSurchargeItems: customerItems,
+      supplierSurchargeItems: supplierWithSurcharge.items,
+      customerCoefficientFormula: customerCoefFormula,
+      supplierCoefficientFormula: supplierWithSurcharge.coefficientFormula,
       supplierSource,
       customerSource,
       formulaNote,
