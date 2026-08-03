@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -340,67 +340,73 @@ const RescueFeeForm: React.FC = () => {
       setActiveTab('general');
       return;
     }
-    if (form.serviceRules.length === 0) {
+
+    const isRetailMarkupTable =
+      form.kind === 'CUSTOMER_RETAIL' && Number(form.settings.retailMarkupFactor) > 0;
+
+    if (!isRetailMarkupTable && form.serviceRules.length === 0) {
       setError('Vui lòng cấu hình ít nhất một dòng giá dịch vụ');
       setActiveTab('matrix');
       return;
     }
-    const emptyCondition = form.serviceRules.some((rule) =>
-      (rule.conditions ?? []).some((condition) => isConditionValueEmpty(condition))
-    );
-    if (emptyCondition) {
-      setError('Vui lòng nhập đủ giá trị cho tất cả tiêu chí (không được để trống)');
-      setActiveTab('matrix');
-      return;
-    }
-    const invalidRange = form.serviceRules.some((rule) =>
-      (rule.conditions ?? []).some((condition) => {
-        if (condition.operator !== 'BETWEEN' || !Array.isArray(condition.value)) return false;
-        const [from, to] = condition.value;
-        return Number(from) > Number(to);
-      })
-    );
-    if (invalidRange) {
-      setError('Khoảng Từ – Đến: giá trị Từ không được lớn hơn Đến');
-      setActiveTab('matrix');
-      return;
-    }
-    if (
-      (form.priceCriteria ?? []).some(
-        (c) => (c.valueType ?? 'LIST') === 'LIST' && !c.allowedValues?.length
-      )
-    ) {
-      setError('Mỗi tiêu chí của ma trận phải có ít nhất một giá trị cho phép');
-      setActiveTab('general');
-      return;
-    }
-    if (form.surchargeRules.some((s) => !s.conditions.length)) {
-      setError('Mỗi phụ phí bắt buộc phải chọn ít nhất một tiêu chí phụ');
-      setActiveTab('surcharges');
-      return;
-    }
-    if (
-      form.surchargeRules.some((s) => {
-        const condition = s.conditions[0];
-        if (!condition || !isTimeSurchargeCriterion(condition.criterionKey)) return false;
-        if (!Array.isArray(condition.value) || condition.value.length < 2) return true;
-        return !String(condition.value[0]).trim() || !String(condition.value[1]).trim();
-      })
-    ) {
-      setError('Phụ phí thời gian bắt buộc nhập đủ khoảng Từ – Đến');
-      setActiveTab('surcharges');
-      return;
-    }
-    if (
-      form.surchargeRules.some(
-        (s) =>
-          (s.name === 'Lễ/Tết' || s.conditions[0]?.criterionKey === 'holiday') &&
-          !(s.holidayDates ?? []).some((date) => date.trim())
-      )
-    ) {
-      setError('Phụ phí Lễ/Tết bắt buộc cấu hình ít nhất một ngày holiday');
-      setActiveTab('surcharges');
-      return;
+    if (!isRetailMarkupTable) {
+      const emptyCondition = form.serviceRules.some((rule) =>
+        (rule.conditions ?? []).some((condition) => isConditionValueEmpty(condition))
+      );
+      if (emptyCondition) {
+        setError('Vui lòng nhập đủ giá trị cho tất cả tiêu chí (không được để trống)');
+        setActiveTab('matrix');
+        return;
+      }
+      const invalidRange = form.serviceRules.some((rule) =>
+        (rule.conditions ?? []).some((condition) => {
+          if (condition.operator !== 'BETWEEN' || !Array.isArray(condition.value)) return false;
+          const [from, to] = condition.value;
+          return Number(from) > Number(to);
+        })
+      );
+      if (invalidRange) {
+        setError('Khoảng Từ – Đến: giá trị Từ không được lớn hơn Đến');
+        setActiveTab('matrix');
+        return;
+      }
+      if (
+        (form.priceCriteria ?? []).some(
+          (c) => (c.valueType ?? 'LIST') === 'LIST' && !c.allowedValues?.length
+        )
+      ) {
+        setError('Mỗi tiêu chí của ma trận phải có ít nhất một giá trị cho phép');
+        setActiveTab('general');
+        return;
+      }
+      if (form.surchargeRules.some((s) => !s.conditions.length)) {
+        setError('Mỗi phụ phí bắt buộc phải chọn ít nhất một tiêu chí phụ');
+        setActiveTab('surcharges');
+        return;
+      }
+      if (
+        form.surchargeRules.some((s) => {
+          const condition = s.conditions[0];
+          if (!condition || !isTimeSurchargeCriterion(condition.criterionKey)) return false;
+          if (!Array.isArray(condition.value) || condition.value.length < 2) return true;
+          return !String(condition.value[0]).trim() || !String(condition.value[1]).trim();
+        })
+      ) {
+        setError('Phụ phí thời gian bắt buộc nhập đủ khoảng Từ – Đến');
+        setActiveTab('surcharges');
+        return;
+      }
+      if (
+        form.surchargeRules.some(
+          (s) =>
+            (s.name === 'Lễ/Tết' || s.conditions[0]?.criterionKey === 'holiday') &&
+            !(s.holidayDates ?? []).some((date) => date.trim())
+        )
+      ) {
+        setError('Phụ phí Lễ/Tết bắt buộc cấu hình ít nhất một ngày holiday');
+        setActiveTab('surcharges');
+        return;
+      }
     }
     setError('');
     upsertPriceTable({
@@ -475,6 +481,70 @@ const RescueFeeForm: React.FC = () => {
       'serviceRules',
       form.serviceRules.filter((rule) => !removeSet.has(rule.serviceDetail))
     );
+  };
+
+  const selectAllServiceHeads = () => {
+    const leafServices = SERVICE_OPTIONS.flatMap((option) =>
+      option.children?.length ? [...option.children] : [option.value]
+    );
+    setForm((prev) => {
+      let nextRules = [...prev.serviceRules];
+      const selected = new Set(nextRules.map((rule) => rule.serviceDetail));
+      leafServices.forEach((serviceDetail, serviceIndex) => {
+        if (selected.has(serviceDetail)) return;
+        const serviceType = resolveFeeServiceType(serviceDetail);
+        if (!serviceType) return;
+        const generated = createDemoServiceRules(serviceDetail, serviceType).map((rule, index) => ({
+          ...rule,
+          id: `sr-demo-${Date.now()}-${serviceIndex}-${index}`,
+        }));
+        nextRules = [...nextRules, ...generated];
+        selected.add(serviceDetail);
+      });
+      return { ...prev, serviceRules: nextRules };
+    });
+  };
+
+  const clearAllServiceHeads = () => {
+    update('serviceRules', []);
+  };
+
+  const selectAllSurchargeHeads = () => {
+    setForm((prev) => {
+      const existing = new Set(prev.surchargeRules.map((rule) => rule.name));
+      const additions: SurchargeRule[] = [];
+      SURCHARGE_HEAD_OPTIONS.forEach((head, index) => {
+        if (existing.has(head.name)) return;
+        const isTime = isTimeSurchargeCriterion(head.criterionKey);
+        const timeRange: [string, string] = [...DEFAULT_TIME_RANGE];
+        additions.push({
+          id: `su-${Date.now()}-${index}`,
+          name: head.name,
+          type: 'FIXED',
+          value: 0,
+          activeWhen: isTime
+            ? `${head.criterionKey}=${timeRange[0]}-${timeRange[1]}`
+            : `${head.criterionKey}=${head.value}`,
+          conditions: [
+            {
+              criterionKey: head.criterionKey,
+              criterionLabel: head.criterionLabel,
+              operator: isTime ? 'BETWEEN' : '=',
+              value: isTime ? timeRange : head.value,
+            },
+          ],
+          holidayDates:
+            'requiresHolidayDates' in head && head.requiresHolidayDates ? [] : undefined,
+          stackable: true,
+        });
+      });
+      if (!additions.length) return prev;
+      return { ...prev, surchargeRules: [...prev.surchargeRules, ...additions] };
+    });
+  };
+
+  const clearAllSurchargeHeads = () => {
+    update('surchargeRules', []);
   };
 
   const addPriceLineForService = (serviceDetail: string) => {
@@ -1626,6 +1696,12 @@ const RescueFeeForm: React.FC = () => {
   const kindOptions = (Object.keys(FEE_KIND_LABELS) as FeeTableKind[]).filter((k) =>
     form.target === 'CUSTOMER' ? k.startsWith('CUSTOMER_') : k.startsWith('SUPPLIER_')
   );
+  const isRetailKind = form.kind === 'CUSTOMER_RETAIL';
+  const hasRetailMarkupConfig = isRetailKind && Number(form.settings.retailMarkupFactor) > 0;
+  const skipsPriceMatrixTabs = hasRetailMarkupConfig;
+  const visibleTabs = skipsPriceMatrixTabs
+    ? TABS.filter((tab) => tab.id === 'general')
+    : TABS;
   const selectedServiceHeads: string[] = Array.from(
     new Set<string>(form.serviceRules.map((rule) => rule.serviceDetail))
   );
@@ -1639,6 +1715,12 @@ const RescueFeeForm: React.FC = () => {
   const selectedSurchargeHeads: string[] = Array.from(
     new Set<string>(form.surchargeRules.map((rule) => rule.name))
   );
+  const allCatalogServicesSelected =
+    catalogLeafServices.length > 0 &&
+    catalogLeafServices.every((service) => selectedServiceHeads.includes(service));
+  const allSurchargesSelected =
+    SURCHARGE_HEAD_OPTIONS.length > 0 &&
+    SURCHARGE_HEAD_OPTIONS.every((option) => selectedSurchargeHeads.includes(option.name));
   const surchargeGroups = selectedSurchargeHeads.map((name) => ({
     name,
     rules: form.surchargeRules.filter((rule) => rule.name === name),
@@ -1662,6 +1744,12 @@ const RescueFeeForm: React.FC = () => {
       criterion.key !== criteriaRulePrimaryKey &&
       !criteriaRuleUsedKeys.has(criterion.key)
   );
+
+  useEffect(() => {
+    if (skipsPriceMatrixTabs && activeTab !== 'general') {
+      setActiveTab('general');
+    }
+  }, [skipsPriceMatrixTabs, activeTab]);
 
   const completeCriteriaModal = () => {
     const hasEmpty = criteriaRuleConditions.some(({ condition }) =>
@@ -1891,7 +1979,7 @@ const RescueFeeForm: React.FC = () => {
 
       <div className="border rounded-lg shadow-sm overflow-hidden bg-white">
         <div className="flex items-center overflow-x-auto border-b bg-gray-50/80">
-          {TABS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
@@ -1938,8 +2026,17 @@ const RescueFeeForm: React.FC = () => {
                     ]}
                     onChange={(value) => {
                       const target = value as FeeTarget;
-                      update('target', target);
-                      update('kind', syncKindWithTarget(target, form.kind));
+                      setForm((prev) => ({
+                        ...prev,
+                        target,
+                        kind: syncKindWithTarget(target, prev.kind),
+                        scope: {
+                          ...prev.scope,
+                          ...(target === 'CUSTOMER'
+                            ? { supplierId: undefined, supplierName: undefined }
+                            : { enterpriseCode: undefined }),
+                        },
+                      }));
                     }}
                   />
                 </div>
@@ -1951,7 +2048,13 @@ const RescueFeeForm: React.FC = () => {
                       value: kind,
                       label: FEE_KIND_LABELS[kind],
                     }))}
-                    onChange={(value) => update('kind', value as FeeTableKind)}
+                    onChange={(value) => {
+                      const kind = value as FeeTableKind;
+                      update('kind', kind);
+                      if (kind === 'CUSTOMER_RETAIL' && activeTab !== 'general') {
+                        setActiveTab('general');
+                      }
+                    }}
                   />
                 </div>
                 <div>
@@ -2003,6 +2106,7 @@ const RescueFeeForm: React.FC = () => {
                   <AppSelect
                     value={form.scope.enterpriseCode ?? ''}
                     placeholder="Chọn doanh nghiệp"
+                    disabled={form.target === 'SUPPLIER'}
                     options={[
                       ...FEE_ENTERPRISE_OPTIONS.map((item) => ({
                         value: item.code,
@@ -2025,12 +2129,18 @@ const RescueFeeForm: React.FC = () => {
                       })
                     }
                   />
+                  {form.target === 'SUPPLIER' && (
+                    <p className="mt-1 text-[10px] text-gray-400">
+                      Chỉ áp dụng khi Đối tượng tính = Khách hàng.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className={labelClass}>Nhà cung cấp</label>
                   <AppSelect
                     value={form.scope.supplierId ?? ''}
                     placeholder="Chọn nhà cung cấp"
+                    disabled={form.target === 'CUSTOMER'}
                     options={[
                       ...FEE_SUPPLIER_OPTIONS.map((item) => ({
                         value: item.id,
@@ -2057,6 +2167,11 @@ const RescueFeeForm: React.FC = () => {
                       });
                     }}
                   />
+                  {form.target === 'CUSTOMER' && (
+                    <p className="mt-1 text-[10px] text-gray-400">
+                      Chỉ áp dụng khi Đối tượng tính = Nhà cung cấp.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className={labelClass}>Tên NCC</label>
@@ -2079,7 +2194,8 @@ const RescueFeeForm: React.FC = () => {
                     type="number"
                     min="1"
                     step="0.05"
-                    className={inputClass}
+                    disabled={!isRetailKind}
+                    className={`${inputClass} ${!isRetailKind ? 'cursor-not-allowed bg-gray-100 text-gray-500' : ''}`}
                     value={form.settings.retailMarkupFactor}
                     onChange={(e) =>
                       update('settings', {
@@ -2088,7 +2204,11 @@ const RescueFeeForm: React.FC = () => {
                       })
                     }
                   />
-                  <p className="mt-1 text-[10px] text-gray-400">Áp dụng khi lấy giá NCC × hệ số.</p>
+                  <p className="mt-1 text-[10px] text-gray-400">
+                    {isRetailKind
+                      ? 'Áp dụng khi lấy giá Public x Hệ số'
+                      : 'Chỉ enable khi Loại bảng = Khách hàng lẻ'}
+                  </p>
                 </div>
                 <div>
                   <label className={labelClass}>Quy tắc làm tròn</label>
@@ -2109,42 +2229,39 @@ const RescueFeeForm: React.FC = () => {
                 </div>
                 <div>
                   <label className={labelClass}>Cách tính hệ số phụ phí</label>
-                  <div className="mt-1 space-y-2 rounded-lg border border-gray-200 bg-gray-50/60 p-3">
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="radio"
-                        name="surcharge-coeff-mode"
-                        className="accent-vetc-green"
-                        checked={form.settings.stackSurcharges}
-                        onChange={() =>
-                          update('settings', {
-                            ...form.settings,
-                            stackSurcharges: true,
-                          })
-                        }
-                      />
-                      Nhân hệ số
-                    </label>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="radio"
-                        name="surcharge-coeff-mode"
-                        className="accent-vetc-green"
-                        checked={!form.settings.stackSurcharges}
-                        onChange={() =>
-                          update('settings', {
-                            ...form.settings,
-                            stackSurcharges: false,
-                          })
-                        }
-                      />
-                      Hệ số cao nhất
-                    </label>
-                  </div>
+                  <AppSelect
+                    value={form.settings.stackSurcharges ? 'STACK' : 'MAX'}
+                    options={[
+                      { value: 'STACK', label: 'Nhân hệ số' },
+                      { value: 'MAX', label: 'Hệ số cao nhất' },
+                    ]}
+                    onChange={(value) =>
+                      update('settings', {
+                        ...form.settings,
+                        stackSurcharges: value === 'STACK',
+                      })
+                    }
+                    disabled={skipsPriceMatrixTabs}
+                  />
+                  {skipsPriceMatrixTabs && (
+                    <p className="mt-1 text-[10px] text-gray-400">
+                      Không áp dụng — bảng KH lẻ nhân hệ số theo giá Public.
+                    </p>
+                  )}
                 </div>
               </div>
+              {skipsPriceMatrixTabs && (
+                <div className="border-t border-amber-100 bg-amber-50 px-4 py-3 text-[11px] leading-relaxed text-amber-900">
+                  <span className="font-bold">Khách hàng lẻ + hệ số:</span> không cần cấu hình{' '}
+                  <span className="font-semibold">Dòng giá theo tiêu chí</span> và{' '}
+                  <span className="font-semibold">Phụ phí có điều kiện</span>. Phí KH = giá Public × hệ số{' '}
+                  <span className="font-bold">{form.settings.retailMarkupFactor}</span>.
+                </div>
+              )}
             </div>
 
+            {!skipsPriceMatrixTabs && (
+            <>
             <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
               <SectionHeader title="Danh mục áp dụng trong bảng phí" number={4} />
               <div className="space-y-4 p-4">
@@ -2154,11 +2271,24 @@ const RescueFeeForm: React.FC = () => {
                 </p>
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <div className="rounded-lg border bg-gray-50/50 p-4">
-                    <div className="mb-3">
-                      <div className="text-xs font-bold text-gray-700">Đầu dịch vụ</div>
-                      <div className="mt-0.5 text-[10px] text-gray-400">
-                        {selectedServiceHeads.length}/{selectableServiceCount} dịch vụ đã chọn
+                    <div className="mb-3 flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-xs font-bold text-gray-700">Đầu dịch vụ</div>
+                        <div className="mt-0.5 text-[10px] text-gray-400">
+                          {selectedServiceHeads.length}/{selectableServiceCount} dịch vụ đã chọn
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          allCatalogServicesSelected
+                            ? clearAllServiceHeads()
+                            : selectAllServiceHeads()
+                        }
+                        className="shrink-0 rounded border border-vetc-green bg-white px-2.5 py-1 text-[10px] font-bold text-vetc-green hover:bg-green-50"
+                      >
+                        {allCatalogServicesSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                      </button>
                     </div>
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -2286,11 +2416,24 @@ const RescueFeeForm: React.FC = () => {
                   </div>
 
                   <div className="rounded-lg border bg-gray-50/50 p-4">
-                    <div className="mb-3">
-                      <div className="text-xs font-bold text-gray-700">Đầu phụ phí</div>
-                      <div className="mt-0.5 text-[10px] text-gray-400">
-                        {selectedSurchargeHeads.length}/{SURCHARGE_HEAD_OPTIONS.length} phụ phí đã chọn
+                    <div className="mb-3 flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-xs font-bold text-gray-700">Đầu phụ phí</div>
+                        <div className="mt-0.5 text-[10px] text-gray-400">
+                          {selectedSurchargeHeads.length}/{SURCHARGE_HEAD_OPTIONS.length} phụ phí đã chọn
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          allSurchargesSelected
+                            ? clearAllSurchargeHeads()
+                            : selectAllSurchargeHeads()
+                        }
+                        className="shrink-0 rounded border border-blue-500 bg-white px-2.5 py-1 text-[10px] font-bold text-blue-600 hover:bg-blue-50"
+                      >
+                        {allSurchargesSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                      </button>
                     </div>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {SURCHARGE_HEAD_OPTIONS.map((option) => {
@@ -2378,10 +2521,12 @@ const RescueFeeForm: React.FC = () => {
                 </div>
               </div>
             </div>
+            </>
+            )}
           </div>
         )}
 
-        {activeTab === 'matrix' && (
+        {activeTab === 'matrix' && !skipsPriceMatrixTabs && (
           <div className="space-y-4 bg-gray-50 p-4">
             <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
               <SectionHeader
@@ -3436,7 +3581,7 @@ const RescueFeeForm: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'surcharges' && (
+        {activeTab === 'surcharges' && !skipsPriceMatrixTabs && (
           <div className="space-y-4 bg-gray-50 p-4">
             <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
               <SectionHeader

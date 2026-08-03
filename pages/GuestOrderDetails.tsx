@@ -83,6 +83,9 @@ import type { OrderDetailsNavState } from '../data/orderListDemoData';
 import ShareLocationWebviewModal from '../shared/ShareLocationWebviewModal';
 import DetailedRatingCard from '../shared/DetailedRatingCard';
 import RatingHistoryModal from '../shared/RatingHistoryModal';
+import VehiclePlateSearchModal, {
+  VehicleSearchResult,
+} from '../shared/VehiclePlateSearchModal';
 import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
 import { OrderWarningBadge, FloodWarningBadge } from '../shared/OrderAlertBadges';
 import { isPriorityCustomerPhone } from '../shared/priorityCustomer';
@@ -240,6 +243,10 @@ type AdjustmentRow = {
   discount: string;
   totalPrice: string;
   customerPaid: string;
+  /** Phí KH cá nhân — khi thủ công tách riêng */
+  customerPaidKhcn?: string;
+  /** Phí KH doanh nghiệp — khi thủ công tách riêng */
+  customerPaidKhdn?: string;
   isCustom?: boolean;
   isCustomerFeeManual?: boolean;
   isSupplierFeeManual?: boolean;
@@ -270,6 +277,33 @@ const calculateCustomerTotal = (rows: AdjustmentRow[]) =>
 
 const calculateProviderTotal = (rows: AdjustmentRow[]) =>
   rows.reduce((sum, row) => sum + parseMoney(row.totalPrice), 0);
+
+/** Tách tổng phí KH thành Phí KHCN / Phí KHDN theo tỷ lệ bảo lãnh */
+const splitCustomerFee = (total: number, guaranteeActive: boolean, rate: number) => {
+  if (!guaranteeActive || rate <= 0) {
+    return { khcn: total, khdn: 0 };
+  }
+  const khdn = Math.round((total * rate) / 100);
+  return { khcn: total - khdn, khdn };
+};
+
+const resolveRowKhFees = (
+  row: AdjustmentRow,
+  guaranteeActive: boolean,
+  rate: number
+) => {
+  if (
+    row.isCustomerFeeManual &&
+    row.customerPaidKhcn != null &&
+    row.customerPaidKhdn != null
+  ) {
+    return {
+      khcn: parseMoney(row.customerPaidKhcn),
+      khdn: parseMoney(row.customerPaidKhdn),
+    };
+  }
+  return splitCustomerFee(parseMoney(row.customerPaid), guaranteeActive, rate);
+};
 
 const hasManualFeeOverrides = (rows: AdjustmentRow[]) =>
   rows.some(
@@ -526,12 +560,17 @@ const applyTotalPriceToRow = (
     customerPaid = Math.round(totalPrice * markup).toLocaleString('en-US');
   }
 
-  return {
+  const next: AdjustmentRow = {
     ...row,
     totalPrice: totalPrice.toLocaleString('en-US'),
     customerPaid,
     discount: diff.toLocaleString('en-US'),
   };
+  if (!options?.preserveCustomerPaid && !row.isCustomerFeeManual) {
+    delete next.customerPaidKhcn;
+    delete next.customerPaidKhdn;
+  }
+  return next;
 };
 
 const recalculateRowsFromFixedPrices = (rows: AdjustmentRow[]): AdjustmentRow[] =>
@@ -1374,6 +1413,13 @@ const GuestOrderDetails: React.FC<{
   const [customerName, setCustomerName] = useState(navState?.customerName ?? 'Vương Đăng Minh');
   const [customerPhone, setCustomerPhone] = useState(navState?.customerPhone ?? '0967419411');
   const [vehiclePlate, setVehiclePlate] = useState(navState?.plate ?? '29E366666');
+  const [vehicleVin, setVehicleVin] = useState('R7C2X9M4A8');
+  const [vehicleBrand, setVehicleBrand] = useState('Toyota');
+  const [vehicleModel, setVehicleModel] = useState('Sedan');
+  const [vehicleLoadTons, setVehicleLoadTons] = useState('1');
+  const [vehicleSeats, setVehicleSeats] = useState('5');
+  const [vehicleType, setVehicleType] = useState('Xe chở hàng');
+  const [isVehicleSearchOpen, setIsVehicleSearchOpen] = useState(false);
   const [mapCoords, setMapCoords] = useState("21.0277350565601, 105.827792697257");
 
   // Cancellation States
@@ -1472,7 +1518,13 @@ const GuestOrderDetails: React.FC<{
 
   const handleSaveRatingVersion = (
     type: RatingType,
-    data: { stars: number; category: string; content: string; attachments: { name: string; url?: string }[] }
+    data: {
+      stars: number;
+      category: string;
+      content: string;
+      attachments: { name: string; url?: string }[];
+      targetLabel?: string;
+    }
   ) => {
     setRatingHistories((prev) => {
       const history = prev[type];
@@ -1484,7 +1536,7 @@ const GuestOrderDetails: React.FC<{
           {
             id: `${type}-v${nextVersion}-${Date.now()}`,
             version: nextVersion,
-            targetLabel: RATING_TYPE_LABELS[type],
+            targetLabel: data.targetLabel || RATING_TYPE_LABELS[type],
             ratedAt: new Date().toLocaleString('vi-VN'),
             stars: data.stars,
             content: data.content,
@@ -1530,31 +1582,37 @@ const GuestOrderDetails: React.FC<{
   const totalProviderPriceBeforeTax = displayProviderTotal / (1 + providerVatValue / 100);
 
   const grossCustomerTotal = calculateCustomerTotal(adjustmentRows);
-  const displayGrossCustomerTotal = grossCustomerTotal;
+
+  const vatRate = parseFloat(vat) || 0;
+  const guaranteeRateNum = parseInt(guaranteeRate, 10) || 0;
+  const isGuaranteeActive = hasGuarantee === 'yes' && guaranteeRateNum > 0 && !!selectedEnterprise;
 
   const tableTotals = {
     customerPaid: grossCustomerTotal,
+    customerPaidKhcn: adjustmentRows.reduce(
+      (sum, row) => sum + resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum).khcn,
+      0
+    ),
+    customerPaidKhdn: adjustmentRows.reduce(
+      (sum, row) => sum + resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum).khdn,
+      0
+    ),
     totalPrice: providerTotal,
     discount: adjustmentRows.reduce((sum, row) => {
       const d = parseMoney(row.discount);
       return sum + (row.discount.trim().startsWith('-') ? Math.abs(d) : -d);
     }, 0),
   };
-  const vatRate = parseFloat(vat) || 0;
-  const guaranteeRateNum = parseInt(guaranteeRate, 10) || 0;
-  const isGuaranteeActive = hasGuarantee === 'yes' && guaranteeRateNum > 0 && !!selectedEnterprise;
 
   const enterpriseAfterTax = isGuaranteeActive
-    ? Math.round(grossCustomerTotal * (guaranteeRateNum / 100))
+    ? tableTotals.customerPaidKhdn
     : applyVatAfterTax(parseMoney(enterpriseEstimatedCost), vatRate);
 
   const enterpriseBeforeTax = isGuaranteeActive
     ? applyVatBeforeTax(enterpriseAfterTax, vatRate)
     : parseMoney(enterpriseEstimatedCost);
 
-  const individualCustomerPrice = isGuaranteeActive
-    ? Math.round(displayGrossCustomerTotal * ((100 - guaranteeRateNum) / 100))
-    : displayGrossCustomerTotal;
+  const individualCustomerPrice = tableTotals.customerPaidKhcn;
 
   const remainingAmount = refundAmount > 0 ? 0 : Math.max(0, individualCustomerPrice - paidAmount);
   const orderPaymentStatus = resolveOrderPaymentStatus(
@@ -1594,20 +1652,27 @@ const GuestOrderDetails: React.FC<{
 
   const handleCustomerTotalChange = (value: string) => {
     if (!isEditing || adjustmentRows.length === 0) return;
-    const newTotal = parseMoney(formatMoneyInput(value));
+    const newKhcnTotal = parseMoney(formatMoneyInput(value));
     setCustomerTotalOverride(null);
     markManualFeeTouched();
     setAdjustmentRows((prev) =>
       distributeTotalAcrossRows(
         prev,
-        newTotal,
-        (row) => parseMoney(row.customerPaid),
-        (row, amount) => ({
-          ...row,
-          customerPaid: amount.toLocaleString('en-US'),
-          isCustomerFeeManual: true,
-          customerSource: 'Thủ công',
-        })
+        newKhcnTotal,
+        (row) => resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum).khcn,
+        (row, khcnAmount) => {
+          const current = resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum);
+          const khdn = isGuaranteeActive ? current.khdn : 0;
+          const total = khcnAmount + khdn;
+          return {
+            ...row,
+            customerPaid: total.toLocaleString('en-US'),
+            customerPaidKhcn: khcnAmount.toLocaleString('en-US'),
+            customerPaidKhdn: khdn.toLocaleString('en-US'),
+            isCustomerFeeManual: true,
+            customerSource: 'Thủ công',
+          };
+        }
       )
     );
   };
@@ -1861,21 +1926,49 @@ const GuestOrderDetails: React.FC<{
     );
   };
 
-  const handleCustomerPaidChange = (id: number, value: string) => {
+  const handleCustomerKhcnChange = (id: number, value: string) => {
     if (!isEditing) return;
     setCustomerTotalOverride(null);
     markManualFeeTouched();
     setAdjustmentRows((prev) =>
-      prev.map((row) =>
-        row.id === id
-          ? {
-              ...row,
-              customerPaid: formatMoneyInput(value),
-              isCustomerFeeManual: true,
-              customerSource: 'Thủ công',
-            }
-          : row
-      )
+      prev.map((row) => {
+        if (row.id !== id) return row;
+        const current = resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum);
+        const khcn = parseMoney(formatMoneyInput(value));
+        const khdn = isGuaranteeActive ? current.khdn : 0;
+        const total = khcn + khdn;
+        return {
+          ...row,
+          customerPaid: total.toLocaleString('en-US'),
+          customerPaidKhcn: khcn.toLocaleString('en-US'),
+          customerPaidKhdn: khdn.toLocaleString('en-US'),
+          isCustomerFeeManual: true,
+          customerSource: 'Thủ công',
+        };
+      })
+    );
+  };
+
+  const handleCustomerKhdnChange = (id: number, value: string) => {
+    if (!isEditing || !isGuaranteeActive) return;
+    setCustomerTotalOverride(null);
+    markManualFeeTouched();
+    setAdjustmentRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== id) return row;
+        const current = resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum);
+        const khdn = parseMoney(formatMoneyInput(value));
+        const khcn = current.khcn;
+        const total = khcn + khdn;
+        return {
+          ...row,
+          customerPaid: total.toLocaleString('en-US'),
+          customerPaidKhcn: khcn.toLocaleString('en-US'),
+          customerPaidKhdn: khdn.toLocaleString('en-US'),
+          isCustomerFeeManual: true,
+          customerSource: 'Thủ công',
+        };
+      })
     );
   };
 
@@ -2448,40 +2541,81 @@ const GuestOrderDetails: React.FC<{
                 <div className="lg:col-span-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 pt-4 border-t border-gray-100">
                   <div>
                     <Label required>Biển số xe</Label>
-                    <Input defaultValue={vehiclePlate} readOnly={true} />
+                    <div className="flex gap-2">
+                      <Input
+                        value={vehiclePlate}
+                        onChange={(val) => setVehiclePlate(String(val).toUpperCase())}
+                        readOnly={!isEditing}
+                        className="flex-1 min-w-0 uppercase tracking-wide font-bold"
+                      />
+                      <button
+                        type="button"
+                        title="Tra cứu thông tin phương tiện theo BSX"
+                        onClick={() => setIsVehicleSearchOpen(true)}
+                        className="shrink-0 flex items-center gap-1 bg-white border border-vetc-green text-vetc-green px-2.5 py-1.5 rounded text-[10px] font-bold hover:bg-green-50 transition-all active:scale-95"
+                      >
+                        <Search size={14} />
+                        <span className="hidden sm:inline">Tra cứu</span>
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <Label>Số khung (Vin)</Label>
-                    <Input defaultValue="R7C2X9M4A8" readOnly={!isEditing} />
+                    <Input
+                      value={vehicleVin}
+                      onChange={setVehicleVin}
+                      readOnly={!isEditing}
+                    />
                   </div>
                   <div>
                     <Label>Hãng xe</Label>
-                    <Input defaultValue="Toyota" readOnly={!isEditing} />
+                    <Input
+                      value={vehicleBrand}
+                      onChange={setVehicleBrand}
+                      readOnly={!isEditing}
+                    />
                   </div>
                   <div>
                     <Label>Dòng xe</Label>
-                    <Input defaultValue="Sedan" readOnly={!isEditing} />
+                    <Input
+                      value={vehicleModel}
+                      onChange={setVehicleModel}
+                      readOnly={!isEditing}
+                    />
                   </div>
                 </div>
 
                 <div>
                   <Label>Trọng tải</Label>
                   <div className="flex items-center space-x-2">
-                    <Input defaultValue="1" readOnly={!isEditing} />
+                    <Input
+                      value={vehicleLoadTons}
+                      onChange={setVehicleLoadTons}
+                      readOnly={!isEditing}
+                    />
                     <span className="text-[10px] text-gray-400 font-bold uppercase">tấn</span>
                   </div>
                 </div>
                 <div>
                   <Label>Số chỗ</Label>
                   <div className="flex items-center space-x-2">
-                    <Input defaultValue="5" readOnly={!isEditing} />
+                    <Input
+                      value={vehicleSeats}
+                      onChange={setVehicleSeats}
+                      readOnly={!isEditing}
+                    />
                     <span className="text-[10px] text-gray-400 font-bold uppercase">chỗ</span>
                   </div>
                 </div>
                 <div>
                   <Label>Loại xe</Label>
                   <div className="flex items-center space-x-2">
-                    <select disabled={!isEditing} className={`w-48 border rounded px-3 py-1.5 text-xs outline-none focus:border-vetc-green font-bold text-gray-700 ${!isEditing ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}>
+                    <select
+                      disabled={!isEditing}
+                      value={vehicleType}
+                      onChange={(e) => setVehicleType(e.target.value)}
+                      className={`w-48 border rounded px-3 py-1.5 text-xs outline-none focus:border-vetc-green font-bold text-gray-700 ${!isEditing ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
+                    >
                       <option value="Xe chở hàng">Xe chở hàng</option>
                       <option value="Xe chở người">Xe chở người</option>
                     </select>
@@ -3111,14 +3245,14 @@ const GuestOrderDetails: React.FC<{
                       <div className="min-w-0">
                         <Label>Tổng thanh toán (Sau thuế)</Label>
                         <Input
-                            value={displayGrossCustomerTotal.toLocaleString('en-US')}
+                            value={individualCustomerPrice.toLocaleString('en-US')}
                             onChange={handleCustomerTotalChange}
                             readOnly={!isEditing}
                             className="w-full font-black text-red-600 text-right bg-red-50"
                         />
                         {isEditing ? (
                           <p className="mt-1 text-[9px] text-gray-500 leading-snug">
-                            Đồng bộ với cột KH trả phí trong bảng bên dưới (phân bổ theo tỷ lệ).
+                            Đồng bộ với cột Phí KHCN trong bảng bên dưới (phân bổ theo tỷ lệ).
                           </p>
                         ) : null}
                       </div>
@@ -3246,11 +3380,29 @@ const GuestOrderDetails: React.FC<{
                   <div className="space-y-3">
                     {isEditing ? (
                       <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] leading-relaxed text-amber-900">
-                        <span className="font-bold">Sửa phí trên dòng:</span> chỉ chỉnh <span className="font-semibold">KH trả phí</span> / <span className="font-semibold">Giá NCC</span>.
+                        <span className="font-bold">Sửa phí trên dòng:</span> chỉ chỉnh <span className="font-semibold">Phí KHCN</span>
+                        {isGuaranteeActive ? (
+                          <>
+                            {' '}/ <span className="font-semibold">Phí KHDN</span>
+                          </>
+                        ) : null}
+                        {' '}/ <span className="font-semibold">Giá NCC</span>.
                         Hệ số &amp; loại phụ phí chỉ xem (tooltip) — cấu hình ở bảng phí / chức năng tính lại phía trên.
                         <ul className="mt-1 list-disc space-y-0.5 pl-4">
                           <li>
-                            Sửa <span className="font-semibold">KH trả phí</span> → gắn nhãn <span className="font-semibold">Thủ công</span>; không đổi Giá NCC / hệ số; tổng KH &amp; còn lại phía trên = cộng các dòng.
+                            Sửa <span className="font-semibold">Phí KHCN</span>
+                            {isGuaranteeActive ? (
+                              <>
+                                {' '}/ <span className="font-semibold">Phí KHDN</span>
+                              </>
+                            ) : null}
+                            {' '}→ gắn nhãn <span className="font-semibold">Thủ công</span>; không đổi Giá NCC / hệ số; tổng cá nhân &amp; DN phía trên = cộng các dòng.
+                            {!isGuaranteeActive && (
+                              <> Khi chưa bảo lãnh, toàn bộ phí KH nằm ở <span className="font-semibold">Phí KHCN</span>.</>
+                            )}
+                            {isGuaranteeActive && (
+                              <> Khi có bảo lãnh {guaranteeRateNum}%, mặc định tách theo tỷ lệ; sửa tay sẽ giữ số đã nhập.</>
+                            )}
                           </li>
                           <li>
                             Sửa <span className="font-semibold">Giá NCC</span> → <span className="font-semibold">Thủ công</span>; không nhân lại giá cố định × hệ số. Nếu phí KH chưa thủ công thì KH = Giá NCC × markup khách lẻ; nếu KH đã thủ công thì giữ nguyên.
@@ -3264,7 +3416,14 @@ const GuestOrderDetails: React.FC<{
                         <tr className="bg-green-50/50 text-gray-600 border-b">
                           <th className="p-2 text-center border font-bold w-10">STT</th>
                           <th className="p-2 text-left border font-bold w-80">Tên dịch vụ</th>
-                          <th className="p-2 text-right border font-bold w-48">KH trả phí</th>
+                          <th className="p-2 text-right border font-bold w-40">
+                            Phí KHCN
+                            <div className="text-[9px] font-semibold text-blue-600 normal-case tracking-normal">Cá nhân</div>
+                          </th>
+                          <th className="p-2 text-right border font-bold w-40">
+                            Phí KHDN
+                            <div className="text-[9px] font-semibold text-indigo-600 normal-case tracking-normal">Doanh nghiệp</div>
+                          </th>
                           <th className="p-2 text-center border font-bold w-24">
                             Hệ số
                             <div className="text-[9px] font-semibold text-blue-600 normal-case tracking-normal">Phí KH</div>
@@ -3285,6 +3444,7 @@ const GuestOrderDetails: React.FC<{
                           const supplierCoef = parseFloat(row.supplierCoefficient ?? row.coefficient) || 0;
                           const isMaxCustomer = customerCoef === maxCoefficient && maxCoefficient > 1;
                           const isMaxSupplier = supplierCoef === maxCoefficient && maxCoefficient > 1;
+                          const { khcn, khdn } = resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum);
                           return (
                               <tr key={row.id} className={`border-b hover:bg-gray-50 transition-colors`}>
                                 <td className="p-2 border text-center font-medium">{idx + 1}</td>
@@ -3304,8 +3464,8 @@ const GuestOrderDetails: React.FC<{
                                   {isEditing ? (
                                     <div className="space-y-1">
                                       <Input
-                                        value={row.customerPaid}
-                                        onChange={(val) => handleCustomerPaidChange(row.id, val)}
+                                        value={khcn.toLocaleString('en-US')}
+                                        onChange={(val) => handleCustomerKhcnChange(row.id, val)}
                                         readOnly={false}
                                         className="text-right font-bold text-blue-600"
                                       />
@@ -3320,7 +3480,7 @@ const GuestOrderDetails: React.FC<{
                                   ) : (
                                     <div className="space-y-1">
                                       <div className="text-right font-bold text-blue-600">
-                                        {row.customerPaid}
+                                        {khcn.toLocaleString('en-US')}
                                       </div>
                                       <div className="flex justify-end">
                                         <span className={`text-[9px] font-semibold ${row.isCustomerFeeManual ? 'text-amber-700' : 'text-blue-700'}`}>
@@ -3329,6 +3489,20 @@ const GuestOrderDetails: React.FC<{
                                             : row.customerSource || customerFeeSourceText}
                                         </span>
                                       </div>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="p-2 border text-right font-medium">
+                                  {isEditing && isGuaranteeActive ? (
+                                    <Input
+                                      value={khdn.toLocaleString('en-US')}
+                                      onChange={(val) => handleCustomerKhdnChange(row.id, val)}
+                                      readOnly={false}
+                                      className="text-right font-bold text-indigo-600"
+                                    />
+                                  ) : (
+                                    <div className={`text-right font-bold ${khdn > 0 ? 'text-indigo-600' : 'text-gray-400'}`}>
+                                      {khdn > 0 ? khdn.toLocaleString('en-US') : '—'}
                                     </div>
                                   )}
                                 </td>
@@ -3427,7 +3601,12 @@ const GuestOrderDetails: React.FC<{
                             <span className="text-[10px] uppercase tracking-wider text-gray-600">Tổng cộng</span>
                           </td>
                           <td className="p-2 border text-right text-blue-600">
-                            {tableTotals.customerPaid.toLocaleString('en-US')}
+                            {tableTotals.customerPaidKhcn.toLocaleString('en-US')}
+                          </td>
+                          <td className="p-2 border text-right text-indigo-600">
+                            {tableTotals.customerPaidKhdn > 0
+                              ? tableTotals.customerPaidKhdn.toLocaleString('en-US')
+                              : '—'}
                           </td>
                           <td className="p-2 border" />
                           <td className="p-2 border text-right text-gray-800">
@@ -3622,6 +3801,13 @@ const GuestOrderDetails: React.FC<{
                         onToggle={() => setExpandedRatings((prev) => ({ ...prev, [config.type]: !prev[config.type] }))}
                         onSaveVersion={(data) => handleSaveRatingVersion(config.type, data)}
                         onViewHistory={() => setRatingHistoryModal({ isOpen: true, type: config.type })}
+                        {...(config.type === 'customer_workshop'
+                          ? {
+                              targetOptions: WORKSHOP_STATIONS,
+                              targetSelectLabel: 'Xưởng dịch vụ',
+                              defaultTarget: workshopStation || WORKSHOP_STATIONS[0],
+                            }
+                          : {})}
                       />
                     ))}
                   </div>
@@ -3882,6 +4068,24 @@ const GuestOrderDetails: React.FC<{
               </div>
             </div>
         )}
+
+        <VehiclePlateSearchModal
+          isOpen={isVehicleSearchOpen}
+          initialPlate={vehiclePlate}
+          onClose={() => setIsVehicleSearchOpen(false)}
+          onSelect={(vehicle: VehicleSearchResult) => {
+            setVehiclePlate(vehicle.plate);
+            setVehicleVin(vehicle.vin);
+            setVehicleBrand(vehicle.brand);
+            setVehicleModel(vehicle.model);
+            setVehicleLoadTons(vehicle.loadTons);
+            setVehicleSeats(String(vehicle.seats));
+            setVehicleType(vehicle.vehicleType);
+            if (vehicle.owner.name) setCustomerName(vehicle.owner.name);
+            if (vehicle.owner.phone) setCustomerPhone(vehicle.owner.phone);
+            setIsVehicleSearchOpen(false);
+          }}
+        />
 
         <CustomerPaymentModal
             isOpen={isPaymentModalOpen}

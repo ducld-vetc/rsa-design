@@ -37,15 +37,18 @@ export const INITIAL_RATING_HISTORIES: Record<RatingType, RatingVersion[]> = {
   ],
 
   customer_workshop: [
-    makeVersion(
-      'customer_workshop',
-      1,
-      3,
-      'Xưởng tiếp nhận xe đúng hẹn, nhân viên tư vấn rõ ràng.',
-      '19/06/2026 15:30',
-      [{ name: 'bien-ban-tiep-nhan.pdf' }],
-      'Góp ý nhẹ'
-    ),
+    {
+      ...makeVersion(
+        'customer_workshop',
+        1,
+        3,
+        'Xưởng tiếp nhận xe đúng hẹn, nhân viên tư vấn rõ ràng.',
+        '19/06/2026 15:30',
+        [{ name: 'bien-ban-tiep-nhan.pdf' }],
+        'Góp ý nhẹ'
+      ),
+      targetLabel: 'Carpla Service Thái Bình',
+    },
   ],
 
   rescue_customer: [

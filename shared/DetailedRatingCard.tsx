@@ -72,12 +72,17 @@ type SavePayload = {
   category: string;
   content: string;
   attachments: RatingAttachment[];
+  targetLabel?: string;
 };
 
 interface VersionedProps {
   versions: RatingVersion[];
   onSaveVersion: (data: SavePayload) => void;
   onViewHistory: () => void;
+  /** Danh sách đối tượng đánh giá (vd. xưởng dịch vụ) */
+  targetOptions?: string[];
+  targetSelectLabel?: string;
+  defaultTarget?: string;
 }
 
 interface LegacyProps {
@@ -114,12 +119,22 @@ const DetailedRatingCard: React.FC<DetailedRatingCardProps> = (props) => {
   const displayCategory = versioned ? (latest?.category ?? 'Bình thường') : props.category;
   const displayAttachments = versioned ? (latest?.attachments ?? []) : [];
   const currentVersion = versioned ? (latest?.version ?? 0) : 0;
+  const targetOptions = versioned ? props.targetOptions ?? [] : [];
+  const targetSelectLabel = versioned ? props.targetSelectLabel ?? 'Đối tượng đánh giá' : '';
+  const defaultTarget = versioned ? props.defaultTarget ?? '' : '';
+  const displayTarget =
+    versioned && targetOptions.length > 0
+      ? latest?.targetLabel && targetOptions.includes(latest.targetLabel)
+        ? latest.targetLabel
+        : defaultTarget || targetOptions[0] || ''
+      : latest?.targetLabel ?? '';
 
   const [isEditingLocal, setIsEditingLocal] = useState(false);
   const [draftStars, setDraftStars] = useState(displayRating);
   const [draftCategory, setDraftCategory] = useState(displayCategory);
   const [draftContent, setDraftContent] = useState(displayNote);
   const [draftAttachments, setDraftAttachments] = useState<RatingAttachment[]>(displayAttachments);
+  const [draftTarget, setDraftTarget] = useState(displayTarget);
 
   useEffect(() => {
     if (!isEditingLocal) {
@@ -127,8 +142,9 @@ const DetailedRatingCard: React.FC<DetailedRatingCardProps> = (props) => {
       setDraftCategory(displayCategory);
       setDraftContent(displayNote);
       setDraftAttachments(displayAttachments);
+      setDraftTarget(displayTarget);
     }
-  }, [displayRating, displayCategory, displayNote, displayAttachments, isEditingLocal]);
+  }, [displayRating, displayCategory, displayNote, displayAttachments, displayTarget, isEditingLocal]);
 
   const isEditing = versioned ? isEditingLocal : props.isEditing;
 
@@ -139,6 +155,7 @@ const DetailedRatingCard: React.FC<DetailedRatingCardProps> = (props) => {
     setDraftCategory(displayCategory);
     setDraftContent(displayNote);
     setDraftAttachments([...displayAttachments]);
+    setDraftTarget(displayTarget || defaultTarget || targetOptions[0] || '');
     setIsEditingLocal(true);
     if (!isExpanded) onToggle();
   };
@@ -149,17 +166,20 @@ const DetailedRatingCard: React.FC<DetailedRatingCardProps> = (props) => {
     setDraftStars(displayRating);
     setDraftCategory(displayCategory);
     setDraftContent(displayNote);
-    setDraftAttachments([...displayAttachments]);
+    setDraftAttachments(displayAttachments);
+    setDraftTarget(displayTarget);
   };
 
   const handleSave = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!versioned || draftStars < 1) return;
+    if (targetOptions.length > 0 && !draftTarget) return;
     props.onSaveVersion({
       stars: draftStars,
       category: draftCategory,
       content: draftContent,
       attachments: draftAttachments,
+      ...(targetOptions.length > 0 ? { targetLabel: draftTarget } : {}),
     });
     setIsEditingLocal(false);
   };
@@ -253,6 +273,24 @@ const DetailedRatingCard: React.FC<DetailedRatingCardProps> = (props) => {
                       />
                     </div>
 
+                    {targetOptions.length > 0 && (
+                      <div>
+                        <Label required>{targetSelectLabel}</Label>
+                        <select
+                          value={draftTarget}
+                          onChange={(e) => setDraftTarget(e.target.value)}
+                          className="w-full border rounded px-2 py-1.5 text-[11px] outline-none focus:border-vetc-green bg-white font-medium text-gray-800"
+                        >
+                          <option value="">-- Chọn xưởng dịch vụ --</option>
+                          {targetOptions.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
                     {categories.length > 0 && (
                       <div>
                         <Label>Phân loại</Label>
@@ -330,9 +368,9 @@ const DetailedRatingCard: React.FC<DetailedRatingCardProps> = (props) => {
                       <button
                         type="button"
                         onClick={handleSave}
-                        disabled={draftStars < 1}
+                        disabled={draftStars < 1 || (targetOptions.length > 0 && !draftTarget)}
                         className={`flex items-center space-x-1 px-3 py-1.5 rounded text-[11px] font-bold transition-colors shadow-sm ${
-                          draftStars < 1
+                          draftStars < 1 || (targetOptions.length > 0 && !draftTarget)
                             ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                             : 'bg-vetc-green text-white hover:bg-green-700'
                         }`}
@@ -396,6 +434,13 @@ const DetailedRatingCard: React.FC<DetailedRatingCardProps> = (props) => {
                     </div>
                   ) : (
                     <>
+                      {targetOptions.length > 0 && displayTarget && (
+                        <div>
+                          <Label>Xưởng dịch vụ</Label>
+                          <p className="text-[11px] font-bold text-gray-800">{displayTarget}</p>
+                        </div>
+                      )}
+
                       {displayNote ? (
                         <div>
                           <Label className="flex items-center space-x-1">
