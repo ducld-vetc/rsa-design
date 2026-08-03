@@ -336,12 +336,18 @@ const RescueFeeCriteriaManagement: React.FC = () => {
                       </td>
                       <td className="border-b px-4 py-3 font-mono text-gray-600">{definition.key}</td>
                       <td className="border-b px-4 py-3">
-                        {definition.valueType === 'LIST' ? 'Danh sách' : 'Khoảng số'}
+                        {definition.valueType === 'LIST'
+                          ? 'Danh sách'
+                          : definition.valueType === 'TIME'
+                            ? 'Khung giờ'
+                            : 'Khoảng số'}
                       </td>
                       <td className="max-w-[340px] border-b px-4 py-3 text-gray-600">
                         {definition.valueType === 'RANGE'
                           ? 'Nhập Từ – Đến khi cấu hình bảng phí'
-                          : definition.values.join(', ')}
+                          : definition.valueType === 'TIME'
+                            ? 'Nhập khung giờ Từ – Đến'
+                            : definition.values.join(', ')}
                       </td>
                       <td className="border-b px-4 py-3 text-center">
                         <button
@@ -534,6 +540,7 @@ const RescueFeeCriteriaManagement: React.FC = () => {
                   options={[
                     { value: 'LIST', label: 'Danh sách giá trị' },
                     { value: 'RANGE', label: 'Khoảng số (Từ – Đến)' },
+                    { value: 'TIME', label: 'Khung giờ (Từ – Đến)' },
                   ]}
                   onChange={(value) =>
                     setEditing((current) =>

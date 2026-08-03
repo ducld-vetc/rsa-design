@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Copy, Edit3, CalendarRange, ListFilter, ReceiptText, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Copy, Edit3, CalendarRange, ListFilter, ReceiptText, SlidersHorizontal, X } from 'lucide-react';
 import {
   FEE_KIND_LABELS,
   FEE_STATUS_LABELS,
@@ -10,6 +10,7 @@ import {
   formatMoneyVi,
   rescueFeeTables,
   type FeeTableStatus,
+  type ServiceType,
 } from '../data/rescueFeeMockData';
 
 const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
@@ -21,6 +22,76 @@ const SERVICE_LABELS = {
   TOWING: 'Kéo xe',
   CRANE: 'Cẩu xe',
 } as const;
+
+const filterInputClass =
+  'w-full border rounded px-3 py-1.5 text-sm outline-none focus:border-vetc-green placeholder:text-gray-400';
+const filterLabelClass = 'block text-xs font-semibold text-gray-600 mb-1';
+
+type FilterCondition = {
+  criterionKey: string;
+  operator: string;
+  value: unknown;
+};
+
+const parseOptionalNumber = (raw: string): number | null => {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const value = Number(trimmed.replace(',', '.'));
+  return Number.isFinite(value) ? value : null;
+};
+
+const collectListCriterionOptions = (
+  rules: { conditions?: FilterCondition[] }[],
+  criterionKeys: string[],
+  fallback: string[] = []
+) => {
+  const seen = new Set<string>(fallback);
+  for (const rule of rules) {
+    for (const condition of rule.conditions ?? []) {
+      if (!criterionKeys.includes(condition.criterionKey)) continue;
+      const values = Array.isArray(condition.value) ? condition.value : [condition.value];
+      for (const value of values) {
+        const text = String(value ?? '').trim();
+        if (text) seen.add(text);
+      }
+    }
+  }
+  return Array.from(seen).sort((a, b) => a.localeCompare(b, 'vi'));
+};
+
+const ruleMatchesListCriterion = (
+  rule: { conditions?: FilterCondition[] },
+  criterionKeys: string[],
+  selected: string
+) => {
+  if (!selected) return true;
+  return (rule.conditions ?? []).some((condition) => {
+    if (!criterionKeys.includes(condition.criterionKey)) return false;
+    const values = Array.isArray(condition.value)
+      ? condition.value.map(String)
+      : [String(condition.value ?? '')];
+    return values.includes(selected);
+  });
+};
+
+const ruleMatchesNumericCriterion = (
+  rule: { conditions?: FilterCondition[] },
+  criterionKeys: string[],
+  input: number | null
+) => {
+  if (input == null) return true;
+  return (rule.conditions ?? []).some((condition) => {
+    if (!criterionKeys.includes(condition.criterionKey)) return false;
+    if (condition.operator === 'BETWEEN' && Array.isArray(condition.value) && condition.value.length >= 2) {
+      const from = Number(condition.value[0]);
+      const to = Number(condition.value[1]);
+      if (!Number.isFinite(from) || !Number.isFinite(to)) return false;
+      return input >= from && input <= to;
+    }
+    const values = Array.isArray(condition.value) ? condition.value : [condition.value];
+    return values.some((value) => Number(value) === input);
+  });
+};
 
 const StatusBadge: React.FC<{ status: FeeTableStatus }> = ({ status }) => {
   const styles =
@@ -39,11 +110,83 @@ const StatusBadge: React.FC<{ status: FeeTableStatus }> = ({ status }) => {
 const RescueFeeDetail: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [matrixServiceType, setMatrixServiceType] = useState<'' | ServiceType>('');
+  const [matrixServiceDetail, setMatrixServiceDetail] = useState('');
+  const [matrixVehicleType, setMatrixVehicleType] = useState('');
+  const [matrixRescueVehicleType, setMatrixRescueVehicleType] = useState('');
+  const [matrixSeatNumber, setMatrixSeatNumber] = useState('');
+  const [matrixLoadCapacity, setMatrixLoadCapacity] = useState('');
   const table = useMemo(() => rescueFeeTables.find((t) => t.id === id), [id]);
   const history = useMemo(
     () => feeVersionHistory.filter((h) => h.tableId === id).sort((a, b) => b.version - a.version),
     [id]
   );
+  const serviceDetailOptions = useMemo(
+    () =>
+      Array.from(
+        new Set((table?.serviceRules ?? []).map((rule) => rule.serviceDetail).filter(Boolean))
+      ),
+    [table]
+  );
+  const vehicleTypeOptions = useMemo(() => {
+    const fromCriteria =
+      (table?.priceCriteria ?? [])
+        .find((criterion) => criterion.key === 'vehicleType')
+        ?.allowedValues ?? [];
+    return collectListCriterionOptions(table?.serviceRules ?? [], ['vehicleType'], fromCriteria);
+  }, [table]);
+  const rescueVehicleTypeOptions = useMemo(() => {
+    const fromCriteria =
+      (table?.priceCriteria ?? [])
+        .find((criterion) => criterion.key === 'rescueVehicleType')
+        ?.allowedValues ?? [];
+    return collectListCriterionOptions(
+      table?.serviceRules ?? [],
+      ['rescueVehicleType'],
+      fromCriteria
+    );
+  }, [table]);
+  const filteredServiceRules = useMemo(() => {
+    if (!table) return [];
+    const seatNumber = parseOptionalNumber(matrixSeatNumber);
+    const loadCapacity = parseOptionalNumber(matrixLoadCapacity);
+    return table.serviceRules.filter((rule) => {
+      if (matrixServiceType && rule.serviceType !== matrixServiceType) return false;
+      if (matrixServiceDetail && rule.serviceDetail !== matrixServiceDetail) return false;
+      if (!ruleMatchesListCriterion(rule, ['vehicleType'], matrixVehicleType)) return false;
+      if (!ruleMatchesListCriterion(rule, ['rescueVehicleType'], matrixRescueVehicleType)) {
+        return false;
+      }
+      if (!ruleMatchesNumericCriterion(rule, ['seat_number', 'seats'], seatNumber)) return false;
+      if (!ruleMatchesNumericCriterion(rule, ['load_capacity', 'payload'], loadCapacity)) {
+        return false;
+      }
+      return true;
+    });
+  }, [
+    table,
+    matrixServiceType,
+    matrixServiceDetail,
+    matrixSeatNumber,
+    matrixLoadCapacity,
+    matrixVehicleType,
+    matrixRescueVehicleType,
+  ]);
+  const hasMatrixFilter =
+    Boolean(matrixServiceType) ||
+    Boolean(matrixServiceDetail) ||
+    Boolean(matrixSeatNumber.trim()) ||
+    Boolean(matrixLoadCapacity.trim()) ||
+    Boolean(matrixVehicleType) ||
+    Boolean(matrixRescueVehicleType);
+  const clearMatrixFilters = () => {
+    setMatrixServiceType('');
+    setMatrixServiceDetail('');
+    setMatrixSeatNumber('');
+    setMatrixLoadCapacity('');
+    setMatrixVehicleType('');
+    setMatrixRescueVehicleType('');
+  };
 
   if (!table) {
     return (
@@ -194,21 +337,119 @@ const RescueFeeDetail: React.FC = () => {
 
       <div className="border rounded-lg shadow-sm overflow-hidden bg-white">
         <SectionHeader title="Ma trận giá dịch vụ theo tiêu chí" />
+        <div className="space-y-2 border-b bg-white px-4 py-3">
+          <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <div>
+              <label className={filterLabelClass}>Loại DV</label>
+              <select
+                className={filterInputClass}
+                value={matrixServiceType}
+                onChange={(e) => setMatrixServiceType(e.target.value as '' | ServiceType)}
+              >
+                <option value="">Tất cả</option>
+                <option value="ONSITE">Hỗ trợ tại chỗ</option>
+                <option value="TOWING">Kéo xe</option>
+                <option value="CRANE">Cẩu xe</option>
+              </select>
+            </div>
+            <div>
+              <label className={filterLabelClass}>Đầu dịch vụ</label>
+              <select
+                className={filterInputClass}
+                value={matrixServiceDetail}
+                onChange={(e) => setMatrixServiceDetail(e.target.value)}
+              >
+                <option value="">Tất cả</option>
+                {serviceDetailOptions.map((serviceDetail) => (
+                  <option key={serviceDetail} value={serviceDetail}>
+                    {serviceDetail}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={filterLabelClass}>Loại xe khách</label>
+              <select
+                className={filterInputClass}
+                value={matrixVehicleType}
+                onChange={(e) => setMatrixVehicleType(e.target.value)}
+              >
+                <option value="">Tất cả</option>
+                {vehicleTypeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={filterLabelClass}>Loại xe cứu hộ</label>
+              <select
+                className={filterInputClass}
+                value={matrixRescueVehicleType}
+                onChange={(e) => setMatrixRescueVehicleType(e.target.value)}
+              >
+                <option value="">Tất cả</option>
+                {rescueVehicleTypeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={filterLabelClass}>Số chỗ</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                className={filterInputClass}
+                placeholder="VD: 5"
+                value={matrixSeatNumber}
+                onChange={(e) => setMatrixSeatNumber(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={filterLabelClass}>Trọng tải</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className={filterInputClass}
+                  placeholder="VD: 2.5"
+                  value={matrixLoadCapacity}
+                  onChange={(e) => setMatrixLoadCapacity(e.target.value)}
+                />
+                {hasMatrixFilter && (
+                  <button
+                    type="button"
+                    onClick={clearMatrixFilters}
+                    className="inline-flex shrink-0 items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-gray-600 hover:border-vetc-green hover:text-vetc-green"
+                    title="Xóa lọc"
+                  >
+                    <X size={12} />
+                    Xóa
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="text-[10px] text-gray-500">
+            Hiển thị {filteredServiceRules.length}/{table.serviceRules.length} dòng giá
+            {hasMatrixFilter ? ' (đã lọc)' : ''}
+          </div>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse min-w-[1000px]">
+          <table className="w-full text-sm border-collapse min-w-[720px]">
             <thead>
               <tr className="bg-gray-50 border-b text-xs uppercase text-gray-600">
                 <th className="px-3 py-2 text-left">Dịch vụ</th>
                 <th className="px-3 py-2 text-left">Tổ hợp tiêu chí áp dụng</th>
                 <th className="px-3 py-2 text-left">Cách tính</th>
                 <th className="px-3 py-2 text-right">Mức giá</th>
-                <th className="px-3 py-2 text-right">Km gồm</th>
-                <th className="px-3 py-2 text-right">Giá/km vượt</th>
-                <th className="px-3 py-2 text-left">Vị trí</th>
               </tr>
             </thead>
             <tbody>
-              {table.serviceRules.map((r) => (
+              {filteredServiceRules.map((r) => (
                 <tr key={r.id} className="border-b">
                   <td className="px-3 py-2">{r.serviceDetail || SERVICE_LABELS[r.serviceType]}</td>
                   <td className="px-3 py-2">
@@ -247,13 +488,17 @@ const RescueFeeDetail: React.FC = () => {
                     {formatMoneyVi(r.basePrice)}
                     {r.pricingMode === 'PER_UNIT' ? `/${r.unit || 'đơn vị'}` : ''}
                   </td>
-                  <td className="px-3 py-2 text-right">{r.includedKm ?? '—'}</td>
-                  <td className="px-3 py-2 text-right">
-                    {r.pricePerExtraKm != null ? formatMoneyVi(r.pricePerExtraKm) : '—'}
-                  </td>
-                  <td className="px-3 py-2">{r.roadPosition ?? '—'}</td>
                 </tr>
               ))}
+              {filteredServiceRules.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-3 py-8 text-center text-sm text-gray-400">
+                    {table.serviceRules.length === 0
+                      ? 'Không có dòng giá.'
+                      : 'Không có dòng giá khớp bộ lọc.'}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

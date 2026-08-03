@@ -10,6 +10,7 @@ import {
   GripVertical,
   Plus,
   Save,
+  Search,
   SlidersHorizontal,
   Trash2,
   Upload,
@@ -87,18 +88,82 @@ const SERVICE_OPTIONS = FEE_SERVICE_CATALOG;
 const SURCHARGE_HEAD_OPTIONS = FEE_SURCHARGE_CATALOG;
 const PRIMARY_CRITERION_BY_SERVICE: Partial<Record<ServiceType, string>> = {
   TOWING: 'Khoảng cách kéo xe',
-  CRANE: 'Khoảng cách so với mặt đường',
+  CRANE: 'Khoảng cách so với mặt đất',
 };
 const PRIMARY_CRITERION_CONFIG: Record<
   string,
-  { key: string; valueType: 'LIST' | 'RANGE'; values: string[] }
+  { key: string; valueType: 'LIST' | 'RANGE'; values: string[]; label: string }
 > = {
-  'Khoảng cách kéo xe': { key: 'distanceKm', valueType: 'RANGE', values: [] },
+  'Khoảng cách kéo xe': {
+    key: 'distanceKm',
+    valueType: 'RANGE',
+    values: [],
+    label: 'Khoảng cách kéo xe',
+  },
+  'Khoảng cách so với mặt đất': {
+    key: 'roadDistance',
+    valueType: 'RANGE',
+    values: [],
+    label: 'Khoảng cách so với mặt đất',
+  },
   'Khoảng cách so với mặt đường': {
     key: 'roadDistance',
     valueType: 'RANGE',
     values: [],
+    label: 'Khoảng cách so với mặt đất',
   },
+  'Độ sâu / tư thế xe cẩu': {
+    key: 'craneDepthBand',
+    valueType: 'LIST',
+    values: [
+      'ROAD_OR_DEPTH_LT_5',
+      'DEPTH_5_10',
+      'DEPTH_10_30',
+      'DEPTH_30_50',
+      'DEPTH_50_100',
+      'DEPTH_100_150',
+      'DEPTH_GT_150_SIDE',
+      'DEPTH_GT_150_UPRIGHT',
+    ],
+    label: 'Độ sâu / tư thế xe cẩu',
+  },
+};
+
+type MatrixPrimaryConfig = {
+  key: string;
+  valueType: 'LIST' | 'RANGE';
+  values: string[];
+  label: string;
+  /** PTI kéo: không dùng distanceKm BETWEEN — hiện km bao gồm / giá vượt */
+  mode: 'RANGE' | 'LIST' | 'TOW_INCLUDED';
+};
+
+/** Primary cột ma trận: khoảng km / độ sâu; TOW_INCLUDED chỉ khi bảng cũ còn includedKm. */
+const resolveMatrixPrimary = (rule: ServicePriceRule): MatrixPrimaryConfig | null => {
+  if (rule.serviceType === 'TOWING') {
+    const hasDistance = (rule.conditions ?? []).some((c) => c.criterionKey === 'distanceKm');
+    if (hasDistance) {
+      return { ...PRIMARY_CRITERION_CONFIG['Khoảng cách kéo xe'], mode: 'RANGE' };
+    }
+    if (rule.includedKm != null || rule.pricePerExtraKm != null) {
+      return {
+        key: 'distanceKm',
+        valueType: 'RANGE',
+        values: [],
+        label: 'Km bao gồm / vượt',
+        mode: 'TOW_INCLUDED',
+      };
+    }
+    return { ...PRIMARY_CRITERION_CONFIG['Khoảng cách kéo xe'], mode: 'RANGE' };
+  }
+  if (rule.serviceType === 'CRANE') {
+    const hasDepthBand = (rule.conditions ?? []).some((c) => c.criterionKey === 'craneDepthBand');
+    if (hasDepthBand) {
+      return { ...PRIMARY_CRITERION_CONFIG['Độ sâu / tư thế xe cẩu'], mode: 'LIST' };
+    }
+    return { ...PRIMARY_CRITERION_CONFIG['Khoảng cách so với mặt đất'], mode: 'RANGE' };
+  }
+  return null;
 };
 const getCriterionConfig = (label: string) =>
   feeCriterionDefinitions.find((definition) => definition.label === label) ??
@@ -113,6 +178,35 @@ const formatConditionSummary = (condition: FeeRuleCondition): string => {
   return formattedValue
     ? `${condition.criterionLabel}: ${formattedValue}`
     : condition.criterionLabel;
+};
+
+const ruleMatchesMatrixFilter = (
+  rule: ServicePriceRule,
+  filters: {
+    keyword: string;
+    serviceType: '' | ServiceType;
+    serviceDetail: string;
+    pricingMode: '' | ServicePricingMode;
+  }
+): boolean => {
+  if (filters.serviceType && rule.serviceType !== filters.serviceType) return false;
+  if (filters.serviceDetail && rule.serviceDetail !== filters.serviceDetail) return false;
+  if (filters.pricingMode && (rule.pricingMode ?? 'FIXED') !== filters.pricingMode) {
+    return false;
+  }
+  const keyword = filters.keyword.trim().toLowerCase();
+  if (!keyword) return true;
+  const haystack = [
+    rule.serviceDetail,
+    rule.serviceType,
+    rule.pricingMode ?? 'FIXED',
+    rule.unit ?? '',
+    String(rule.basePrice ?? ''),
+    ...(rule.conditions ?? []).map((condition) => formatConditionSummary(condition)),
+  ]
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(keyword);
 };
 
 const parseMoneyInput = (value: string): number =>
@@ -258,16 +352,26 @@ const createDemoServiceRules = (
 };
 
 const ensureRequiredCriteria = (table: PriceTable): PriceTable => {
-  const activeKeys = new Set(
+  const byKey = new Map(
     feeCriterionDefinitions
       .filter((definition) => definition.status === 'ACTIVE')
-      .map((definition) => definition.key)
+      .map((definition) => [definition.key, definition])
   );
+  /** Giữ nguyên priceCriteria của bảng (không strip key lạ); bổ sung valueType/allowedValues từ catalog khi thiếu. */
   return {
     ...table,
-    priceCriteria: (table.priceCriteria ?? []).filter((criterion) =>
-      activeKeys.has(criterion.key)
-    ),
+    priceCriteria: (table.priceCriteria ?? []).map((criterion) => {
+      const def = byKey.get(criterion.key);
+      if (!def) return criterion;
+      return {
+        ...criterion,
+        label: criterion.label || def.label,
+        valueType: criterion.valueType ?? def.valueType,
+        allowedValues:
+          criterion.allowedValues ??
+          (def.values.length > 0 ? def.values : criterion.allowedValues),
+      };
+    }),
   };
 };
 
@@ -308,6 +412,10 @@ const RescueFeeForm: React.FC = () => {
   const excelInputRef = useRef<HTMLInputElement>(null);
   const [draggedPriceRuleId, setDraggedPriceRuleId] = useState<string | null>(null);
   const [dragOverPriceRuleId, setDragOverPriceRuleId] = useState<string | null>(null);
+  const [matrixKeyword, setMatrixKeyword] = useState('');
+  const [matrixServiceType, setMatrixServiceType] = useState<'' | ServiceType>('');
+  const [matrixServiceDetail, setMatrixServiceDetail] = useState('');
+  const [matrixPricingMode, setMatrixPricingMode] = useState<'' | ServicePricingMode>('');
 
   const update = <K extends keyof PriceTable>(key: K, value: PriceTable[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -1541,8 +1649,9 @@ const RescueFeeForm: React.FC = () => {
   const addPriceCondition = (ruleId: string) => {
     const rule = form.serviceRules.find((item) => item.id === ruleId);
     if (!rule) return;
-    const primaryLabel = PRIMARY_CRITERION_BY_SERVICE[rule.serviceType];
-    const primaryKey = primaryLabel ? PRIMARY_CRITERION_CONFIG[primaryLabel].key : '';
+    const matrixPrimary = resolveMatrixPrimary(rule);
+    const primaryKey =
+      matrixPrimary && matrixPrimary.mode !== 'TOW_INCLUDED' ? matrixPrimary.key : '';
     const usedKeys = new Set((rule.conditions ?? []).map((condition) => condition.criterionKey));
     const criterion = (form.priceCriteria ?? []).find(
       (item) =>
@@ -1551,12 +1660,13 @@ const RescueFeeForm: React.FC = () => {
         !usedKeys.has(item.key)
     );
     if (!criterion) return;
+    const useBetween = criterion.valueType === 'RANGE' || criterion.valueType === 'TIME';
     const condition: FeeRuleCondition = {
       criterionKey: criterion.key,
       criterionLabel: criterion.label,
-      operator: criterion.valueType === 'RANGE' ? 'BETWEEN' : '=',
+      operator: useBetween ? 'BETWEEN' : '=',
       value: defaultValueForOperator(
-        criterion.valueType === 'RANGE' ? 'BETWEEN' : '=',
+        useBetween ? 'BETWEEN' : '=',
         criterion.allowedValues
       ),
     };
@@ -1611,8 +1721,21 @@ const RescueFeeForm: React.FC = () => {
       updatePriceCondition(ruleId, existingIndex, patch);
       return;
     }
-    const primary = buildPrimaryCondition(rule.serviceType);
-    if (!primary) return;
+    const matrixPrimary = resolveMatrixPrimary(rule);
+    const primary: FeeRuleCondition =
+      matrixPrimary?.mode === 'LIST'
+        ? {
+            criterionKey: matrixPrimary.key,
+            criterionLabel: matrixPrimary.label,
+            operator: '=',
+            value: matrixPrimary.values[0] ?? '',
+          }
+        : buildPrimaryCondition(rule.serviceType) ?? {
+            criterionKey: primaryKey,
+            criterionLabel: primaryKey,
+            operator: 'BETWEEN',
+            value: ['', ''],
+          };
     updateServiceRule(ruleId, {
       conditions: [{ ...primary, ...patch }, ...(rule.conditions ?? [])],
     });
@@ -1705,6 +1828,29 @@ const RescueFeeForm: React.FC = () => {
   const selectedServiceHeads: string[] = Array.from(
     new Set<string>(form.serviceRules.map((rule) => rule.serviceDetail))
   );
+  const matrixFilters = {
+    keyword: matrixKeyword,
+    serviceType: matrixServiceType,
+    serviceDetail: matrixServiceDetail,
+    pricingMode: matrixPricingMode,
+  };
+  const hasMatrixFilter =
+    Boolean(matrixKeyword.trim()) ||
+    Boolean(matrixServiceType) ||
+    Boolean(matrixServiceDetail) ||
+    Boolean(matrixPricingMode);
+  const filteredMatrixRules = form.serviceRules.filter((rule) =>
+    ruleMatchesMatrixFilter(rule, matrixFilters)
+  );
+  const filteredMatrixServiceHeads = selectedServiceHeads.filter((serviceDetail) =>
+    filteredMatrixRules.some((rule) => rule.serviceDetail === serviceDetail)
+  );
+  const clearMatrixFilters = () => {
+    setMatrixKeyword('');
+    setMatrixServiceType('');
+    setMatrixServiceDetail('');
+    setMatrixPricingMode('');
+  };
   const catalogLeafServices = SERVICE_OPTIONS.flatMap((option) =>
     option.children?.length ? [...option.children] : [option.value]
   );
@@ -1726,12 +1872,11 @@ const RescueFeeForm: React.FC = () => {
     rules: form.surchargeRules.filter((rule) => rule.name === name),
   }));
   const criteriaRule = form.serviceRules.find((rule) => rule.id === criteriaRuleId);
-  const criteriaRulePrimaryLabel = criteriaRule
-    ? PRIMARY_CRITERION_BY_SERVICE[criteriaRule.serviceType]
-    : undefined;
-  const criteriaRulePrimaryKey = criteriaRulePrimaryLabel
-    ? PRIMARY_CRITERION_CONFIG[criteriaRulePrimaryLabel].key
-    : '';
+  const criteriaRulePrimary = criteriaRule ? resolveMatrixPrimary(criteriaRule) : null;
+  const criteriaRulePrimaryKey =
+    criteriaRulePrimary && criteriaRulePrimary.mode !== 'TOW_INCLUDED'
+      ? criteriaRulePrimary.key
+      : '';
   const criteriaRuleConditions = (criteriaRule?.conditions ?? [])
     .map((condition, index) => ({ condition, index }))
     .filter(({ condition }) => condition.criterionKey !== criteriaRulePrimaryKey);
@@ -2533,12 +2678,93 @@ const RescueFeeForm: React.FC = () => {
                 title="Dòng giá theo tổ hợp tiêu chí"
                 number={1}
               />
+              <div className="space-y-3 border-b bg-white px-4 py-3">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="min-w-[200px] flex-1">
+                    <label className={labelClass}>Tìm kiếm</label>
+                    <div className="relative">
+                      <Search
+                        size={13}
+                        className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                      <input
+                        type="text"
+                        className={`${inputClass} pl-8`}
+                        placeholder="Dịch vụ, tiêu chí, giá…"
+                        value={matrixKeyword}
+                        onChange={(e) => setMatrixKeyword(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="w-[150px]">
+                    <label className={labelClass}>Loại DV</label>
+                    <select
+                      className={inputClass}
+                      value={matrixServiceType}
+                      onChange={(e) =>
+                        setMatrixServiceType(e.target.value as '' | ServiceType)
+                      }
+                    >
+                      <option value="">Tất cả</option>
+                      <option value="ONSITE">Kích bình</option>
+                      <option value="TOWING">Kéo xe</option>
+                      <option value="CRANE">Cẩu xe</option>
+                    </select>
+                  </div>
+                  <div className="min-w-[200px] flex-1">
+                    <label className={labelClass}>Đầu dịch vụ</label>
+                    <select
+                      className={inputClass}
+                      value={matrixServiceDetail}
+                      onChange={(e) => setMatrixServiceDetail(e.target.value)}
+                    >
+                      <option value="">Tất cả</option>
+                      {selectedServiceHeads.map((serviceDetail) => (
+                        <option key={serviceDetail} value={serviceDetail}>
+                          {serviceDetail}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-[140px]">
+                    <label className={labelClass}>Cách tính</label>
+                    <select
+                      className={inputClass}
+                      value={matrixPricingMode}
+                      onChange={(e) =>
+                        setMatrixPricingMode(e.target.value as '' | ServicePricingMode)
+                      }
+                    >
+                      <option value="">Tất cả</option>
+                      <option value="FIXED">Theo lượt</option>
+                      <option value="PER_UNIT">Theo đơn vị</option>
+                    </select>
+                  </div>
+                  {hasMatrixFilter && (
+                    <button
+                      type="button"
+                      onClick={clearMatrixFilters}
+                      className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-gray-600 hover:border-vetc-green hover:text-vetc-green"
+                    >
+                      <X size={12} />
+                      Xóa lọc
+                    </button>
+                  )}
+                </div>
+                <div className="text-[10px] text-gray-500">
+                  Hiển thị {filteredMatrixRules.length}/{form.serviceRules.length} dòng giá
+                  {hasMatrixFilter ? ' (đã lọc)' : ''}
+                </div>
+              </div>
               <div className="space-y-4 p-4">
-                {selectedServiceHeads.map((serviceDetail, serviceIndex) => {
-                  const serviceRules = form.serviceRules.filter(
+                {filteredMatrixServiceHeads.map((serviceDetail, serviceIndex) => {
+                  const serviceRules = filteredMatrixRules.filter(
                     (rule) => rule.serviceDetail === serviceDetail
                   );
                   const serviceType = serviceRules[0]?.serviceType ?? 'ONSITE';
+                  const totalServiceRules = form.serviceRules.filter(
+                    (rule) => rule.serviceDetail === serviceDetail
+                  ).length;
                   return (
                     <div key={serviceDetail} className="overflow-hidden rounded-lg border bg-white shadow-sm">
                       <div className="flex items-center justify-between border-b bg-gray-50 px-4 py-3">
@@ -2549,7 +2775,11 @@ const RescueFeeForm: React.FC = () => {
                           <div>
                             <div className="text-sm font-bold text-gray-800">{serviceDetail}</div>
                             <div className="text-[10px] text-gray-500">
-                              {SERVICE_CONFIG[serviceType].label} · {serviceRules.length} dòng giá
+                              {SERVICE_CONFIG[serviceType].label} · {serviceRules.length}
+                              {hasMatrixFilter && serviceRules.length !== totalServiceRules
+                                ? `/${totalServiceRules}`
+                                : ''}{' '}
+                              dòng giá
                             </div>
                           </div>
                         </div>
@@ -2589,22 +2819,33 @@ const RescueFeeForm: React.FC = () => {
                           </thead>
                           <tbody>
                     {serviceRules.map((rule) => {
-                      const primaryLabel = PRIMARY_CRITERION_BY_SERVICE[rule.serviceType];
-                      const primaryConfig = primaryLabel
-                        ? PRIMARY_CRITERION_CONFIG[primaryLabel]
-                        : null;
+                      const primaryConfig = resolveMatrixPrimary(rule);
                       const configuredPrimary = primaryConfig
                         ? (rule.conditions ?? []).find(
                             (condition) => condition.criterionKey === primaryConfig.key
                           )
                         : null;
-                      const fallbackPrimary = primaryConfig
-                        ? buildPrimaryCondition(rule.serviceType)
-                        : null;
-                      const primaryCondition = configuredPrimary ?? fallbackPrimary;
+                      const fallbackPrimary =
+                        primaryConfig && primaryConfig.mode === 'RANGE'
+                          ? buildPrimaryCondition(rule.serviceType)
+                          : primaryConfig && primaryConfig.mode === 'LIST'
+                            ? ({
+                                criterionKey: primaryConfig.key,
+                                criterionLabel: primaryConfig.label,
+                                operator: '=' as const,
+                                value: primaryConfig.values[0] ?? '',
+                              } satisfies FeeRuleCondition)
+                            : null;
+                      const primaryCondition =
+                        primaryConfig?.mode === 'TOW_INCLUDED'
+                          ? null
+                          : configuredPrimary ?? fallbackPrimary;
                       const additionalConditions = (rule.conditions ?? [])
                         .map((condition, index) => ({ condition, index }))
-                        .filter(({ condition }) => condition.criterionKey !== primaryConfig?.key);
+                        .filter(({ condition }) => {
+                          if (!primaryConfig || primaryConfig.mode === 'TOW_INCLUDED') return true;
+                          return condition.criterionKey !== primaryConfig.key;
+                        });
                       const primaryUnit = rule.serviceType === 'CRANE' ? 'm' : 'km';
                       const isDragging = draggedPriceRuleId === rule.id;
                       const isDragOver =
@@ -2646,7 +2887,81 @@ const RescueFeeForm: React.FC = () => {
                             </div>
                           </td>
                           <td className="border-b border-r p-2">
-                            {!primaryConfig || !primaryCondition ? (
+                            {primaryConfig?.mode === 'TOW_INCLUDED' ? (
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-[72px] shrink-0 text-[10px] font-semibold text-gray-500">
+                                    Km gồm
+                                  </span>
+                                  <div className="relative min-w-0 flex-1">
+                                    <input
+                                      type="number"
+                                      className={`${inputClass} pr-8 text-right`}
+                                      placeholder="10"
+                                      title="Số km nằm trong giá mở cửa (vd. 10)"
+                                      value={rule.includedKm ?? ''}
+                                      onChange={(e) =>
+                                        updateServiceRule(rule.id, {
+                                          includedKm: e.target.value
+                                            ? Number(e.target.value)
+                                            : undefined,
+                                        })
+                                      }
+                                    />
+                                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">
+                                      km
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-[72px] shrink-0 text-[10px] font-semibold text-gray-500">
+                                    Giá vượt
+                                  </span>
+                                  <div className="relative min-w-0 flex-1">
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      className={`${inputClass} pr-8 text-right`}
+                                      placeholder="20,000"
+                                      title="Đơn giá mỗi km vượt mức Km gồm"
+                                      value={
+                                        rule.pricePerExtraKm
+                                          ? rule.pricePerExtraKm.toLocaleString('en-US')
+                                          : ''
+                                      }
+                                      onChange={(e) =>
+                                        updateServiceRule(rule.id, {
+                                          pricePerExtraKm:
+                                            parseMoneyInput(e.target.value) || undefined,
+                                        })
+                                      }
+                                    />
+                                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">
+                                      đ/km
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="text-[9px] leading-snug text-gray-400">
+                                  Công thức: giá mở cửa + giá vượt × max(0, km − km gồm)
+                                </div>
+                              </div>
+                            ) : primaryConfig?.mode === 'LIST' && primaryCondition ? (
+                              <AppSelect
+                                value={String(primaryCondition.value ?? '')}
+                                options={primaryConfig.values.map((value) => ({
+                                  value,
+                                  label: value,
+                                }))}
+                                onChange={(value) =>
+                                  updatePrimaryCondition(rule.id, primaryConfig.key, {
+                                    operator: '=',
+                                    criterionKey: primaryConfig.key,
+                                    criterionLabel: primaryConfig.label,
+                                    value,
+                                  })
+                                }
+                              />
+                            ) : !primaryConfig || !primaryCondition ? (
                               <div className="flex h-[34px] items-center rounded bg-gray-50 px-3 text-gray-400">
                                 Không áp dụng
                               </div>
@@ -2751,7 +3066,7 @@ const RescueFeeForm: React.FC = () => {
                             />
                           </td>
                           <td className="border-b border-r p-2">
-                            <div className="flex min-h-[34px] items-center justify-between gap-2">
+                            <div className="flex min-h-[34px] items-center gap-1.5">
                               <div className="flex min-w-0 flex-1 flex-wrap gap-1">
                                 {additionalConditions.slice(0, 3).map(({ condition, index }) => (
                                   <span
@@ -2768,7 +3083,7 @@ const RescueFeeForm: React.FC = () => {
                                   </span>
                                 )}
                                 {additionalConditions.length === 0 && (
-                                  <span className="text-[10px] text-gray-400">Chưa có tiêu chí bổ sung</span>
+                                  <span className="text-[10px] text-gray-400">—</span>
                                 )}
                               </div>
                               <button
@@ -2777,10 +3092,15 @@ const RescueFeeForm: React.FC = () => {
                                   setCriteriaModalError('');
                                   setCriteriaRuleId(rule.id);
                                 }}
-                                className="inline-flex shrink-0 items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1.5 text-[10px] font-bold text-gray-600 hover:border-vetc-green hover:text-vetc-green"
+                                title={`Cấu hình tiêu chí bổ sung (${additionalConditions.length})`}
+                                className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-gray-200 bg-white text-gray-600 hover:border-vetc-green hover:text-vetc-green"
                               >
                                 <SlidersHorizontal size={12} />
-                                Cấu hình ({additionalConditions.length})
+                                {additionalConditions.length > 0 && (
+                                  <span className="absolute -right-1.5 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-vetc-green px-0.5 text-[8px] font-bold leading-none text-white">
+                                    {additionalConditions.length}
+                                  </span>
+                                )}
                               </button>
                             </div>
                           </td>
@@ -2816,6 +3136,19 @@ const RescueFeeForm: React.FC = () => {
                 {form.serviceRules.length === 0 && (
                   <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-gray-400">
                     Chưa có đầu dịch vụ. Vui lòng chọn tại tab 1.
+                  </div>
+                )}
+                {form.serviceRules.length > 0 && filteredMatrixRules.length === 0 && (
+                  <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-gray-400">
+                    Không có dòng giá khớp bộ lọc. Thử đổi điều kiện hoặc{' '}
+                    <button
+                      type="button"
+                      onClick={clearMatrixFilters}
+                      className="font-bold text-vetc-green hover:underline"
+                    >
+                      xóa lọc
+                    </button>
+                    .
                   </div>
                 )}
               </div>

@@ -16,7 +16,7 @@ export type FeeTableStatus = 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'INACTIVE';
 export type FeeSourceLabel = 'VETC' | 'NCC' | 'Thủ công' | string;
 export type RoundMode = 'NEAREST_1000' | 'NEAREST_100' | 'NONE';
 export type CriterionRole = 'PRICE' | 'SURCHARGE' | 'BOTH';
-export type CriterionValueType = 'LIST' | 'RANGE';
+export type CriterionValueType = 'LIST' | 'RANGE' | 'TIME';
 export type ServicePricingMode = 'FIXED' | 'PER_UNIT';
 
 export interface FeeRuleCondition {
@@ -225,12 +225,22 @@ export const CRITERIA_CATALOG = [
   'Số chỗ',
   'Loại phương tiện gặp sự cố',
   'Loại phương tiện cứu hộ',
+  'Khoảng cách so với mặt đất',
+  'Tư thế xe cẩu (>150m)',
+  'Quãng đường kéo',
+  'Địa hình khu vực',
+  'Cao tốc',
+  'Giờ yêu cầu cứu hộ',
+  'Thời tiết / thiên tai',
+  'Vị trí đặc biệt',
+  'Thiết bị thêm',
 ] as const;
 
 export const CRITERIA_SYSTEM_CONFIG: Record<
   (typeof CRITERIA_CATALOG)[number],
   { key: string; valueType: CriterionValueType; values: string[] }
 > = {
+  /** Alias legacy — cùng nghĩa load_capacity (bảng cũ còn dùng key payload) */
   'Trọng tải': { key: 'payload', valueType: 'RANGE', values: [] },
   'Số chỗ': { key: 'seats', valueType: 'RANGE', values: [] },
   'Loại phương tiện gặp sự cố': {
@@ -243,7 +253,62 @@ export const CRITERIA_SYSTEM_CONFIG: Record<
     valueType: 'LIST',
     values: ['Xe máy', 'Xe van', 'Xe sàn trượt', 'Xe cẩu, kéo'],
   },
+  'Khoảng cách so với mặt đất': { key: 'roadDistance', valueType: 'RANGE', values: [] },
+  'Tư thế xe cẩu (>150m)': {
+    key: 'cranePosture',
+    valueType: 'LIST',
+    values: ['Nghiêng', 'Ngửa'],
+  },
+  'Quãng đường kéo': { key: 'distanceKm', valueType: 'RANGE', values: [] },
+  'Địa hình khu vực': {
+    key: 'areaTerrain',
+    valueType: 'LIST',
+    values: ['NORMAL', 'SUBURBAN', 'MOUNTAIN'],
+  },
+  'Cao tốc': { key: 'isHighway', valueType: 'LIST', values: ['YES', 'NO'] },
+  'Giờ yêu cầu cứu hộ': { key: 'timeWindow', valueType: 'TIME', values: [] },
+  'Thời tiết / thiên tai': {
+    key: 'weather',
+    valueType: 'LIST',
+    values: ['Bình thường', 'Mưa', 'Thiên tai / ngập lụt diện rộng', 'Bão'],
+  },
+  'Vị trí đặc biệt': { key: 'locationType', valueType: 'LIST', values: ['ROAD', 'BASEMENT'] },
+  'Thiết bị thêm': {
+    key: 'extraEquipment',
+    valueType: 'LIST',
+    values: ['DOLLY', 'DOUBLE_JACK'],
+  },
 };
+
+/** Tiêu chí bổ sung (key schema PTI) — song song seats/payload legacy */
+export const EXTRA_FEE_CRITERION_DEFINITIONS: Array<{
+  id: string;
+  key: string;
+  label: string;
+  valueType: CriterionValueType;
+  values: string[];
+  status: 'ACTIVE' | 'INACTIVE';
+  updatedAt: string;
+}> = [
+  {
+    id: 'FEE-CRITERION-SEAT-NUMBER',
+    key: 'seat_number',
+    label: 'Số chỗ (seat_number)',
+    valueType: 'RANGE',
+    values: [],
+    status: 'ACTIVE',
+    updatedAt: '2026-08-03 15:00',
+  },
+  {
+    id: 'FEE-CRITERION-LOAD-CAPACITY',
+    key: 'load_capacity',
+    label: 'Trọng tải tấn (load_capacity)',
+    valueType: 'RANGE',
+    values: [],
+    status: 'ACTIVE',
+    updatedAt: '2026-08-03 15:00',
+  },
+];
 
 export interface FeeCriterionDefinition {
   id: string;
@@ -255,15 +320,16 @@ export interface FeeCriterionDefinition {
   updatedAt: string;
 }
 
-export let feeCriterionDefinitions: FeeCriterionDefinition[] = CRITERIA_CATALOG.map(
-  (label, index) => ({
+export let feeCriterionDefinitions: FeeCriterionDefinition[] = [
+  ...CRITERIA_CATALOG.map((label, index) => ({
     id: `FEE-CRITERION-${index + 1}`,
     label,
     ...CRITERIA_SYSTEM_CONFIG[label],
     status: 'ACTIVE' as const,
     updatedAt: '2026-07-30 10:00',
-  })
-);
+  })),
+  ...EXTRA_FEE_CRITERION_DEFINITIONS,
+];
 
 export const upsertFeeCriterionDefinition = (definition: FeeCriterionDefinition): void => {
   const index = feeCriterionDefinitions.findIndex((item) => item.id === definition.id);
@@ -378,8 +444,11 @@ export const FEE_SERVICE_CATALOG: Array<{
   children?: readonly string[];
 }> = [
   { value: 'Kích bình ắc quy', type: 'ONSITE' },
+  { value: 'Kích bình', type: 'ONSITE' },
+  { value: 'Vá lốp tại chỗ', type: 'ONSITE' },
   { value: 'Thay lốp dự phòng', type: 'ONSITE' },
   { value: 'Cung cấp nhiên liệu khẩn cấp (xăng, dầu, nước làm mát)', type: 'ONSITE' },
+  { value: 'Cung cấp nhiên liệu (xăng, dầu, nước làm mát)', type: 'ONSITE' },
   { value: 'Thủy kích', type: 'ONSITE' },
   {
     value: 'Kéo xe',
@@ -632,6 +701,7 @@ export const FEE_KIND_LABELS: Record<FeeTableKind, string> = {
 
 /** Catalog mã DN dùng cho droplist form / filter */
 export const FEE_ENTERPRISE_OPTIONS: Array<{ code: string; name: string }> = [
+  { code: 'PTI', name: 'PTI' },
   { code: 'FORD', name: 'Ford Vietnam' },
   { code: 'TOYOTA', name: 'Toyota Vietnam' },
   { code: 'DN001', name: 'Công ty TNHH ABC Logistics' },
@@ -1097,6 +1167,408 @@ export let rescueFeeTables: PriceTable[] = [
     updatedAt: '2026-07-20 16:00',
     updatedBy: 'admin',
   },
+  {
+    id: 'CUS-BUSINESS-PTI',
+    code: 'CUS-DN-PTI-2026',
+    name: 'Bảng phí KH DN — PTI (VETC × PTI)',
+    target: 'CUSTOMER',
+    kind: 'CUSTOMER_BUSINESS',
+    applyFor: 'PTI',
+    priority: 200,
+    version: 1,
+    status: 'ACTIVE',
+    validFrom: '2026-01-01',
+    validTo: '2026-12-31',
+    scope: {
+      enterpriseCode: 'PTI',
+      serviceTypes: ['ONSITE', 'TOWING', 'CRANE'],
+    },
+    criteria: [
+      { id: 'c-pti', key: 'enterpriseCode', label: 'Mã DN', operator: '=', value: 'PTI', group: 'AND' },
+    ],
+    priceCriteria: [
+      {
+        id: 'pc-vtype',
+        key: 'vehicleType',
+        label: 'Loại xe khách',
+        operator: 'IN',
+        value: ['Xe chở người', 'Xe chở hàng'],
+        role: 'PRICE',
+        allowedValues: ['Xe chở người', 'Xe chở hàng'],
+        valueType: 'LIST',
+      },
+      {
+        id: 'pc-seat',
+        key: 'seat_number',
+        label: 'Số chỗ',
+        operator: 'BETWEEN',
+        value: [2, 80],
+        role: 'PRICE',
+        valueType: 'RANGE',
+      },
+      {
+        id: 'pc-load',
+        key: 'load_capacity',
+        label: 'Trọng tải (tấn)',
+        operator: 'BETWEEN',
+        value: [0, 999],
+        role: 'PRICE',
+        valueType: 'RANGE',
+      },
+      {
+        id: 'pc-rescue-veh',
+        key: 'rescueVehicleType',
+        label: 'Loại xe cứu hộ',
+        operator: 'IN',
+        value: ['Xe máy', 'Xe van', 'Xe sàn trượt', 'Xe cẩu, kéo'],
+        role: 'PRICE',
+        allowedValues: ['Xe máy', 'Xe van', 'Xe sàn trượt', 'Xe cẩu, kéo'],
+        valueType: 'LIST',
+      },
+      {
+        id: 'pc-distance',
+        key: 'distanceKm',
+        label: 'Quãng đường kéo',
+        operator: 'BETWEEN',
+        value: [0, 9999],
+        role: 'PRICE',
+        valueType: 'RANGE',
+      },
+      {
+        id: 'pc-road-distance',
+        key: 'roadDistance',
+        label: 'Khoảng cách so với mặt đất',
+        operator: 'BETWEEN',
+        value: [0, 9999],
+        role: 'PRICE',
+        valueType: 'RANGE',
+      },
+      {
+        id: 'pc-crane-posture',
+        key: 'cranePosture',
+        label: 'Tư thế xe cẩu (>150m)',
+        operator: 'IN',
+        value: ['Nghiêng', 'Ngửa'],
+        role: 'PRICE',
+        allowedValues: ['Nghiêng', 'Ngửa'],
+        valueType: 'LIST',
+      },
+    ],
+    serviceRules: [
+      { id: 'pti-o1', serviceType: 'ONSITE', serviceDetail: 'Kích bình', basePrice: 400000 },
+      { id: 'pti-o2', serviceType: 'ONSITE', serviceDetail: 'Vá lốp tại chỗ', basePrice: 400000 },
+      { id: 'pti-o3', serviceType: 'ONSITE', serviceDetail: 'Thay lốp dự phòng', basePrice: 400000 },
+      {
+        id: 'pti-o4',
+        serviceType: 'ONSITE',
+        serviceDetail: 'Cung cấp nhiên liệu (xăng, dầu, nước làm mát)',
+        basePrice: 300000,
+      },
+      ...(
+        [
+          { slug: '2-12', seats: [2, 12] as [number, number], load: [0, 1.4] as [number, number], base: 600000, perKm: 20000 },
+          { slug: '13-30', seats: [13, 30] as [number, number], load: [1.41, 3] as [number, number], base: 1000000, perKm: 25000 },
+          { slug: '31-39', seats: [31, 39] as [number, number], load: [3.01, 5] as [number, number], base: 1300000, perKm: 25000 },
+          { slug: '40-45', seats: [40, 45] as [number, number], load: [5.01, 8] as [number, number], base: 1400000, perKm: 35000 },
+          { slug: '46-54', seats: [46, 54] as [number, number], load: [8.01, 13] as [number, number], base: 1400000, perKm: 35000 },
+          { slug: '55-80', seats: [55, 80] as [number, number], load: [13.01, 18] as [number, number], base: 1800000, perKm: 35000 },
+          { slug: 'gt18', seats: null, load: [18.01, 999] as [number, number], base: 2500000, perKm: 50000 },
+        ] as const
+      ).flatMap((col) => {
+        const vehiclePass = {
+          criterionKey: 'vehicleType',
+          criterionLabel: 'Loại xe khách',
+          operator: '=' as const,
+          value: 'Xe chở người',
+        };
+        const vehicleCargo = {
+          criterionKey: 'vehicleType',
+          criterionLabel: 'Loại xe khách',
+          operator: '=' as const,
+          value: 'Xe chở hàng',
+        };
+        const seatCond = col.seats
+          ? {
+              criterionKey: 'seat_number',
+              criterionLabel: 'Số chỗ',
+              operator: 'BETWEEN' as const,
+              value: col.seats,
+            }
+          : null;
+        const loadCond = {
+          criterionKey: 'load_capacity',
+          criterionLabel: 'Trọng tải (tấn)',
+          operator: 'BETWEEN' as const,
+          value: col.load,
+        };
+        const distLe10 = {
+          criterionKey: 'distanceKm',
+          criterionLabel: 'Quãng đường kéo',
+          operator: 'BETWEEN' as const,
+          value: [0, 10] as [number, number],
+        };
+        const distFrom11 = {
+          criterionKey: 'distanceKm',
+          criterionLabel: 'Quãng đường kéo',
+          operator: 'BETWEEN' as const,
+          value: [10, 9999] as [number, number],
+        };
+        const rows: Array<{
+          id: string;
+          serviceType: 'TOWING';
+          serviceDetail: string;
+          basePrice: number;
+          pricingMode: 'FIXED' | 'PER_UNIT';
+          unit: string;
+          conditions: FeeRuleCondition[];
+        }> = [];
+        if (col.seats && seatCond) {
+          rows.push({
+            id: `pti-tow-pass-${col.slug}-le10`,
+            serviceType: 'TOWING',
+            serviceDetail: 'Kéo xe',
+            basePrice: col.base,
+            pricingMode: 'FIXED',
+            unit: 'chuyến',
+            conditions: [vehiclePass, seatCond, distLe10],
+          });
+          rows.push({
+            id: `pti-tow-pass-${col.slug}-from11`,
+            serviceType: 'TOWING',
+            serviceDetail: 'Kéo xe',
+            basePrice: col.perKm,
+            pricingMode: 'PER_UNIT',
+            unit: 'km',
+            conditions: [vehiclePass, seatCond, distFrom11],
+          });
+        }
+        const cargoSlug =
+          col.slug === 'gt18' ? 'gt18' : col.load.join('-').replace(/\./g, '_');
+        rows.push({
+          id: `pti-tow-cargo-${cargoSlug}-le10`,
+          serviceType: 'TOWING',
+          serviceDetail: 'Kéo xe',
+          basePrice: col.base,
+          pricingMode: 'FIXED',
+          unit: 'chuyến',
+          conditions: [vehicleCargo, loadCond, distLe10],
+        });
+        rows.push({
+          id: `pti-tow-cargo-${cargoSlug}-from11`,
+          serviceType: 'TOWING',
+          serviceDetail: 'Kéo xe',
+          basePrice: col.perKm,
+          pricingMode: 'PER_UNIT',
+          unit: 'km',
+          conditions: [vehicleCargo, loadCond, distFrom11],
+        });
+        return rows;
+      }),
+      ...(
+        [
+          { slug: '0-5', range: [0, 5] as [number, number], posture: null as string | null, prices: [1000000, 1200000, 2900000, 4000000, 4600000, 5100000, 6200000] },
+          { slug: '5-10', range: [5, 10] as [number, number], posture: null, prices: [1650000, 2700000, 3800000, 5500000, 6600000, 7100000, 7500000] },
+          { slug: '10-30', range: [10, 30] as [number, number], posture: null, prices: [2700000, 3800000, 4900000, 8200000, 9500000, 11000000, 12000000] },
+          { slug: '30-50', range: [30, 50] as [number, number], posture: null, prices: [3300000, 5500000, 7100000, 11000000, 14000000, 14000000, 17500000] },
+          { slug: '50-100', range: [50, 100] as [number, number], posture: null, prices: [5500000, 7700000, 9300000, 14000000, 16500000, 19800000, 24000000] },
+          { slug: '100-150', range: [100, 150] as [number, number], posture: null, prices: [8000000, 13000000, 13000000, 19000000, 22000000, 27000000, 33000000] },
+          { slug: 'gt150-side', range: [150, 9999] as [number, number], posture: 'Nghiêng', prices: [15500000, 19800000, 19800000, 24000000, 27000000, 33000000, 38500000] },
+          { slug: 'gt150-upright', range: [150, 9999] as [number, number], posture: 'Ngửa', prices: [19000000, 24000000, 27000000, 30000000, 38500000, 49500000, 60500000] },
+        ] as const
+      ).flatMap((tier) =>
+        (
+          [
+            { pass: '2-12', cargo: '0-2', seats: [2, 12] as [number, number], load: [0, 2] as [number, number] },
+            { pass: '13-30', cargo: '2.01-3.5', seats: [13, 30] as [number, number], load: [2.01, 3.5] as [number, number] },
+            { pass: '31-39', cargo: '3.51-5', seats: [31, 39] as [number, number], load: [3.51, 5] as [number, number] },
+            { pass: '40-45', cargo: '5.01-8', seats: [40, 45] as [number, number], load: [5.01, 8] as [number, number] },
+            { pass: '46-54', cargo: '8.01-13', seats: [46, 54] as [number, number], load: [8.01, 13] as [number, number] },
+            { pass: '55-65', cargo: '13.01-18', seats: [55, 65] as [number, number], load: [13.01, 18] as [number, number] },
+            { pass: '66-80', cargo: '18.01-25', seats: [66, 80] as [number, number], load: [18.01, 25] as [number, number] },
+          ] as const
+        ).flatMap((col, i) => {
+          const depthCond = {
+            criterionKey: 'roadDistance',
+            criterionLabel: 'Khoảng cách so với mặt đất',
+            operator: 'BETWEEN' as const,
+            value: tier.range,
+          };
+          const postureConds = tier.posture
+            ? [
+                {
+                  criterionKey: 'cranePosture',
+                  criterionLabel: 'Tư thế xe cẩu (>150m)',
+                  operator: '=' as const,
+                  value: tier.posture,
+                },
+              ]
+            : [];
+          return [
+            {
+              id: `pti-crane-${tier.slug}-pass-${col.pass}`,
+              serviceType: 'CRANE' as const,
+              serviceDetail: 'Cẩu xe',
+              basePrice: tier.prices[i],
+              pricingMode: 'FIXED' as const,
+              conditions: [
+                {
+                  criterionKey: 'vehicleType',
+                  criterionLabel: 'Loại xe khách',
+                  operator: '=' as const,
+                  value: 'Xe chở người',
+                },
+                {
+                  criterionKey: 'seat_number',
+                  criterionLabel: 'Số chỗ',
+                  operator: 'BETWEEN' as const,
+                  value: col.seats,
+                },
+                depthCond,
+                ...postureConds,
+              ],
+            },
+            {
+              id: `pti-crane-${tier.slug}-cargo-${col.cargo}`,
+              serviceType: 'CRANE' as const,
+              serviceDetail: 'Cẩu xe',
+              basePrice: tier.prices[i],
+              pricingMode: 'FIXED' as const,
+              conditions: [
+                {
+                  criterionKey: 'vehicleType',
+                  criterionLabel: 'Loại xe khách',
+                  operator: '=' as const,
+                  value: 'Xe chở hàng',
+                },
+                {
+                  criterionKey: 'load_capacity',
+                  criterionLabel: 'Trọng tải (tấn)',
+                  operator: 'BETWEEN' as const,
+                  value: col.load,
+                },
+                depthCond,
+                ...postureConds,
+              ],
+            },
+          ];
+        })
+      ),
+    ],
+    surchargeRules: [
+      {
+        id: 'pti-su-mountain',
+        name: 'Miền núi',
+        type: 'COEFFICIENT',
+        value: 1.5,
+        activeWhen: 'areaTerrain=MOUNTAIN',
+        conditions: [
+          {
+            criterionKey: 'areaTerrain',
+            criterionLabel: 'Địa hình khu vực',
+            operator: '=',
+            value: 'MOUNTAIN',
+          },
+        ],
+        stackable: true,
+        exclusiveGroup: 'AREA',
+      },
+      {
+        id: 'pti-su-suburban',
+        name: 'Ngoại thành',
+        type: 'COEFFICIENT',
+        value: 1.1,
+        activeWhen: 'areaTerrain=SUBURBAN',
+        conditions: [
+          {
+            criterionKey: 'areaTerrain',
+            criterionLabel: 'Địa hình khu vực',
+            operator: '=',
+            value: 'SUBURBAN',
+          },
+        ],
+        stackable: true,
+        exclusiveGroup: 'AREA',
+      },
+      {
+        id: 'pti-su-highway',
+        name: 'Cao tốc',
+        type: 'COEFFICIENT',
+        value: 1.3,
+        activeWhen: 'isHighway=YES',
+        conditions: [
+          { criterionKey: 'isHighway', criterionLabel: 'Cao tốc', operator: '=', value: 'YES' },
+        ],
+        stackable: true,
+      },
+      {
+        id: 'pti-su-night',
+        name: 'Cứu hộ đêm',
+        type: 'COEFFICIENT',
+        value: 1.2,
+        activeWhen: 'timeWindow=18:00-06:00',
+        conditions: [
+          {
+            criterionKey: 'timeWindow',
+            criterionLabel: 'Giờ yêu cầu cứu hộ',
+            operator: 'BETWEEN',
+            value: ['18:00', '06:00'],
+          },
+        ],
+        stackable: true,
+      },
+      {
+        id: 'pti-su-disaster',
+        name: 'Thiên tai / ngập lụt diện rộng',
+        type: 'COEFFICIENT',
+        value: 1.3,
+        activeWhen: 'weather=Thiên tai / ngập lụt diện rộng',
+        conditions: [
+          {
+            criterionKey: 'weather',
+            criterionLabel: 'Thời tiết / thiên tai',
+            operator: '=',
+            value: 'Thiên tai / ngập lụt diện rộng',
+          },
+        ],
+        stackable: true,
+      },
+      {
+        id: 'pti-su-basement',
+        name: 'Cứu hộ dưới hầm',
+        type: 'FIXED',
+        value: 500000,
+        activeWhen: 'locationType=BASEMENT',
+        conditions: [
+          {
+            criterionKey: 'locationType',
+            criterionLabel: 'Vị trí đặc biệt',
+            operator: '=',
+            value: 'BASEMENT',
+          },
+        ],
+        stackable: true,
+      },
+      {
+        id: 'pti-su-dolly',
+        name: 'Kích kép / Dolly',
+        type: 'FIXED',
+        value: 200000,
+        activeWhen: 'extraEquipment=DOLLY|DOUBLE_JACK',
+        conditions: [
+          {
+            criterionKey: 'extraEquipment',
+            criterionLabel: 'Thiết bị thêm',
+            operator: 'IN',
+            value: ['DOLLY', 'DOUBLE_JACK'],
+          },
+        ],
+        stackable: true,
+      },
+    ],
+    settings: { ...DEFAULT_TABLE_SETTINGS, stackSurcharges: true },
+    updatedAt: '2026-08-03 14:00',
+    updatedBy: 'admin',
+  },
 ];
 
 export const feeVersionHistory: FeeVersionHistoryItem[] = [
@@ -1362,15 +1834,15 @@ const calcBaseFromRule = (rule: ServicePriceRule | undefined, line: FeeServiceLi
 };
 
 const isDistanceRange = (condition: FeeRuleCondition): boolean =>
-  condition.operator === 'BETWEEN' &&
-  (condition.criterionKey === 'distanceKm' ||
-    condition.criterionLabel.toLowerCase().includes('khoảng cách'));
+  condition.operator === 'BETWEEN' && condition.criterionKey === 'distanceKm';
 
 const calcProgressiveBase = (
   table: PriceTable,
   line: FeeServiceLineInput,
   input: FeeCalculationInput
 ): number | null => {
+  /** Chỉ kéo xe cộng dồn FIXED + PER_UNIT theo distanceKm — không áp cho roadDistance cẩu. */
+  if (line.serviceType !== 'TOWING') return null;
   const detail = line.serviceDetail ?? line.serviceName;
   const context = buildRuleContext(input, line);
   const tierRules = table.serviceRules.filter((rule) => {
