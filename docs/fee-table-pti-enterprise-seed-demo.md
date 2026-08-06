@@ -169,7 +169,7 @@ Cột Excel “2–12 chỗ / tải ≤1,4 tấn” → 2 nhánh xe × 2 dòng k
 
 | service | fixed | coeff | customer_amount | matched | note |
 |---------|-------|-------|-----------------|---------|------|
-| Kéo xe | 700000 | 1.2 | **840000** | le10 + from11 | FIXED 600k + PER_UNIT 20k×5; ×1.2 đêm |
+| Kéo xe | 700000 | 1.2 | **840000** | le10 + from11 | FIXED gần nhất 600k + PER_UNIT 20k×5; ×1.2 đêm |
 
 ---
 

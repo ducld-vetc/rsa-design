@@ -17,7 +17,7 @@ import {
   FEE_TARGET_LABELS,
   FEE_ENTERPRISE_OPTIONS,
   FEE_SUPPLIER_OPTIONS,
-  duplicatePriceTable,
+  clonePriceTable,
   type FeeTableKind,
   type FeeTableStatus,
   type FeeTarget,
@@ -37,11 +37,9 @@ const StatusBadge: React.FC<{ status: FeeTableStatus }> = ({ status }) => {
   const styles =
     status === 'ACTIVE'
       ? 'bg-green-50 text-green-700 border-green-200'
-      : status === 'DRAFT'
-        ? 'bg-amber-50 text-amber-700 border-amber-200'
-        : status === 'EXPIRED'
-          ? 'bg-gray-100 text-gray-600 border-gray-200'
-          : 'bg-red-50 text-red-700 border-red-200';
+      : status === 'EXPIRED'
+        ? 'bg-gray-100 text-gray-600 border-gray-200'
+        : 'bg-red-50 text-red-700 border-red-200';
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap ${styles}`}>
       {FEE_STATUS_LABELS[status]}
@@ -153,10 +151,9 @@ const RescueFeeConfiguration: React.FC = () => {
   };
 
   const handleDuplicate = (id: string) => {
-    const copy = duplicatePriceTable(id);
+    const copy = clonePriceTable(id);
     if (copy) {
-      setTables([...rescueFeeTables]);
-      navigate(`/rescue-fee-config/edit/${copy.id}`);
+      navigate('/rescue-fee-config/create', { state: { clonedTable: copy } });
     }
   };
 

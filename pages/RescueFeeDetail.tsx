@@ -5,7 +5,7 @@ import {
   FEE_KIND_LABELS,
   FEE_STATUS_LABELS,
   FEE_TARGET_LABELS,
-  duplicatePriceTable,
+  clonePriceTable,
   feeVersionHistory,
   formatMoneyVi,
   rescueFeeTables,
@@ -97,9 +97,9 @@ const StatusBadge: React.FC<{ status: FeeTableStatus }> = ({ status }) => {
   const styles =
     status === 'ACTIVE'
       ? 'bg-green-50 text-green-700 border-green-200'
-      : status === 'DRAFT'
-        ? 'bg-amber-50 text-amber-700 border-amber-200'
-        : 'bg-gray-100 text-gray-600 border-gray-200';
+      : status === 'EXPIRED'
+        ? 'bg-gray-100 text-gray-600 border-gray-200'
+        : 'bg-red-50 text-red-700 border-red-200';
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${styles}`}>
       {FEE_STATUS_LABELS[status]}
@@ -225,8 +225,8 @@ const RescueFeeDetail: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              const copy = duplicatePriceTable(table.id);
-              if (copy) navigate(`/rescue-fee-config/edit/${copy.id}`);
+              const copy = clonePriceTable(table.id);
+              if (copy) navigate('/rescue-fee-config/create', { state: { clonedTable: copy } });
             }}
             className="inline-flex items-center gap-2 border border-gray-300 px-4 py-2 rounded text-sm font-bold text-gray-700 hover:bg-gray-50"
           >
@@ -327,6 +327,12 @@ const RescueFeeDetail: React.FC = () => {
           <div>
             <div className="text-xs text-gray-500 mb-1">Cộng dồn phụ phí</div>
             <div className="font-semibold">{table.settings.stackSurcharges ? 'Có' : 'Không'}</div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 mb-1">Giá đã bao gồm VAT</div>
+            <div className="font-semibold">
+              {table.settings.includesVat ? 'Đã bao gồm VAT' : 'Chưa bao gồm VAT'}
+            </div>
           </div>
           <div>
             <div className="text-xs text-gray-500 mb-1">Bảng dự phòng</div>

@@ -1,0 +1,63 @@
+{
+  "code": "SUP-EXT-PARTNER",
+  "name": "Bảng phí đối tác mẫu",
+  "target": "SUPPLIER",
+  "scope": {
+    "objectType": "SUPPLIER_EXTERNAL",
+    "orderType": "PACKAGE_SINGLE"
+  },
+  "validFrom": "2026-01-01",
+  "validTo": "2099-12-31",
+  "supplierId": "NCC-001",
+  "supplierName": "NCC mẫu",
+  "settings": {
+    "retailMarkupFactor": 0,
+    "roundMode": "NEAREST_1000",
+    "stackSurcharges": true,
+    "includesVat": false
+  },
+  "services": [
+    {
+      "serviceCode": "ONSITE_BATTERY",
+      "pricingMode": "FIXED",
+      "basePrice": 350000,
+      "from": "",
+      "fromOperator": "<",
+      "to": "",
+      "toOperator": "≤",
+      "cond.vehicleType": "Xe chở người",
+      "cond.load_capacity.from": 1.5,
+      "cond.load_capacity.to": 3.5
+    },
+    {
+      "serviceCode": "TOWING_GARAGE",
+      "pricingMode": "PER_UNIT",
+      "basePrice": 10000,
+      "from": 10,
+      "fromOperator": "<",
+      "to": 20,
+      "toOperator": "≤",
+      "cond.vehicleType": "Xe chở hàng",
+      "cond.rescueVehicleType": "Xe sàn trượt"
+    }
+  ],
+  "surcharges": [
+    {
+      "surchargeCode": "TIME_REQUEST",
+      "type": "COEFFICIENT",
+      "value": 1.15,
+      "operator": "BETWEEN",
+      "criterionFrom": "22:00",
+      "fromOperator": "<",
+      "criterionTo": "06:00",
+      "toOperator": "≤"
+    },
+    {
+      "surchargeCode": "HIGHWAY_ROUTE",
+      "type": "FIXED",
+      "value": 150000,
+      "operator": "=",
+      "criterionValue": "ISHIGHWAY__CAO_TOC_BAC_NAM_PHIA_DONG_CT_01"
+    }
+  ]
+}

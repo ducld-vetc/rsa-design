@@ -1,0 +1,24 @@
+@startuml
+fee_criterion_def ||--o{ fee_criterion_field_map : maps_to_source
+fee_criterion_def ||--o{ fee_price_line_condition : used_in
+fee_criterion_def ||--o{ fee_surcharge_condition : used_in
+
+fee_table ||--|{ fee_table_version : has_versions
+fee_table_version ||--|| fee_table_scope : scope_1_1
+fee_table_version ||--|| fee_table_settings : settings_1_1
+fee_table_version ||--o{ fee_price_line : price_lines
+fee_table_version ||--o{ fee_surcharge_rule : surcharges
+
+fee_service_catalog ||--o{ fee_service_catalog : parent_child
+fee_service_catalog ||--o{ fee_price_line : priced_as
+
+fee_price_line ||--o{ fee_price_line_condition : and_conditions
+fee_surcharge_rule ||--o{ fee_surcharge_condition : and_conditions
+
+fee_table_version ||--o{ rescue_order_fee_snapshot : applied_as_supplier_or_customer
+rescue_order_v2 ||--o| rescue_order_fee_snapshot : has_fee_snapshot
+rescue_order_fee_snapshot ||--o{ rescue_order_fee_line : lines
+rescue_order_service ||--o| rescue_order_fee_line : fee_for_service
+rescue_order_fee_line ||--o{ rescue_order_fee_adjustment : audit
+rescue_order_fee_snapshot ||--o{ rescue_order_fee_adjustment : order_level_adj
+@enduml

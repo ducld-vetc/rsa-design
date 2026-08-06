@@ -3,6 +3,8 @@
 > Nguồn: `BẢNG GIÁ PTI.xlsx - Khung bảng giá.csv`  
 > Ánh xạ theo cơ chế mới (`fee_table` / `fee_price_line` / `fee_surcharge_rule`) trong [fee-schema-redesign.md](./fee-schema-redesign.md).  
 > **Demo dữ liệu quan hệ:** [fee-table-pti-enterprise-seed-demo.md](./fee-table-pti-enterprise-seed-demo.md) · seed TS [`../data/feeTablePtiEnterpriseSeed.ts`](../data/feeTablePtiEnterpriseSeed.ts)  
+> **UI xem/lọc ma trận (analysis BA):** [analysis-rescue-fee-matrix-ui.md](./analysis-rescue-fee-matrix-ui.md)  
+> **BRD tổng quan cấu hình + tính phí trên đơn:** [BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md](./BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md)  
 > **Mock portal:** `CUS-DN-PTI-2026` trong `rescueFeeMockData.ts`  
 > **Loại bảng:** `target = CUSTOMER`, `kind = CUSTOMER_BUSINESS`  
 > **Scope:** `enterprise_code = PTI`  
@@ -113,13 +115,16 @@ Mỗi bậc chỗ/tải × mỗi khoảng `roadDistance` = 2 line (người + h�
 
 ## 3. Dòng giá — Kéo xe (`TOWING`)
 
-Hai dòng theo khung PTI (**đã chốt**), engine **cộng dồn** (progressive):
+Hai dòng theo khung PTI (**đã chốt**), engine chọn **FIXED gần nhất** rồi cộng PER_UNIT phía sau:
 
 1. **FIXED** · `distanceKm BETWEEN [0, 10]` · giá mở cửa / chuyến  
 2. **PER_UNIT** · `distanceKm BETWEEN [10, 9999]` · đơn giá/km × `(km − 10)`
 
 **Ví dụ:** Xe chở người · 5 chỗ · 15 km  
-→ FIXED 600.000 + PER_UNIT 20.000 × 5 = **700.000** (chưa VAT, chưa phụ phí).
+→ FIXED gần nhất `[0,10]` 600.000 + PER_UNIT 20.000 × 5 = **700.000** (chưa VAT, chưa phụ phí).
+
+**Xen kẽ FIXED / PER_UNIT:** vd. `[0,10]` FIXED 100k · `[10,20]` PER 10k/km · `[20,50]` FIXED 200k · `[50,9999]` PER 20k/km · đơn **70 km**  
+→ FIXED gần nhất = `[20,50]` **200.000**; bỏ qua `[0,10]` và `[10,20]`; + PER `[50,9999]` × 20 km = **400.000** → tổng base **600.000**.
 
 **Ma trận giá (cùng số cho nhánh chỗ và nhánh tải của cùng cột Excel)**
 
@@ -196,7 +201,7 @@ Cột = bậc chỗ/tải. Hàng = khoảng `roadDistance` (+ tư thế).
 | Bước | Kết quả |
 |------|---------|
 | Chọn bảng | `CUS-DN-PTI-2026` (`CUSTOMER_BUSINESS` + enterprise PTI) |
-| Match line | FIXED ≤10 (600k) + PER_UNIT ×5 (100k) |
+| Match line | FIXED gần nhất ≤10 (600k) + PER_UNIT ×5 (100k) |
 | Base trước phụ phí | 700.000 |
 | Surcharge đêm ×1,2 | 840.000 |
 | VAT 8% (nếu áp) | 907.200 |
@@ -207,7 +212,7 @@ Cột = bậc chỗ/tải. Hàng = khoảng `roadDistance` (+ tư thế).
 
 ## 7. Checklist cấu hình trên form / DB mới
 
-- [x] Công thức kéo: **2 dòng** FIXED `[0,10]` + PER_UNIT `[10,9999]` (progressive) — **đã chốt**  
+- [x] Công thức kéo: FIXED gần nhất + PER_UNIT các bậc sau `to` của FIXED đó (PTI 2 dòng `[0,10]`+`[10,9999]` vẫn đúng; xen kẽ bỏ bậc trước FIXED gần nhất) — **đã chốt**
 - [x] Bỏ nhóm G — cấu hình `vehicleType` + `seat_number` / `load_capacity` (AND)  
 - [x] Cẩu ngửa > 150m — **luôn lấy giá MAX**, FIXED  
 - [ ] Tạo `fee_table` PTI — `CUSTOMER_BUSINESS`  

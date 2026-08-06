@@ -1,0 +1,42 @@
+@startuml
+skinparam packageStyle rectangle
+
+package "Catalog" {
+  rectangle fee_criterion_def as CritDef
+  rectangle fee_criterion_field_map as CritMap
+  rectangle fee_service_catalog as SvcCat
+  rectangle incidental_fee_def as Incidental
+}
+
+package "Cau_hinh_bang_phi" {
+  rectangle fee_table as FT
+  rectangle fee_table_version as FTV
+  rectangle fee_table_scope as Scope
+  rectangle fee_table_settings as Settings
+  rectangle fee_price_line as PL
+  rectangle fee_price_line_condition as PLC
+  rectangle fee_surcharge_rule as SR
+  rectangle fee_surcharge_condition as SRC
+}
+
+package "Tren_don" {
+  rectangle rescue_order_fee_snapshot as Snap
+  rectangle rescue_order_fee_line as Line
+  rectangle rescue_order_fee_adjustment as Adj
+}
+
+CritDef --> CritMap
+CritDef --> PLC
+CritDef --> SRC
+FT --> FTV
+FTV --> Scope
+FTV --> Settings
+FTV --> PL
+FTV --> SR
+PL --> PLC
+SR --> SRC
+FTV --> Snap
+Snap --> Line
+Line --> Adj
+SvcCat --> PL
+@enduml

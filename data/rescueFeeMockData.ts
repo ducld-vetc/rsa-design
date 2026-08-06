@@ -5,6 +5,12 @@ export type SupplierType = 'INTERNAL' | 'EXTERNAL';
 export type ServiceType = 'ONSITE' | 'TOWING' | 'CRANE';
 export type SurchargeType = 'FIXED' | 'COEFFICIENT';
 export type FeeTarget = 'CUSTOMER' | 'SUPPLIER';
+export type FeeObjectType =
+  | 'SUPPLIER_INTERNAL'
+  | 'SUPPLIER_EXTERNAL'
+  | 'CUSTOMER_INDIVIDUAL'
+  | 'CUSTOMER_BUSINESS';
+export type FeeOrderType = 'PACKAGE' | 'SINGLE' | 'PACKAGE_SINGLE';
 export type FeeTableKind =
   | 'CUSTOMER_PUBLIC'
   | 'CUSTOMER_RETAIL'
@@ -12,7 +18,7 @@ export type FeeTableKind =
   | 'SUPPLIER_INTERNAL'
   | 'SUPPLIER_EXTERNAL'
   | 'SUPPLIER_EXTERNAL_FALLBACK';
-export type FeeTableStatus = 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'INACTIVE';
+export type FeeTableStatus = 'ACTIVE' | 'EXPIRED' | 'INACTIVE';
 export type FeeSourceLabel = 'VETC' | 'NCC' | 'Thủ công' | string;
 export type RoundMode = 'NEAREST_1000' | 'NEAREST_100' | 'NONE';
 export type CriterionRole = 'PRICE' | 'SURCHARGE' | 'BOTH';
@@ -24,6 +30,10 @@ export interface FeeRuleCondition {
   criterionLabel: string;
   operator: '=' | 'IN' | 'BETWEEN' | '>=' | '<=';
   value: string | number | [number, number] | string[];
+  /** Biên dưới BETWEEN: true = bao gồm (≥), false = không bao gồm (>). Mặc định true khi thiếu. */
+  fromInclusive?: boolean;
+  /** Biên trên BETWEEN: true = bao gồm (≤), false = không bao gồm (<). Mặc định true khi thiếu. */
+  toInclusive?: boolean;
 }
 
 export interface FeeCriterion {
@@ -77,6 +87,10 @@ export interface PriceTableScope {
   enterpriseCode?: string;
   supplierId?: string;
   supplierName?: string;
+  /** Phân loại đối tượng áp dụng theo target (NCC nội bộ/bên ngoài, KH cá nhân/doanh nghiệp). */
+  objectType?: FeeObjectType;
+  /** Phân loại loại đơn áp dụng trên đơn cứu hộ. */
+  orderType?: FeeOrderType;
   areas?: string[];
   serviceTypes?: ServiceType[];
   vehicleTypes?: string[];
@@ -122,6 +136,8 @@ export interface FeeTableSettings {
   roundMode: RoundMode;
   isFallback: boolean;
   stackSurcharges: boolean;
+  /** Giá trong bảng đã bao gồm VAT hay chưa (cờ cấu hình; không tự tách/cộng VAT khi tính). */
+  includesVat: boolean;
 }
 
 export interface FeeServiceLineInput {
@@ -720,7 +736,6 @@ export const FEE_SUPPLIER_OPTIONS: Array<{ id: string; name: string }> = [
 ];
 
 export const FEE_STATUS_LABELS: Record<FeeTableStatus, string> = {
-  DRAFT: 'Nháp',
   ACTIVE: 'Đang hiệu lực',
   EXPIRED: 'Hết hiệu lực',
   INACTIVE: 'Ngừng hiệu lực',
@@ -783,12 +798,34 @@ const sharedSurcharges: SurchargeRule[] = [
   },
 ];
 
+/** Danh sách ngày lễ/Tết hệ thống (mock) — dùng nút “Lấy từ hệ thống” trên form phụ phí. */
+export const SYSTEM_HOLIDAY_DATES: string[] = [
+  '2026-01-01',
+  '2026-02-14',
+  '2026-02-15',
+  '2026-02-16',
+  '2026-02-17',
+  '2026-02-18',
+  '2026-04-30',
+  '2026-05-01',
+  '2026-09-02',
+];
+
 const DEFAULT_TABLE_SETTINGS: FeeTableSettings = {
-  retailMarkupFactor: 1.5,
+  retailMarkupFactor: 0,
   roundMode: 'NEAREST_1000',
   isFallback: false,
   stackSurcharges: true,
+  includesVat: false,
 };
+
+/** Bảng chỉ áp dụng hệ số × giá (không cấu hình ma trận dòng giá / phụ phí). */
+export const usesRetailMarkupOnlyPricing = (
+  table: Pick<PriceTable, 'kind' | 'settings'>
+): boolean =>
+  table.kind === 'CUSTOMER_RETAIL' && Number(table.settings.retailMarkupFactor) > 0;
+
+export const RETAIL_MARKUP_DEFAULT_FACTOR = 1.5;
 
 export let rescueFeeTables: PriceTable[] = [
   {
@@ -1151,7 +1188,7 @@ export let rescueFeeTables: PriceTable[] = [
     applyFor: 'Toyota Việt Nam',
     priority: 130,
     version: 1,
-    status: 'DRAFT',
+    status: 'ACTIVE',
     validFrom: '2026-08-01',
     validTo: '2026-12-31',
     scope: { enterpriseCode: 'TOYOTA' },
@@ -1626,10 +1663,18 @@ export const formatMoneyVi = (value: number): string =>
 export const parseMoneyVi = (value: string): number =>
   parseFloat(String(value).replace(/,/g, '')) || 0;
 
-export const getRetailMarkupFactor = (): number =>
-  rescueFeeTables.find(
+export const getRetailMarkupFactor = (): number => {
+  const markupTable = rescueFeeTables.find(
+    (table) => table.status === 'ACTIVE' && usesRetailMarkupOnlyPricing(table)
+  );
+  if (markupTable) return Number(markupTable.settings.retailMarkupFactor);
+
+  const internal = rescueFeeTables.find(
     (table) => table.kind === 'SUPPLIER_INTERNAL' && table.status === 'ACTIVE'
-  )?.settings.retailMarkupFactor ?? 1.5;
+  );
+  const legacyFactor = Number(internal?.settings.retailMarkupFactor);
+  return legacyFactor > 0 ? legacyFactor : RETAIL_MARKUP_DEFAULT_FACTOR;
+};
 
 const isDateInRange = (asOf: string, from: string, to: string): boolean => {
   const d = asOf.slice(0, 10);
@@ -1736,7 +1781,12 @@ const valueMatchesCondition = (
         String(condition.value[1] ?? '')
       );
     }
-    return Number(actual) >= Number(condition.value[0]) && Number(actual) <= Number(condition.value[1]);
+    const num = Number(actual);
+    const from = Number(condition.value[0]);
+    const to = Number(condition.value[1]);
+    const fromOk = condition.fromInclusive === false ? num > from : num >= from;
+    const toOk = condition.toInclusive === false ? num < to : num <= to;
+    return fromOk && toOk;
   }
   return false;
 };
@@ -1841,7 +1891,12 @@ const calcProgressiveBase = (
   line: FeeServiceLineInput,
   input: FeeCalculationInput
 ): number | null => {
-  /** Chỉ kéo xe cộng dồn FIXED + PER_UNIT theo distanceKm — không áp cho roadDistance cẩu. */
+  /**
+   * Chỉ kéo xe theo distanceKm.
+   * Nếu cùng tổ hợp có cả FIXED và PER_UNIT: chọn FIXED gần nhất (from lớn nhất với km >= from),
+   * cộng FIXED đó + các bậc PER_UNIT có from >= to của FIXED đó; bỏ qua bậc trước FIXED gần nhất.
+   * Chỉ FIXED → lấy FIXED gần nhất. Chỉ PER_UNIT → cộng dồn đơn vị từng bậc.
+   */
   if (line.serviceType !== 'TOWING') return null;
   const detail = line.serviceDetail ?? line.serviceName;
   const context = buildRuleContext(input, line);
@@ -1857,19 +1912,53 @@ const calcProgressiveBase = (
   if (tierRules.length === 0) return null;
 
   const distance = line.distanceKm ?? 0;
-  return tierRules.reduce((total, rule) => {
+  type Tier = {
+    mode: ServicePricingMode;
+    from: number;
+    to: number;
+    basePrice: number;
+  };
+  const tiers: Tier[] = [];
+  for (const rule of tierRules) {
     const range = (rule.conditions ?? []).find(isDistanceRange);
-    if (!range || !Array.isArray(range.value)) return total;
+    if (!range || !Array.isArray(range.value) || !rule.pricingMode) continue;
     const from = Number(range.value[0]);
     const to = Number(range.value[1]);
-    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return total;
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) continue;
+    tiers.push({
+      mode: rule.pricingMode,
+      from,
+      to,
+      basePrice: rule.basePrice,
+    });
+  }
+  if (tiers.length === 0) return null;
 
-    if (rule.pricingMode === 'FIXED') {
-      return distance >= from ? total + rule.basePrice : total;
+  const hasFixed = tiers.some((tier) => tier.mode === 'FIXED');
+  const hasPerUnit = tiers.some((tier) => tier.mode === 'PER_UNIT');
+  const applicableFixed = tiers.filter(
+    (tier) => tier.mode === 'FIXED' && distance >= tier.from
+  );
+
+  if (hasFixed && applicableFixed.length > 0) {
+    const nearestFixed = applicableFixed.reduce((best, tier) =>
+      tier.from > best.from ? tier : best
+    );
+    let total = nearestFixed.basePrice;
+    if (hasPerUnit) {
+      for (const tier of tiers) {
+        if (tier.mode !== 'PER_UNIT' || tier.from < nearestFixed.to) continue;
+        const unitsInTier = Math.max(0, Math.min(distance, tier.to) - tier.from);
+        total += unitsInTier * tier.basePrice;
+      }
     }
+    return total;
+  }
 
-    const unitsInTier = Math.max(0, Math.min(distance, to) - from);
-    return total + unitsInTier * rule.basePrice;
+  return tiers.reduce((total, tier) => {
+    if (tier.mode === 'FIXED') return total;
+    const unitsInTier = Math.max(0, Math.min(distance, tier.to) - tier.from);
+    return total + unitsInTier * tier.basePrice;
   }, 0);
 };
 
@@ -2026,7 +2115,12 @@ export const resolveCustomerTable = (
       asOfDate: asOf,
       context: { customerType: 'RETAIL' },
     });
-    if (table) return { table, mode: 'RETAIL' };
+    if (table) {
+      if (usesRetailMarkupOnlyPricing(table)) {
+        return { table, mode: 'RETAIL_MARKUP' };
+      }
+      return { table, mode: 'RETAIL' };
+    }
     return { table: null, mode: 'RETAIL_MARKUP' };
   }
 
@@ -2101,7 +2195,10 @@ export const calculateRescueFees = (input: FeeCalculationInput): FeeBreakdown =>
     };
   }
 
-  const markup = supplierTable.settings.retailMarkupFactor;
+  const markup =
+    mode === 'RETAIL_MARKUP' && customerTable?.kind === 'CUSTOMER_RETAIL'
+      ? customerTable.settings.retailMarkupFactor
+      : supplierTable.settings.retailMarkupFactor || RETAIL_MARKUP_DEFAULT_FACTOR;
   const supplierSource: FeeSourceLabel =
     supplierTable.kind === 'SUPPLIER_INTERNAL' ? 'VETC' : 'NCC';
   const customerSource: FeeSourceLabel =
@@ -2245,16 +2342,20 @@ export const upsertPriceTable = (table: PriceTable): void => {
   }
 };
 
-export const duplicatePriceTable = (tableId: string): PriceTable | null => {
+/**
+ * Sao chép bảng phí chỉ trên FE (không ghi vào danh sách).
+ * User cấu hình trên form; bấm Lưu mới upsert với status ACTIVE.
+ */
+export const clonePriceTable = (tableId: string): PriceTable | null => {
   const source = rescueFeeTables.find((t) => t.id === tableId);
   if (!source) return null;
-  const copy: PriceTable = {
+  return {
     ...source,
     id: `${source.id}-COPY-${Date.now()}`,
     code: `${source.code}-V${source.version + 1}`,
     name: `${source.name} (bản sao)`,
     version: source.version + 1,
-    status: 'DRAFT',
+    status: 'ACTIVE',
     updatedAt: new Date().toLocaleString('vi-VN'),
     updatedBy: 'admin',
     criteria: source.criteria.map((c) => ({ ...c, id: `${c.id}-c` })),
@@ -2270,9 +2371,10 @@ export const duplicatePriceTable = (tableId: string): PriceTable | null => {
       holidayDates: r.holidayDates ? [...r.holidayDates] : undefined,
     })),
   };
-  rescueFeeTables = [...rescueFeeTables, copy];
-  return copy;
 };
+
+/** @deprecated Dùng clonePriceTable — không persist vào danh sách trước khi Lưu. */
+export const duplicatePriceTable = clonePriceTable;
 
 export const emptyPriceTable = (partial?: Partial<PriceTable>): PriceTable => ({
   id: `FEE-${Date.now()}`,
@@ -2283,7 +2385,7 @@ export const emptyPriceTable = (partial?: Partial<PriceTable>): PriceTable => ({
   applyFor: '',
   priority: 100,
   version: 1,
-  status: 'DRAFT',
+  status: 'ACTIVE',
   validFrom: new Date().toISOString().slice(0, 10),
   validTo: '2099-12-31',
   scope: {},
@@ -2298,4 +2400,4 @@ export const emptyPriceTable = (partial?: Partial<PriceTable>): PriceTable => ({
 });
 
 /** Tương thích cũ — giữ export RETAIL_MARKUP_FACTOR */
-export const RETAIL_MARKUP_FACTOR = 1.5;
+export const RETAIL_MARKUP_FACTOR = RETAIL_MARKUP_DEFAULT_FACTOR;

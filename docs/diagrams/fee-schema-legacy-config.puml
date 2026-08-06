@@ -1,0 +1,23 @@
+@startuml
+left to right direction
+rectangle price_policy as PP
+rectangle price_policy_distance_tier as TIER
+rectangle price_policy_multiplier as MUL
+rectangle price_policy_weight_rate as WGT
+rectangle price_policy_cap as CAP
+rectangle global_list as GL
+rectangle global_list_detail as GLD
+rectangle service as SVC
+rectangle partner as PARTNER
+rectangle corporate_customer as CORP
+
+PP --> TIER
+PP --> MUL
+PP --> WGT
+PP --> CAP
+MUL --> GL
+MUL --> GLD
+PP --> SVC
+PP --> PARTNER
+PP --> CORP
+@enduml

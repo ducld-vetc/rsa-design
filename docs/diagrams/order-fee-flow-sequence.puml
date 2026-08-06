@@ -1,0 +1,43 @@
+@startuml
+autonumber
+actor "CSKH/OSA" as User
+participant "Portal don" as UI
+participant "Engine tinh phi" as Eng
+participant "Kho bang phi" as Fee
+database "Snapshot/FeeLine" as DB
+
+== Phase A: Tao don ==
+User -> UI: Tao don (chua NCC)
+UI -> Eng: FeeCalculationInput\n(supplier chua gan)
+Eng -> Fee: Resolve NCC = FALLBACK
+Eng -> Fee: Resolve KH theo loai don
+Eng --> UI: Breakdown NCC + KH
+UI -> DB: Insert snapshot + fee_line
+
+== Phase B: Dieu phoi ==
+User -> UI: Gan NCC / nhan bao gia
+alt NCC bao gia
+  UI -> DB: Update supplier_amount (manual)
+else Co bang NCC
+  UI -> Eng: Recalc voi supplierId
+  Eng -> Fee: SUPPLIER_INTERNAL/EXTERNAL
+  Eng --> UI: supplier moi
+  UI -> DB: Update snapshot/fee_line
+else Khong bang
+  Eng -> Fee: FALLBACK
+end
+opt Mode RETAIL_MARKUP
+  Eng -> Eng: KH = round(NCC x factor)
+  UI -> DB: Update customer_amount
+end
+UI -> DB: Insert adjustment (neu so doi)
+
+== Phase C: Doi tieu chi ==
+User -> UI: Doi DN/km/xe/...
+alt Khong manual
+  UI -> Eng: Auto recalc
+  UI -> DB: Update snapshot/fee_line + RECALC
+else Co manual
+  UI -> DB: Cap nhat context, giu amount, sticky
+end
+@enduml

@@ -1,0 +1,16 @@
+@startuml
+left to right direction
+rectangle rescue_order_v2 as RO
+rectangle rescue_order_service as ROS
+rectangle rescue_order_charge as ROC
+rectangle rescue_order_service_charge as ROSC
+rectangle rescue_order_service_charge_detail as DETAIL
+rectangle fee_item as FEE
+
+RO --> ROS
+RO --> ROC
+ROS --> ROSC
+ROC --> ROSC
+ROSC --> DETAIL
+DETAIL --> FEE
+@enduml

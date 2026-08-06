@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ChevronDown,
@@ -35,9 +35,14 @@ import {
   upsertPriceTable,
   resolveFeeServiceType,
   isTimeSurchargeCriterion,
+  usesRetailMarkupOnlyPricing,
+  RETAIL_MARKUP_DEFAULT_FACTOR,
   DEFAULT_TIME_RANGE,
+  SYSTEM_HOLIDAY_DATES,
   type FeeCriterion,
   type FeeRuleCondition,
+  type FeeObjectType,
+  type FeeOrderType,
   type FeeTableKind,
   type FeeTableStatus,
   type FeeTarget,
@@ -49,8 +54,97 @@ import {
   type RoundMode,
   type ServicePricingMode,
 } from '../data/rescueFeeMockData';
+import {
+  allowedOperatorsForCriterion,
+  validateAdditionalCriteriaConditions,
+  validatePriceTableForSave,
+} from '../data/validatePriceTable';
+import {
+  formatFeeTableImportIssue,
+  validateFeeTableImportPayload,
+  validateFeeTableImportWorkbookSheets,
+  type FeeTableImportIssue,
+} from '../data/validateFeeTableImport';
 
 type TabId = 'general' | 'matrix' | 'scope' | 'services' | 'criteria' | 'surcharges';
+
+type TableImportDemoCaseId =
+  | 'ok'
+  | 'json_invalid'
+  | 'json_not_object'
+  | 'missing_sheet'
+  | 'empty_payload'
+  | 'bad_object_type'
+  | 'bad_service_code'
+  | 'from_gte_to'
+  | 'bad_surcharge_code'
+  | 'between_missing'
+  | 'multi_errors';
+
+const TABLE_IMPORT_DEMO_CASES: Array<{
+  id: TableImportDemoCaseId;
+  label: string;
+}> = [
+  { id: 'ok', label: '✓ Hợp lệ — áp dụng được' },
+  { id: 'json_invalid', label: 'File · JSON parse fail' },
+  { id: 'json_not_object', label: 'File · JSON không phải object' },
+  { id: 'missing_sheet', label: 'File · Thiếu sheet Excel (mô phỏng)' },
+  { id: 'empty_payload', label: 'File · Không có dòng DichVu/PhuPhi' },
+  { id: 'bad_object_type', label: 'ThongTin · scope.objectType sai' },
+  { id: 'bad_service_code', label: 'DichVu · serviceCode không thuộc catalog' },
+  { id: 'from_gte_to', label: 'DichVu · from ≥ to' },
+  { id: 'bad_surcharge_code', label: 'PhuPhi · surchargeCode không suy tiêu chí' },
+  { id: 'between_missing', label: 'PhuPhi · BETWEEN thiếu from/to' },
+  { id: 'multi_errors', label: 'Nhiều lỗi cùng lúc' },
+];
+
+const buildTableImportDemoBase = (): Record<string, unknown> => ({
+  code: 'SUP-EXT-PARTNER',
+  name: 'Bảng phí đối tác mẫu',
+  target: 'SUPPLIER',
+  scope: {
+    objectType: 'SUPPLIER_EXTERNAL',
+    orderType: 'PACKAGE_SINGLE',
+  },
+  settings: {
+    retailMarkupFactor: 0,
+    roundMode: 'NEAREST_1000',
+    stackSurcharges: true,
+    includesVat: false,
+  },
+  services: [
+    {
+      serviceCode: 'ONSITE_BATTERY',
+      pricingMode: 'FIXED',
+      basePrice: 350000,
+      from: '',
+      fromOperator: '<',
+      to: '',
+      toOperator: '≤',
+    },
+    {
+      serviceCode: 'TOWING_GARAGE',
+      pricingMode: 'FIXED',
+      basePrice: 100000,
+      from: 0,
+      fromOperator: '<',
+      to: 10,
+      toOperator: '≤',
+    },
+  ],
+  surcharges: [
+    {
+      surchargeCode: 'TIME_REQUEST',
+      type: 'COEFFICIENT',
+      value: 1.15,
+      operator: 'BETWEEN',
+      criterionFrom: '22:00',
+      fromOperator: '<',
+      criterionTo: '06:00',
+      toOperator: '≤',
+    },
+  ],
+});
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'general', label: '1. Thông tin & tham số' },
@@ -79,6 +173,120 @@ const SectionHeader: React.FC<{
 const inputClass =
   'w-full border rounded px-3 py-1.5 text-sm outline-none focus:border-vetc-green placeholder:text-gray-400';
 const labelClass = 'block text-xs font-semibold text-gray-600 mb-1';
+
+/** Mặc định UI ma trận: từ không gồm (<), đến gồm (≤). Dữ liệu cũ thiếu field → engine vẫn coi cả hai biên inclusive. */
+const DEFAULT_BETWEEN_BOUNDS = {
+  fromInclusive: false,
+  toInclusive: true,
+} as const;
+
+const boundToggleClass = (inclusive: boolean) =>
+  `h-[30px] min-w-[30px] rounded border text-xs font-bold transition-colors ${
+    inclusive
+      ? 'bg-vetc-green text-white border-vetc-green'
+      : 'bg-gray-50 text-gray-600 border-gray-300'
+  }`;
+
+const RangeBoundInputs: React.FC<{
+  from: string | number;
+  to: string | number;
+  fromInclusive?: boolean;
+  toInclusive?: boolean;
+  unit?: string;
+  className?: string;
+  onChange: (patch: {
+    value?: [string, string];
+    fromInclusive?: boolean;
+    toInclusive?: boolean;
+  }) => void;
+}> = ({ from, to, fromInclusive, toInclusive, unit, className, onChange }) => {
+  const fromInc = fromInclusive !== false;
+  const toInc = toInclusive !== false;
+  const fromText = from === undefined || from === null ? '' : String(from);
+  const toText = to === undefined || to === null ? '' : String(to);
+  const boundPatch =
+    fromInclusive !== undefined || toInclusive !== undefined
+      ? {
+          fromInclusive: fromInclusive ?? DEFAULT_BETWEEN_BOUNDS.fromInclusive,
+          toInclusive: toInclusive ?? DEFAULT_BETWEEN_BOUNDS.toInclusive,
+        }
+      : {};
+
+  return (
+    <div
+      className={
+        className ?? 'grid grid-cols-[1fr_30px_auto_30px_1fr] items-center gap-1.5'
+      }
+    >
+      <div className="relative min-w-0">
+        <input
+          type="number"
+          className={`${inputClass} ${unit ? 'pr-8' : ''} text-right`}
+          placeholder="Từ"
+          value={fromText}
+          onChange={(e) =>
+            onChange({
+              value: [e.target.value, toText],
+              ...boundPatch,
+            })
+          }
+        />
+        {unit ? (
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">
+            {unit}
+          </span>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        className={boundToggleClass(fromInc)}
+        title={fromInc ? 'Bao gồm biên dưới (≥)' : 'Không bao gồm biên dưới (>)'}
+        onClick={() =>
+          onChange({
+            fromInclusive: !fromInc,
+            toInclusive: toInclusive !== false,
+          })
+        }
+      >
+        {fromInc ? '≤' : '<'}
+      </button>
+      <span className="text-xs font-bold text-gray-400">~</span>
+      <button
+        type="button"
+        className={boundToggleClass(toInc)}
+        title={toInc ? 'Bao gồm biên trên (≤)' : 'Không bao gồm biên trên (<)'}
+        onClick={() =>
+          onChange({
+            fromInclusive: fromInclusive !== false,
+            toInclusive: !toInc,
+          })
+        }
+      >
+        {toInc ? '≤' : '<'}
+      </button>
+      <div className="relative min-w-0">
+        <input
+          type="number"
+          className={`${inputClass} ${unit ? 'pr-8' : ''} text-right`}
+          placeholder="Đến"
+          value={toText}
+          onChange={(e) =>
+            onChange({
+              value: [fromText, e.target.value],
+              ...boundPatch,
+            })
+          }
+        />
+        {unit ? (
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">
+            {unit}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
 const SERVICE_CONFIG: Record<ServiceType, { label: string; unit: string }> = {
   ONSITE: { label: 'Kích bình ắc quy', unit: 'lượt' },
   TOWING: { label: 'Kéo xe', unit: 'km' },
@@ -86,6 +294,166 @@ const SERVICE_CONFIG: Record<ServiceType, { label: string; unit: string }> = {
 };
 const SERVICE_OPTIONS = FEE_SERVICE_CATALOG;
 const SURCHARGE_HEAD_OPTIONS = FEE_SURCHARGE_CATALOG;
+const SERVICE_CODE_TO_DETAIL: Record<string, string> = {
+  ONSITE_BATTERY: 'Kích bình ắc quy',
+  ONSITE_SPARE_TIRE: 'Thay lốp dự phòng',
+  TOWING_GARAGE: 'Kéo xe về gara',
+  TOWING_LONG_DISTANCE: 'Kéo xe đường dài',
+  CRANE_ROAD: 'Cẩu xe mặt đường',
+  CRANE_BELOW_ROAD: 'Cẩu xe dưới mặt đường',
+};
+const SURCHARGE_CODE_TO_NAME: Record<string, string> = {
+  TIME_REQUEST: 'Thời gian yêu cầu cứu hộ',
+  TIME_EXECUTION: 'Thời gian thực hiện cứu hộ',
+  HIGHWAY_ROUTE: 'Tuyến cao tốc',
+  WEATHER_STORM: 'Thời tiết',
+  HOLIDAY: 'Lễ/Tết',
+};
+const findServiceCode = (serviceDetail: string): string =>
+  Object.entries(SERVICE_CODE_TO_DETAIL).find(([, detail]) => detail === serviceDetail)?.[0] ?? '';
+const findSurchargeCode = (name: string): string =>
+  Object.entries(SURCHARGE_CODE_TO_NAME).find(([, label]) => label === name)?.[0] ?? '';
+const IMPORT_BASE_ROW_KEYS = new Set([
+  'service',
+  'dichvu',
+  'servicedetail',
+  'servicecode',
+  'serviceType',
+  'loaidichvu',
+  'pricingmode',
+  'cachtinh',
+  'baseprice',
+  'mucgia',
+  'price',
+  'from',
+  'fromoperator',
+  'frominclusive',
+  'to',
+  'tooperator',
+  'toinclusive',
+  'tu',
+  'den',
+  'payloadfrom',
+  'payloadto',
+  'loadfrom',
+  'loadto',
+  'trongtaitu',
+  'trongtaiden',
+  'seats',
+  'seatcount',
+  'socho',
+  'vehicletype',
+  'loaiptgapsuco',
+  'rescuevehicletype',
+  'loaiptcuuho',
+  'conditions',
+  'primarycriterion',
+  'primary',
+]);
+const normalizeImportKey = (key: string): string =>
+  key
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/[-:]/g, '.')
+    .replace(/_/g, '.')
+    .toLowerCase();
+const normalizeCriterionAlias = (key: string): string => {
+  const cleaned = key.replace(/\.+/g, '.').replace(/^\./, '').replace(/\.$/, '');
+  if (cleaned === 'load.capacity') return 'load_capacity';
+  if (cleaned === 'seat.number') return 'seat_number';
+  return cleaned;
+};
+const toCodeToken = (value: string): string =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase();
+const buildSurchargeCriterionValueCode = (criterionKey: string, value: string): string =>
+  `${toCodeToken(criterionKey)}__${toCodeToken(value)}`;
+const resolveSurchargeCriterionValue = (
+  criterionKey: string,
+  rawValue: string,
+  criterionValues?: readonly string[]
+): string => {
+  const value = rawValue.trim();
+  if (!value) return '';
+  if (!criterionValues?.length) return value;
+  const direct = criterionValues.find((item) => item === value);
+  if (direct) return direct;
+  const byCode = criterionValues.find(
+    (item) => buildSurchargeCriterionValueCode(criterionKey, item) === value
+  );
+  return byCode ?? value;
+};
+const parseBoundInclusive = (raw: unknown, fallbackInclusive: boolean): boolean => {
+  const text = String(raw ?? '').trim().toLowerCase();
+  if (!text) return fallbackInclusive;
+  if (text === '<' || text === '>' || text === 'false' || text === '0' || text === 'open') {
+    return false;
+  }
+  if (
+    text === '≤' ||
+    text === '≥' ||
+    text === '<=' ||
+    text === '>=' ||
+    text === 'true' ||
+    text === '1' ||
+    text === 'close'
+  ) {
+    return true;
+  }
+  return fallbackInclusive;
+};
+const OBJECT_TYPE_OPTIONS_BY_TARGET: Record<
+  FeeTarget,
+  Array<{ value: FeeObjectType; label: string }>
+> = {
+  SUPPLIER: [
+    { value: 'SUPPLIER_INTERNAL', label: 'Nội bộ (partner_type = INTERNAL)' },
+    {
+      value: 'SUPPLIER_EXTERNAL',
+      label: "Bên ngoài (partner_type in ['THIRD_PARTY','QUICK_SERVICE'])",
+    },
+  ],
+  CUSTOMER: [
+    {
+      value: 'CUSTOMER_INDIVIDUAL',
+      label: 'Cá nhân (ro.corporate_customer_id is null)',
+    },
+    {
+      value: 'CUSTOMER_BUSINESS',
+      label: 'Doanh nghiệp (ro.corporate_customer_id is not null)',
+    },
+  ],
+};
+const ORDER_TYPE_OPTIONS: Array<{ value: FeeOrderType; label: string }> = [
+  { value: 'PACKAGE', label: 'Đơn gói' },
+  { value: 'SINGLE', label: 'Đơn lẻ' },
+  { value: 'PACKAGE_SINGLE', label: 'Đơn gói đơn lẻ' },
+];
+const defaultObjectTypeByTarget = (target: FeeTarget): FeeObjectType =>
+  target === 'SUPPLIER' ? 'SUPPLIER_INTERNAL' : 'CUSTOMER_INDIVIDUAL';
+const inferKindFromTargetAndObjectType = (
+  target: FeeTarget,
+  objectType: string | undefined,
+  fallback: FeeTableKind
+): FeeTableKind => {
+  if (target === 'SUPPLIER') {
+    if (objectType === 'SUPPLIER_INTERNAL') return 'SUPPLIER_INTERNAL';
+    if (objectType === 'SUPPLIER_EXTERNAL') return 'SUPPLIER_EXTERNAL';
+    return syncKindWithTarget(target, fallback);
+  }
+  if (objectType === 'CUSTOMER_BUSINESS') return 'CUSTOMER_BUSINESS';
+  if (objectType === 'CUSTOMER_INDIVIDUAL') return 'CUSTOMER_RETAIL';
+  return syncKindWithTarget(target, fallback);
+};
+const defaultSurchargeOperatorByCriterion = (criterionKey: string): FeeRuleCondition['operator'] =>
+  isTimeSurchargeCriterion(criterionKey) ? 'BETWEEN' : '=';
+
 const PRIMARY_CRITERION_BY_SERVICE: Partial<Record<ServiceType, string>> = {
   TOWING: 'Khoảng cách kéo xe',
   CRANE: 'Khoảng cách so với mặt đất',
@@ -173,6 +541,11 @@ const formatConditionSummary = (condition: FeeRuleCondition): string => {
   const values = Array.isArray(condition.value)
     ? condition.value.map(String).map((value) => value.trim()).filter(Boolean)
     : [String(condition.value ?? '').trim()].filter(Boolean);
+  if (condition.operator === 'BETWEEN' && values.length >= 2) {
+    const fromOp = condition.fromInclusive === false ? '<' : '≤';
+    const toOp = condition.toInclusive === false ? '<' : '≤';
+    return `${condition.criterionLabel}: ${values[0]} ${fromOp} ~ ${toOp} ${values[1]}`;
+  }
   const separator = condition.operator === 'BETWEEN' ? ' – ' : ', ';
   const formattedValue = values.join(separator);
   return formattedValue
@@ -187,11 +560,37 @@ const ruleMatchesMatrixFilter = (
     serviceType: '' | ServiceType;
     serviceDetail: string;
     pricingMode: '' | ServicePricingMode;
+    vehicleType: string;
+    rescueVehicleType: string;
+    seatNumber: string;
+    loadCapacity: string;
   }
 ): boolean => {
   if (filters.serviceType && rule.serviceType !== filters.serviceType) return false;
   if (filters.serviceDetail && rule.serviceDetail !== filters.serviceDetail) return false;
   if (filters.pricingMode && (rule.pricingMode ?? 'FIXED') !== filters.pricingMode) {
+    return false;
+  }
+  if (!ruleMatchesListCriterion(rule, ['vehicleType'], filters.vehicleType)) return false;
+  if (!ruleMatchesListCriterion(rule, ['rescueVehicleType'], filters.rescueVehicleType)) {
+    return false;
+  }
+  if (
+    !ruleMatchesNumericCriterion(
+      rule,
+      ['seat_number', 'seats'],
+      parseOptionalNumber(filters.seatNumber)
+    )
+  ) {
+    return false;
+  }
+  if (
+    !ruleMatchesNumericCriterion(
+      rule,
+      ['load_capacity', 'payload'],
+      parseOptionalNumber(filters.loadCapacity)
+    )
+  ) {
     return false;
   }
   const keyword = filters.keyword.trim().toLowerCase();
@@ -209,25 +608,78 @@ const ruleMatchesMatrixFilter = (
   return haystack.includes(keyword);
 };
 
+type MatrixFilterCondition = {
+  criterionKey: string;
+  operator: string;
+  value: unknown;
+};
+
+const parseOptionalNumber = (raw: string): number | null => {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const value = Number(trimmed.replace(',', '.'));
+  return Number.isFinite(value) ? value : null;
+};
+
+const collectListCriterionOptions = (
+  rules: { conditions?: MatrixFilterCondition[] }[],
+  criterionKeys: string[],
+  fallback: string[] = []
+) => {
+  const seen = new Set<string>(fallback);
+  for (const rule of rules) {
+    for (const condition of rule.conditions ?? []) {
+      if (!criterionKeys.includes(condition.criterionKey)) continue;
+      const values = Array.isArray(condition.value) ? condition.value : [condition.value];
+      for (const value of values) {
+        const text = String(value ?? '').trim();
+        if (text) seen.add(text);
+      }
+    }
+  }
+  return Array.from(seen).sort((a, b) => a.localeCompare(b, 'vi'));
+};
+
+const ruleMatchesListCriterion = (
+  rule: { conditions?: MatrixFilterCondition[] },
+  criterionKeys: string[],
+  selected: string
+) => {
+  if (!selected) return true;
+  return (rule.conditions ?? []).some((condition) => {
+    if (!criterionKeys.includes(condition.criterionKey)) return false;
+    const values = Array.isArray(condition.value)
+      ? condition.value.map(String)
+      : [String(condition.value ?? '')];
+    return values.includes(selected);
+  });
+};
+
+const ruleMatchesNumericCriterion = (
+  rule: { conditions?: MatrixFilterCondition[] },
+  criterionKeys: string[],
+  input: number | null
+) => {
+  if (input == null) return true;
+  return (rule.conditions ?? []).some((condition) => {
+    if (!criterionKeys.includes(condition.criterionKey)) return false;
+    if (
+      condition.operator === 'BETWEEN' &&
+      Array.isArray(condition.value) &&
+      condition.value.length >= 2
+    ) {
+      const from = Number(condition.value[0]);
+      const to = Number(condition.value[1]);
+      if (!Number.isFinite(from) || !Number.isFinite(to)) return false;
+      return input >= from && input <= to;
+    }
+    const values = Array.isArray(condition.value) ? condition.value : [condition.value];
+    return values.some((value) => Number(value) === input);
+  });
+};
+
 const parseMoneyInput = (value: string): number =>
   parseInt(value.replace(/\D/g, ''), 10) || 0;
-
-const isConditionValueEmpty = (condition: FeeRuleCondition): boolean => {
-  if (condition.operator === 'BETWEEN') {
-    if (!Array.isArray(condition.value) || condition.value.length < 2) return true;
-    return String(condition.value[0]).trim() === '' || String(condition.value[1]).trim() === '';
-  }
-  if (condition.operator === 'IN') {
-    if (Array.isArray(condition.value)) {
-      return condition.value.length === 0 || condition.value.every((item) => String(item).trim() === '');
-    }
-    return String(condition.value ?? '').trim() === '';
-  }
-  if (Array.isArray(condition.value)) {
-    return condition.value.every((item) => String(item).trim() === '');
-  }
-  return String(condition.value ?? '').trim() === '';
-};
 
 const defaultValueForOperator = (
   operator: FeeRuleCondition['operator'],
@@ -237,6 +689,15 @@ const defaultValueForOperator = (
   if (operator === 'IN') return [];
   return allowedValues?.[0] ?? '';
 };
+
+const betweenConditionDefaults = (): Pick<
+  FeeRuleCondition,
+  'operator' | 'value' | 'fromInclusive' | 'toInclusive'
+> => ({
+  operator: 'BETWEEN',
+  value: ['', ''],
+  ...DEFAULT_BETWEEN_BOUNDS,
+});
 
 const buildCriterion = (
   label: string,
@@ -261,11 +722,18 @@ const buildPrimaryCondition = (serviceType: ServiceType): FeeRuleCondition | nul
   const label = PRIMARY_CRITERION_BY_SERVICE[serviceType];
   if (!label) return null;
   const config = PRIMARY_CRITERION_CONFIG[label];
+  if (config.valueType === 'RANGE') {
+    return {
+      criterionKey: config.key,
+      criterionLabel: label,
+      ...betweenConditionDefaults(),
+    };
+  }
   return {
     criterionKey: config.key,
     criterionLabel: label,
-    operator: config.valueType === 'RANGE' ? 'BETWEEN' : '=',
-    value: config.valueType === 'RANGE' ? ['', ''] : config.values[0] ?? '',
+    operator: '=',
+    value: config.values[0] ?? '',
   };
 };
 
@@ -377,10 +845,15 @@ const ensureRequiredCriteria = (table: PriceTable): PriceTable => {
 
 const RescueFeeForm: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const clonedTable = (location.state as { clonedTable?: PriceTable } | null)?.clonedTable;
 
   const initial = useMemo(() => {
+    if (clonedTable) {
+      return ensureRequiredCriteria(clonedTable);
+    }
     if (id) {
       return ensureRequiredCriteria(
         rescueFeeTables.find((t) => t.id === id) ?? emptyPriceTable()
@@ -391,9 +864,14 @@ const RescueFeeForm: React.FC = () => {
         code: 'FEE-NEW',
         name: 'Bảng phí mới',
         applyFor: '',
+        status: 'ACTIVE',
+        scope: {
+          objectType: 'SUPPLIER_INTERNAL',
+          orderType: 'PACKAGE',
+        },
       })
     );
-  }, [id]);
+  }, [id, clonedTable]);
 
   const [form, setForm] = useState<PriceTable>(initial);
   const [activeTab, setActiveTab] = useState<TabId>('general');
@@ -407,8 +885,9 @@ const RescueFeeForm: React.FC = () => {
   const [tableImportOpen, setTableImportOpen] = useState(false);
   const [tableImportMode, setTableImportMode] = useState<'json' | 'excel'>('json');
   const [tableImportJsonText, setTableImportJsonText] = useState('');
-  const [tableImportError, setTableImportError] = useState('');
+  const [tableImportIssues, setTableImportIssues] = useState<FeeTableImportIssue[]>([]);
   const [tableImportFileName, setTableImportFileName] = useState('');
+  const [tableImportDemoCase, setTableImportDemoCase] = useState<TableImportDemoCaseId | ''>('');
   const excelInputRef = useRef<HTMLInputElement>(null);
   const [draggedPriceRuleId, setDraggedPriceRuleId] = useState<string | null>(null);
   const [dragOverPriceRuleId, setDragOverPriceRuleId] = useState<string | null>(null);
@@ -416,6 +895,10 @@ const RescueFeeForm: React.FC = () => {
   const [matrixServiceType, setMatrixServiceType] = useState<'' | ServiceType>('');
   const [matrixServiceDetail, setMatrixServiceDetail] = useState('');
   const [matrixPricingMode, setMatrixPricingMode] = useState<'' | ServicePricingMode>('');
+  const [matrixVehicleType, setMatrixVehicleType] = useState('');
+  const [matrixRescueVehicleType, setMatrixRescueVehicleType] = useState('');
+  const [matrixSeatNumber, setMatrixSeatNumber] = useState('');
+  const [matrixLoadCapacity, setMatrixLoadCapacity] = useState('');
 
   const update = <K extends keyof PriceTable>(key: K, value: PriceTable[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -443,85 +926,20 @@ const RescueFeeForm: React.FC = () => {
   };
 
   const handleSave = () => {
-    if (!form.code.trim() || !form.name.trim()) {
-      setError('Vui lòng nhập mã và tên bảng phí');
-      setActiveTab('general');
-      return;
-    }
-
-    const isRetailMarkupTable =
-      form.kind === 'CUSTOMER_RETAIL' && Number(form.settings.retailMarkupFactor) > 0;
-
-    if (!isRetailMarkupTable && form.serviceRules.length === 0) {
-      setError('Vui lòng cấu hình ít nhất một dòng giá dịch vụ');
-      setActiveTab('matrix');
-      return;
-    }
-    if (!isRetailMarkupTable) {
-      const emptyCondition = form.serviceRules.some((rule) =>
-        (rule.conditions ?? []).some((condition) => isConditionValueEmpty(condition))
-      );
-      if (emptyCondition) {
-        setError('Vui lòng nhập đủ giá trị cho tất cả tiêu chí (không được để trống)');
-        setActiveTab('matrix');
-        return;
-      }
-      const invalidRange = form.serviceRules.some((rule) =>
-        (rule.conditions ?? []).some((condition) => {
-          if (condition.operator !== 'BETWEEN' || !Array.isArray(condition.value)) return false;
-          const [from, to] = condition.value;
-          return Number(from) > Number(to);
-        })
-      );
-      if (invalidRange) {
-        setError('Khoảng Từ – Đến: giá trị Từ không được lớn hơn Đến');
-        setActiveTab('matrix');
-        return;
-      }
-      if (
-        (form.priceCriteria ?? []).some(
-          (c) => (c.valueType ?? 'LIST') === 'LIST' && !c.allowedValues?.length
-        )
-      ) {
-        setError('Mỗi tiêu chí của ma trận phải có ít nhất một giá trị cho phép');
-        setActiveTab('general');
-        return;
-      }
-      if (form.surchargeRules.some((s) => !s.conditions.length)) {
-        setError('Mỗi phụ phí bắt buộc phải chọn ít nhất một tiêu chí phụ');
-        setActiveTab('surcharges');
-        return;
-      }
-      if (
-        form.surchargeRules.some((s) => {
-          const condition = s.conditions[0];
-          if (!condition || !isTimeSurchargeCriterion(condition.criterionKey)) return false;
-          if (!Array.isArray(condition.value) || condition.value.length < 2) return true;
-          return !String(condition.value[0]).trim() || !String(condition.value[1]).trim();
-        })
-      ) {
-        setError('Phụ phí thời gian bắt buộc nhập đủ khoảng Từ – Đến');
-        setActiveTab('surcharges');
-        return;
-      }
-      if (
-        form.surchargeRules.some(
-          (s) =>
-            (s.name === 'Lễ/Tết' || s.conditions[0]?.criterionKey === 'holiday') &&
-            !(s.holidayDates ?? []).some((date) => date.trim())
-        )
-      ) {
-        setError('Phụ phí Lễ/Tết bắt buộc cấu hình ít nhất một ngày holiday');
-        setActiveTab('surcharges');
-        return;
-      }
-    }
-    setError('');
-    upsertPriceTable({
+    const payload: PriceTable = {
       ...form,
+      status: 'ACTIVE',
       updatedAt: new Date().toLocaleString('vi-VN'),
       updatedBy: 'admin',
-    });
+    };
+    const issue = validatePriceTableForSave(payload, rescueFeeTables);
+    if (issue) {
+      setError(issue.message);
+      setActiveTab(issue.tab as TabId);
+      return;
+    }
+    setError('');
+    upsertPriceTable(payload);
     navigate('/rescue-fee-config');
   };
 
@@ -903,6 +1321,75 @@ const RescueFeeForm: React.FC = () => {
       ];
     });
   };
+  const parseDynamicConditionColumns = (row: Record<string, unknown>): FeeRuleCondition[] => {
+    const criterionMap = new Map(
+      [
+        ...(form.priceCriteria ?? []),
+        ...feeCriterionDefinitions.map((item) => ({
+          key: item.key,
+          label: item.label,
+          valueType: item.valueType,
+        })),
+      ].map((item) => [item.key.toLowerCase(), item])
+    );
+    const ranges = new Map<string, { from?: unknown; to?: unknown }>();
+    const singles: Array<{ key: string; value: unknown }> = [];
+    for (const [rawKey, value] of Object.entries(row)) {
+      if (value === undefined || value === null || String(value).trim() === '') continue;
+      const normalized = normalizeImportKey(rawKey);
+      if (IMPORT_BASE_ROW_KEYS.has(normalized)) continue;
+      const dynamicMatch = /^cond(?:ition)?\.(.+)$/.exec(normalized);
+      if (!dynamicMatch) continue;
+      const payload = normalizeCriterionAlias(dynamicMatch[1] ?? '');
+      if (!payload) continue;
+      if (payload.endsWith('.from')) {
+        const key = payload.slice(0, -'.from'.length);
+        ranges.set(key, { ...(ranges.get(key) ?? {}), from: value });
+        continue;
+      }
+      if (payload.endsWith('.to')) {
+        const key = payload.slice(0, -'.to'.length);
+        ranges.set(key, { ...(ranges.get(key) ?? {}), to: value });
+        continue;
+      }
+      singles.push({ key: payload, value });
+    }
+    const conditions: FeeRuleCondition[] = [];
+    for (const [criterionKey, range] of ranges.entries()) {
+      if (range.from === undefined && range.to === undefined) continue;
+      const criterion = criterionMap.get(criterionKey.toLowerCase());
+      conditions.push({
+        criterionKey,
+        criterionLabel: criterion?.label ?? criterionKey,
+        operator: 'BETWEEN',
+        value: [range.from ?? '', range.to ?? ''],
+      });
+    }
+    for (const item of singles) {
+      const criterion = criterionMap.get(item.key.toLowerCase());
+      const text = String(item.value ?? '').trim();
+      if (!text) continue;
+      if (text.includes(',')) {
+        conditions.push({
+          criterionKey: item.key,
+          criterionLabel: criterion?.label ?? item.key,
+          operator: 'IN',
+          value: text
+            .split(',')
+            .map((part) => part.trim())
+            .filter(Boolean),
+        });
+      } else {
+        conditions.push({
+          criterionKey: item.key,
+          criterionLabel: criterion?.label ?? item.key,
+          operator: '=',
+          value: item.value as string | number,
+        });
+      }
+    }
+    return conditions;
+  };
 
   const applyImportJson = () => {
     if (!importServiceDetail) return;
@@ -943,12 +1430,22 @@ const RescueFeeForm: React.FC = () => {
           (item.primary as { from?: string | number; to?: string | number } | undefined);
         const fromValue = item.from ?? primarySource?.from;
         const toValue = item.to ?? primarySource?.to;
+        const fromInclusive = parseBoundInclusive(
+          item.fromInclusive ?? item.fromOperator ?? item.tuOperator,
+          DEFAULT_BETWEEN_BOUNDS.fromInclusive
+        );
+        const toInclusive = parseBoundInclusive(
+          item.toInclusive ?? item.toOperator ?? item.denOperator,
+          DEFAULT_BETWEEN_BOUNDS.toInclusive
+        );
         const primary =
           primaryConditionBase && (fromValue !== undefined || toValue !== undefined || primarySource)
             ? {
                 ...primaryConditionBase,
                 operator: 'BETWEEN' as const,
                 value: [(fromValue ?? '') as string | number, (toValue ?? '') as string | number],
+                fromInclusive,
+                toInclusive,
               }
             : primaryConditionBase;
         return {
@@ -979,32 +1476,39 @@ const RescueFeeForm: React.FC = () => {
     target: 'SUPPLIER',
     kind: 'SUPPLIER_EXTERNAL',
     applyFor: form.applyFor || 'NCC đối tác',
-    status: form.status || 'DRAFT',
+    status: form.status || 'ACTIVE',
     settings: {
       retailMarkupFactor: form.settings.retailMarkupFactor,
       roundMode: form.settings.roundMode,
       stackSurcharges: form.settings.stackSurcharges,
+      includesVat: form.settings.includesVat,
     },
     priceCriteria: ['payload', 'seats', 'vehicleType', 'rescueVehicleType'],
     services: [
       ...buildImportSample('Kích bình ắc quy', 'ONSITE'),
       ...buildImportSample('Kéo xe', 'TOWING'),
       ...buildImportSample('Cẩu xe', 'CRANE'),
-    ],
+    ].map((item) => ({
+      ...item,
+      serviceCode: findServiceCode(String(item.serviceDetail ?? item.service ?? '')),
+    })),
     surcharges: [
       {
-        name: 'Thời gian yêu cầu cứu hộ',
+        surchargeCode: 'TIME_REQUEST',
         type: 'COEFFICIENT',
         value: 1.15,
-        criterionKey: 'timeWindow',
-        criterionValue: '22:00-06:00',
+        operator: 'BETWEEN',
+        criterionFrom: '22:00',
+        fromOperator: '<',
+        criterionTo: '06:00',
+        toOperator: '≤',
       },
       {
-        name: 'Tuyến cao tốc',
+        surchargeCode: 'HIGHWAY_ROUTE',
         type: 'FIXED',
         value: 150000,
-        criterionKey: 'isHighway',
-        criterionValue: 'Cao tốc Bắc – Nam phía Đông (CT.01)',
+        operator: '=',
+        criterionValue: 'ISHIGHWAY__CAO_TOC_BAC_NAM_PHIA_DONG_CT_01',
       },
     ],
   });
@@ -1013,8 +1517,13 @@ const RescueFeeForm: React.FC = () => {
     item: Record<string, unknown>,
     index: number
   ): ServicePriceRule | null => {
+    const serviceCode = String(item.serviceCode ?? '').trim();
     const serviceDetail = String(
-      item.service ?? item.DichVu ?? item.serviceDetail ?? ''
+      item.service ??
+        item.DichVu ??
+        item.serviceDetail ??
+        (serviceCode ? SERVICE_CODE_TO_DETAIL[serviceCode] : '') ??
+        ''
     ).trim();
     if (!serviceDetail) return null;
     const serviceType =
@@ -1030,36 +1539,61 @@ const RescueFeeForm: React.FC = () => {
       ? 'PER_UNIT'
       : 'FIXED';
     const basePrice = Number(item.basePrice ?? item.MucGia ?? item.price ?? 0) || 0;
+    const payloadFrom = item.payloadFrom ?? item.loadFrom ?? item.TrongTaiTu;
+    const payloadTo = item.payloadTo ?? item.loadTo ?? item.TrongTaiDen;
+    const seatValue = item.seats ?? item.seatCount ?? item.SoCho;
     const conditionsRaw =
       (item.conditions as Record<string, unknown> | undefined) ??
       ({
         payload:
           item.payload ??
-          (item.TrongTaiTu !== undefined || item.TrongTaiDen !== undefined
-            ? [item.TrongTaiTu ?? '', item.TrongTaiDen ?? '']
+          (payloadFrom !== undefined || payloadTo !== undefined
+            ? [payloadFrom ?? '', payloadTo ?? '']
             : undefined),
-        seats: item.seats ?? item.SoCho,
+        seats: seatValue,
         vehicleType: item.vehicleType ?? item.LoaiPTGapSuCo,
         rescueVehicleType: item.rescueVehicleType ?? item.LoaiPTCuuHo,
       } as Record<string, unknown>);
-    const conditions = parseImportedConditions(conditionsRaw).filter(
+    const staticConditions = parseImportedConditions(conditionsRaw).filter(
       (condition) =>
         !['distanceKm', 'roadDistance', 'from', 'to', 'basePrice', 'pricingMode', 'price'].includes(
           condition.criterionKey
         )
     );
+    const dynamicConditions = parseDynamicConditionColumns(item).filter(
+      (condition) =>
+        !['distanceKm', 'roadDistance', 'from', 'to', 'basePrice', 'pricingMode', 'price'].includes(
+          condition.criterionKey
+        )
+    );
+    const mergedConditions = [...staticConditions];
+    for (const condition of dynamicConditions) {
+      const idx = mergedConditions.findIndex((itemCond) => itemCond.criterionKey === condition.criterionKey);
+      if (idx >= 0) mergedConditions[idx] = condition;
+      else mergedConditions.push(condition);
+    }
     const primaryConditionBase = buildPrimaryCondition(serviceType);
     const primarySource =
       (item.primaryCriterion as { from?: string | number; to?: string | number } | null | undefined) ??
       undefined;
     const fromValue = item.from ?? item.Tu ?? primarySource?.from;
     const toValue = item.to ?? item.Den ?? primarySource?.to;
+    const fromInclusive = parseBoundInclusive(
+      item.fromInclusive ?? item.fromOperator ?? item.tuOperator,
+      DEFAULT_BETWEEN_BOUNDS.fromInclusive
+    );
+    const toInclusive = parseBoundInclusive(
+      item.toInclusive ?? item.toOperator ?? item.denOperator,
+      DEFAULT_BETWEEN_BOUNDS.toInclusive
+    );
     const primary =
       primaryConditionBase && (fromValue !== undefined || toValue !== undefined || primarySource)
         ? {
             ...primaryConditionBase,
             operator: 'BETWEEN' as const,
             value: [(fromValue ?? '') as string | number, (toValue ?? '') as string | number],
+            fromInclusive,
+            toInclusive,
           }
         : primaryConditionBase;
     return {
@@ -1069,7 +1603,7 @@ const RescueFeeForm: React.FC = () => {
       basePrice,
       pricingMode,
       unit: SERVICE_CONFIG[serviceType].unit,
-      conditions: primary ? [primary, ...conditions] : conditions,
+      conditions: primary ? [primary, ...mergedConditions] : mergedConditions,
     };
   };
 
@@ -1077,30 +1611,61 @@ const RescueFeeForm: React.FC = () => {
     item: Record<string, unknown>,
     index: number
   ): SurchargeRule | null => {
-    const name = String(item.name ?? item.TenPhuPhi ?? '').trim();
+    const surchargeCode = String(item.surchargeCode ?? '').trim();
+    const name = String(
+      item.name ??
+        item.TenPhuPhi ??
+        (surchargeCode ? SURCHARGE_CODE_TO_NAME[surchargeCode] : '') ??
+        ''
+    ).trim();
     if (!name) return null;
     const catalog = SURCHARGE_HEAD_OPTIONS.find((entry) => entry.name === name);
     const typeRaw = String(item.type ?? item.Kieu ?? 'FIXED');
     const type: SurchargeType = /coeff|hệ số|he so/i.test(typeRaw) ? 'COEFFICIENT' : 'FIXED';
-    const criterionKey = String(
-      item.criterionKey ?? item.TieuChi ?? catalog?.criterionKey ?? ''
-    ).trim();
+    /** criterionKey suy từ surchargeCode/catalog — không cấu hình trên file PhuPhi. */
+    const criterionKey = String(catalog?.criterionKey ?? '').trim();
     const criterionMeta =
       SURCHARGE_CRITERIA_CATALOG.find((entry) => entry.key === criterionKey) ??
       SURCHARGE_CRITERIA_CATALOG.find((entry) => entry.label === criterionKey);
-    const rawCriterionValue = String(
-      item.criterionValue ?? item.GiaTriTieuChi ?? catalog?.value ?? criterionMeta?.values[0] ?? ''
-    ).trim();
+    const operator = String(
+      item.operator ?? item.criterionOperator ?? defaultSurchargeOperatorByCriterion(criterionMeta?.key ?? criterionKey)
+    ).toUpperCase() as FeeRuleCondition['operator'];
     const isTime = isTimeSurchargeCriterion(criterionMeta?.key ?? criterionKey);
+    const fromInclusive = parseBoundInclusive(
+      item.fromInclusive ?? item.fromOperator ?? item.criterionFromOperator,
+      DEFAULT_BETWEEN_BOUNDS.fromInclusive
+    );
+    const toInclusive = parseBoundInclusive(
+      item.toInclusive ?? item.toOperator ?? item.criterionToOperator,
+      DEFAULT_BETWEEN_BOUNDS.toInclusive
+    );
+    const rawCriterionValue = String(
+      item.criterionValue ??
+        item.criterionValueCode ??
+        item.conditionValue ??
+        item.GiaTriTieuChi ??
+        catalog?.value ??
+        criterionMeta?.values[0] ??
+        ''
+    ).trim();
+    const rawFrom = String(item.criterionFrom ?? item.from ?? '').trim();
+    const rawTo = String(item.criterionTo ?? item.to ?? '').trim();
     const timeParts = rawCriterionValue.includes('-')
       ? rawCriterionValue.split('-').map((part) => part.trim())
       : [];
-    const criterionValue = isTime
-      ? ([
-          timeParts[0] || criterionMeta?.values[0] || DEFAULT_TIME_RANGE[0],
-          timeParts[1] || criterionMeta?.values[1] || DEFAULT_TIME_RANGE[1],
-        ] as [string, string])
-      : rawCriterionValue || criterionMeta?.values[0] || '';
+    const criterionValue =
+      operator === 'BETWEEN' || isTime
+        ? ([
+            rawFrom || timeParts[0] || criterionMeta?.values[0] || DEFAULT_TIME_RANGE[0],
+            rawTo || timeParts[1] || criterionMeta?.values[1] || DEFAULT_TIME_RANGE[1],
+          ] as [string, string])
+        : resolveSurchargeCriterionValue(
+            criterionMeta?.key ?? criterionKey,
+            rawCriterionValue,
+            criterionMeta?.values
+          ) ||
+          criterionMeta?.values[0] ||
+          '';
     return {
       id: `su-table-import-${Date.now()}-${index}`,
       name,
@@ -1116,8 +1681,9 @@ const RescueFeeForm: React.FC = () => {
             {
               criterionKey: criterionMeta.key,
               criterionLabel: criterionMeta.label,
-              operator: isTime ? 'BETWEEN' : '=',
+              operator: operator === 'BETWEEN' || isTime ? 'BETWEEN' : '=',
               value: criterionValue,
+              ...(operator === 'BETWEEN' || isTime ? { fromInclusive, toInclusive } : {}),
             },
           ]
         : [],
@@ -1149,8 +1715,9 @@ const RescueFeeForm: React.FC = () => {
   const openTableImport = (mode: 'json' | 'excel') => {
     setTableImportMode(mode);
     setTableImportOpen(true);
-    setTableImportError('');
+    setTableImportIssues([]);
     setTableImportFileName('');
+    setTableImportDemoCase('');
     if (mode === 'json') {
       setTableImportJsonText(JSON.stringify(buildPartnerTableSample(), null, 2));
     } else {
@@ -1158,7 +1725,171 @@ const RescueFeeForm: React.FC = () => {
     }
   };
 
-  const applyTableImportPayload = (payload: Record<string, unknown>) => {
+  const previewTableImportDemoCase = (caseId: TableImportDemoCaseId) => {
+    setTableImportDemoCase(caseId);
+    setTableImportMode('json');
+    setTableImportFileName('');
+    const surchargeNameToCriterion = new Map(
+      FEE_SURCHARGE_CATALOG.map((item) => [item.name, item.criterionKey])
+    );
+
+    if (caseId === 'json_invalid') {
+      setTableImportJsonText('{ "code": "BAD", "services": [');
+      setTableImportIssues([
+        {
+          sheet: 'File',
+          field: 'json',
+          message: 'Unexpected end of JSON input',
+        },
+      ]);
+      return;
+    }
+
+    if (caseId === 'json_not_object') {
+      setTableImportJsonText(
+        JSON.stringify([{ serviceCode: 'ONSITE_BATTERY', basePrice: 1 }], null, 2)
+      );
+      setTableImportIssues([
+        {
+          sheet: 'File',
+          field: 'json',
+          message: 'JSON bảng phí phải là một object',
+        },
+      ]);
+      return;
+    }
+
+    if (caseId === 'missing_sheet') {
+      setTableImportJsonText(
+        JSON.stringify(
+          {
+            _demo: 'Mô phỏng Excel thiếu sheet — chưa đọc được payload',
+            missingSheets: ['DichVu'],
+          },
+          null,
+          2
+        )
+      );
+      setTableImportIssues(
+        validateFeeTableImportWorkbookSheets(['ThongTin', 'PhuPhi', 'HuongDan'])
+      );
+      return;
+    }
+
+    const base = buildTableImportDemoBase();
+    let payload: Record<string, unknown> = base;
+
+    if (caseId === 'empty_payload') {
+      payload = { ...base, services: [], surcharges: [] };
+    } else if (caseId === 'bad_object_type') {
+      payload = {
+        ...base,
+        scope: { objectType: 'INVALID_TYPE', orderType: 'PACKAGE_SINGLE' },
+      };
+    } else if (caseId === 'bad_service_code') {
+      payload = {
+        ...base,
+        services: [
+          {
+            serviceCode: 'UNKNOWN_SERVICE',
+            pricingMode: 'FIXED',
+            basePrice: 100000,
+            from: '',
+            fromOperator: '<',
+            to: '',
+            toOperator: '≤',
+          },
+        ],
+      };
+    } else if (caseId === 'from_gte_to') {
+      payload = {
+        ...base,
+        services: [
+          {
+            serviceCode: 'TOWING_GARAGE',
+            pricingMode: 'FIXED',
+            basePrice: 100000,
+            from: 20,
+            fromOperator: '<',
+            to: 10,
+            toOperator: '≤',
+          },
+        ],
+      };
+    } else if (caseId === 'bad_surcharge_code') {
+      payload = {
+        ...base,
+        surcharges: [
+          {
+            surchargeCode: 'UNKNOWN_SURCHARGE',
+            type: 'FIXED',
+            value: 50000,
+            operator: '=',
+            criterionValue: 'X',
+          },
+        ],
+      };
+    } else if (caseId === 'between_missing') {
+      payload = {
+        ...base,
+        surcharges: [
+          {
+            surchargeCode: 'TIME_REQUEST',
+            type: 'COEFFICIENT',
+            value: 1.15,
+            operator: 'BETWEEN',
+            criterionFrom: '',
+            criterionTo: '',
+          },
+        ],
+      };
+    } else if (caseId === 'multi_errors') {
+      payload = {
+        ...base,
+        target: 'SUPPLIER',
+        scope: { objectType: 'CUSTOMER_BUSINESS', orderType: 'WRONG' },
+        services: [
+          {
+            serviceCode: 'BAD_CODE',
+            pricingMode: 'FIXED',
+            basePrice: 'abc',
+            from: 30,
+            fromOperator: '??',
+            to: 10,
+            toOperator: '≤',
+          },
+        ],
+        surcharges: [
+          {
+            surchargeCode: 'NOPE',
+            type: 'WEIRD',
+            value: 'x',
+            operator: 'BETWEEN',
+          },
+        ],
+      };
+    }
+
+    setTableImportJsonText(JSON.stringify(payload, null, 2));
+    if (caseId === 'ok') {
+      setTableImportIssues([]);
+      return;
+    }
+    setTableImportIssues(
+      validateFeeTableImportPayload(payload, { surchargeNameToCriterion })
+    );
+  };
+
+  const applyTableImportPayload = (payload: Record<string, unknown>): boolean => {
+    const surchargeNameToCriterion = new Map(
+      FEE_SURCHARGE_CATALOG.map((item) => [item.name, item.criterionKey])
+    );
+    const issues = validateFeeTableImportPayload(payload, { surchargeNameToCriterion });
+    if (issues.length > 0) {
+      setTableImportIssues(issues);
+      return false;
+    }
+
     const serviceRows = Array.isArray(payload.services)
       ? payload.services
       : Array.isArray(payload.DichVu)
@@ -1177,8 +1908,16 @@ const RescueFeeForm: React.FC = () => {
       .filter((row): row is SurchargeRule => Boolean(row));
 
     if (importedRules.length === 0 && importedSurcharges.length === 0) {
-      throw new Error('Không tìm thấy dòng dịch vụ hoặc phụ phí hợp lệ');
+      setTableImportIssues([
+        {
+          sheet: 'File',
+          field: 'payload',
+          message: 'Không tìm thấy dòng dịch vụ hoặc phụ phí hợp lệ',
+        },
+      ]);
+      return false;
     }
+    setTableImportIssues([]);
 
     const criteriaKeys = Array.isArray(payload.priceCriteria)
       ? payload.priceCriteria.map(String)
@@ -1194,10 +1933,12 @@ const RescueFeeForm: React.FC = () => {
         : syncCriteriaFromRules(importedRules);
 
     const target = (payload.target as FeeTarget | undefined) ?? form.target;
-    const kindRaw = String(payload.kind ?? form.kind);
-    const kind = (Object.keys(FEE_KIND_LABELS) as FeeTableKind[]).includes(kindRaw as FeeTableKind)
-      ? (kindRaw as FeeTableKind)
-      : syncKindWithTarget(target, form.kind);
+    const importedObjectType = String(
+      (payload.scope as Record<string, unknown> | undefined)?.objectType ??
+        payload.objectType ??
+        ''
+    );
+    const kind = inferKindFromTargetAndObjectType(target, importedObjectType, form.kind);
 
     setForm((prev) => ({
       ...prev,
@@ -1206,6 +1947,24 @@ const RescueFeeForm: React.FC = () => {
       applyFor: String(payload.applyFor ?? prev.applyFor),
       target,
       kind,
+      scope: {
+        ...prev.scope,
+        ...(payload.scope as Record<string, unknown> | undefined),
+        objectType:
+          String(
+            (payload.scope as Record<string, unknown> | undefined)?.objectType ??
+              payload.objectType ??
+              prev.scope.objectType ??
+              defaultObjectTypeByTarget(target)
+          ) || defaultObjectTypeByTarget(target),
+        orderType:
+          String(
+            (payload.scope as Record<string, unknown> | undefined)?.orderType ??
+              payload.orderType ??
+              prev.scope.orderType ??
+              'PACKAGE'
+          ) || 'PACKAGE',
+      },
       status: (payload.status as FeeTableStatus | undefined) ?? prev.status,
       settings: {
         ...prev.settings,
@@ -1219,6 +1978,9 @@ const RescueFeeForm: React.FC = () => {
         stackSurcharges:
           (payload.settings as { stackSurcharges?: boolean } | undefined)?.stackSurcharges ??
           prev.settings.stackSurcharges,
+        includesVat:
+          (payload.settings as { includesVat?: boolean } | undefined)?.includesVat ??
+          prev.settings.includesVat,
       },
       priceCriteria: nextCriteria,
       serviceRules: importedRules.length ? importedRules : prev.serviceRules,
@@ -1227,20 +1989,34 @@ const RescueFeeForm: React.FC = () => {
     setTableImportOpen(false);
     setActiveTab('matrix');
     setError('');
+    return true;
   };
 
   const applyTableImportJson = () => {
     try {
       const parsed = JSON.parse(tableImportJsonText);
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        setTableImportError('JSON bảng phí phải là một object');
+        setTableImportIssues([
+          {
+            sheet: 'File',
+            field: 'json',
+            message: 'JSON bảng phí phải là một object',
+          },
+        ]);
         return;
       }
       applyTableImportPayload(parsed as Record<string, unknown>);
     } catch (err) {
-      setTableImportError(
-        err instanceof Error ? err.message : 'JSON không hợp lệ. Vui lòng kiểm tra lại định dạng.'
-      );
+      setTableImportIssues([
+        {
+          sheet: 'File',
+          field: 'json',
+          message:
+            err instanceof Error
+              ? err.message
+              : 'JSON không hợp lệ. Vui lòng kiểm tra lại định dạng.',
+        },
+      ]);
     }
   };
 
@@ -1248,171 +2024,216 @@ const RescueFeeForm: React.FC = () => {
     const wb = XLSX.utils.book_new();
     const guideSheet = XLSX.utils.aoa_to_sheet([
       ['Sheet', 'MoTa'],
-      ['ThongTin', 'Thông tin chung bảng phí (mỗi dòng = 1 trường)'],
-      ['DichVu', 'Các dòng giá dịch vụ — mỗi dòng Excel = 1 dòng giá'],
-      ['PhuPhi', 'Các dòng phụ phí có điều kiện — mỗi dòng Excel = 1 dòng phụ phí'],
+      ['ThongTin', 'Thông tin chung bảng phí (mỗi dòng = 1 trường field/value)'],
+      ['DichVu', 'Các dòng giá dịch vụ — dùng key code, mỗi dòng = 1 dòng giá'],
+      ['PhuPhi', 'Các dòng phụ phí có điều kiện — dùng key code, mỗi dòng = 1 dòng phụ phí'],
+      [],
+      ['GhiChu', 'Import all-or-nothing: có lỗi thì không áp dụng. Lỗi báo theo [Sheet] Dòng n · field: message'],
       [],
       ['Cot DichVu', 'Y Nghia'],
-      ['DichVu', 'Tên dịch vụ / dịch vụ con (VD: Kích bình ắc quy, Kéo xe về gara, Cẩu xe mặt đường)'],
-      ['CachTinh', 'Theo lượt | Theo đơn vị'],
-      ['MucGia', 'Mức giá (VNĐ)'],
-      ['Tu', 'Tiêu chí chính Từ (km/m) — để trống nếu dịch vụ tại chỗ'],
-      ['Den', 'Tiêu chí chính Đến (km/m)'],
-      ['TrongTaiTu', 'Trọng tải từ (tấn) — tùy chọn'],
-      ['TrongTaiDen', 'Trọng tải đến (tấn) — tùy chọn'],
-      ['SoCho', 'Số chỗ — tùy chọn'],
-      ['LoaiPTGapSuCo', 'Xe chở người | Xe chở hàng'],
-      ['LoaiPTCuuHo', 'Xe máy | Xe van | Xe sàn trượt | Xe cẩu, kéo'],
+      ['serviceCode', 'Mã dịch vụ (VD: ONSITE_BATTERY, TOWING_GARAGE, CRANE_ROAD)'],
+      ['pricingMode', 'FIXED | PER_UNIT'],
+      ['basePrice', 'Mức giá (VNĐ)'],
+      ['from', 'Tiêu chí chính Từ (km/m) — để trống nếu dịch vụ tại chỗ'],
+      ['fromOperator', 'Toán tử biên dưới: < (không gồm) | ≤ (bao gồm)'],
+      ['to', 'Tiêu chí chính Đến (km/m)'],
+      ['toOperator', 'Toán tử biên trên: < (không gồm) | ≤ (bao gồm)'],
+      ['cond.load_capacity.from', 'Tiêu chí bổ sung động: trọng tải từ (tấn)'],
+      ['cond.load_capacity.to', 'Tiêu chí bổ sung động: trọng tải đến (tấn)'],
+      ['cond.seat_number', 'Tiêu chí bổ sung động: số chỗ (1 giá trị hoặc a,b,c)'],
+      ['cond.vehicleType', 'Tiêu chí bổ sung động: Xe chở người | Xe chở hàng'],
+      ['cond.rescueVehicleType', 'Tiêu chí bổ sung động: Xe máy | Xe van | Xe sàn trượt | Xe cẩu, kéo'],
+      ['Ghi chú', 'Có thể thêm cột cond.<criterionKey> hoặc cond.<criterionKey>.from/to, parser tự map'],
       [],
       ['Cot PhuPhi', 'Y Nghia'],
-      ['TenPhuPhi', 'Tên đầu phụ phí (VD: Thời gian yêu cầu cứu hộ, Tuyến cao tốc, Thời tiết)'],
-      ['Kieu', 'Cố định | Hệ số'],
-      ['GiaTri', 'Số tiền (Cố định) hoặc hệ số (VD: 1.15)'],
-      ['TieuChi', 'Key tiêu chí: timeWindow | executionTimeWindow | isHighway | weather | holiday | ...'],
-      [
-        'GiaTriTieuChi',
-        'Giá trị tiêu chí. Thời gian: 22:00-06:00. Cao tốc: tên tuyến (CT.xx). Khác: giá trị danh sách',
-      ],
+      ['surchargeCode', 'Mã phụ phí (VD: TIME_REQUEST, HIGHWAY_ROUTE, HOLIDAY) — parser tự suy tiêu chí từ catalog'],
+      ['type', 'FIXED | COEFFICIENT'],
+      ['value', 'Số tiền (FIXED) hoặc hệ số (VD: 1.15)'],
+      ['operator', '= | BETWEEN'],
+      ['criterionFrom', 'Giá trị từ cho BETWEEN (time/numeric)'],
+      ['fromOperator', 'Toán tử biên dưới: < | ≤'],
+      ['criterionTo', 'Giá trị đến cho BETWEEN (time/numeric)'],
+      ['toOperator', 'Toán tử biên trên: < | ≤'],
+      ['criterionValue', 'Giá trị dạng code cho LIST: <CRITERION_KEY>__<VALUE_CODE> (VD: WEATHER__BAO)'],
     ]);
     const infoSheet = XLSX.utils.aoa_to_sheet([
-      ['Truong', 'GiaTri'],
+      ['field', 'value'],
       ['code', form.code || 'SUP-EXT-PARTNER'],
       ['name', form.name || 'Bảng phí đối tác mẫu'],
       ['target', form.target || 'SUPPLIER'],
-      ['kind', form.kind || 'SUPPLIER_EXTERNAL'],
-      ['status', form.status || 'DRAFT'],
+      ['scope.objectType', form.scope.objectType ?? defaultObjectTypeByTarget(form.target)],
+      ['scope.orderType', form.scope.orderType ?? 'PACKAGE'],
       ['retailMarkupFactor', form.settings.retailMarkupFactor],
       ['roundMode', form.settings.roundMode],
-      ['stackSurcharges', form.settings.stackSurcharges ? 'Nhân hệ số' : 'Hệ số cao nhất'],
+      ['stackSurcharges', form.settings.stackSurcharges ? 'true' : 'false'],
+      ['includesVat', form.settings.includesVat ? 'true' : 'false'],
     ]);
     const serviceSheet = XLSX.utils.json_to_sheet([
       {
-        DichVu: 'Kích bình ắc quy',
-        CachTinh: 'Theo lượt',
-        MucGia: 350000,
-        Tu: '',
-        Den: '',
-        TrongTaiTu: 1.5,
-        TrongTaiDen: 3.5,
-        SoCho: '5',
-        LoaiPTGapSuCo: 'Xe chở người',
-        LoaiPTCuuHo: '',
+        serviceCode: 'ONSITE_BATTERY',
+        pricingMode: 'FIXED',
+        basePrice: 350000,
+        from: '',
+        fromOperator: '<',
+        to: '',
+        toOperator: '≤',
+        'cond.load_capacity.from': 1.5,
+        'cond.load_capacity.to': 3.5,
+        'cond.seat_number': '5',
+        'cond.vehicleType': 'Xe chở người',
+        'cond.rescueVehicleType': '',
       },
       {
-        DichVu: 'Thay lốp dự phòng',
-        CachTinh: 'Theo lượt',
-        MucGia: 400000,
-        Tu: '',
-        Den: '',
-        TrongTaiTu: '',
-        TrongTaiDen: '',
-        SoCho: '',
-        LoaiPTGapSuCo: 'Xe chở người',
-        LoaiPTCuuHo: '',
+        serviceCode: 'ONSITE_SPARE_TIRE',
+        pricingMode: 'FIXED',
+        basePrice: 400000,
+        from: '',
+        fromOperator: '<',
+        to: '',
+        toOperator: '≤',
+        'cond.load_capacity.from': '',
+        'cond.load_capacity.to': '',
+        'cond.seat_number': '',
+        'cond.vehicleType': 'Xe chở người',
+        'cond.rescueVehicleType': '',
       },
       {
-        DichVu: 'Kéo xe về gara',
-        CachTinh: 'Theo lượt',
-        MucGia: 100000,
-        Tu: 0,
-        Den: 10,
-        TrongTaiTu: '',
-        TrongTaiDen: '',
-        SoCho: '',
-        LoaiPTGapSuCo: 'Xe chở người',
-        LoaiPTCuuHo: 'Xe sàn trượt',
+        serviceCode: 'TOWING_GARAGE',
+        pricingMode: 'FIXED',
+        basePrice: 100000,
+        from: 0,
+        fromOperator: '<',
+        to: 10,
+        toOperator: '≤',
+        'cond.load_capacity.from': '',
+        'cond.load_capacity.to': '',
+        'cond.seat_number': '',
+        'cond.vehicleType': 'Xe chở người',
+        'cond.rescueVehicleType': 'Xe sàn trượt',
       },
       {
-        DichVu: 'Kéo xe về gara',
-        CachTinh: 'Theo đơn vị',
-        MucGia: 10000,
-        Tu: 10,
-        Den: 20,
-        TrongTaiTu: '',
-        TrongTaiDen: '',
-        SoCho: '',
-        LoaiPTGapSuCo: 'Xe chở hàng',
-        LoaiPTCuuHo: 'Xe sàn trượt',
+        serviceCode: 'TOWING_GARAGE',
+        pricingMode: 'PER_UNIT',
+        basePrice: 10000,
+        from: 10,
+        fromOperator: '<',
+        to: 20,
+        toOperator: '≤',
+        'cond.load_capacity.from': '',
+        'cond.load_capacity.to': '',
+        'cond.seat_number': '',
+        'cond.vehicleType': 'Xe chở hàng',
+        'cond.rescueVehicleType': 'Xe sàn trượt',
       },
       {
-        DichVu: 'Kéo xe đường dài',
-        CachTinh: 'Theo đơn vị',
-        MucGia: 15000,
-        Tu: 20,
-        Den: 50,
-        TrongTaiTu: '',
-        TrongTaiDen: '',
-        SoCho: '',
-        LoaiPTGapSuCo: 'Xe chở hàng',
-        LoaiPTCuuHo: 'Xe sàn trượt',
+        serviceCode: 'TOWING_LONG_DISTANCE',
+        pricingMode: 'PER_UNIT',
+        basePrice: 15000,
+        from: 20,
+        fromOperator: '<',
+        to: 50,
+        toOperator: '≤',
+        'cond.load_capacity.from': '',
+        'cond.load_capacity.to': '',
+        'cond.seat_number': '',
+        'cond.vehicleType': 'Xe chở hàng',
+        'cond.rescueVehicleType': 'Xe sàn trượt',
       },
       {
-        DichVu: 'Cẩu xe mặt đường',
-        CachTinh: 'Theo lượt',
-        MucGia: 900000,
-        Tu: 0,
-        Den: 1,
-        TrongTaiTu: '',
-        TrongTaiDen: '',
-        SoCho: '',
-        LoaiPTGapSuCo: 'Xe chở người',
-        LoaiPTCuuHo: 'Xe cẩu, kéo',
+        serviceCode: 'CRANE_ROAD',
+        pricingMode: 'FIXED',
+        basePrice: 900000,
+        from: 0,
+        fromOperator: '<',
+        to: 1,
+        toOperator: '≤',
+        'cond.load_capacity.from': '',
+        'cond.load_capacity.to': '',
+        'cond.seat_number': '',
+        'cond.vehicleType': 'Xe chở người',
+        'cond.rescueVehicleType': 'Xe cẩu, kéo',
       },
       {
-        DichVu: 'Cẩu xe dưới mặt đường',
-        CachTinh: 'Theo lượt',
-        MucGia: 1500000,
-        Tu: 1,
-        Den: 3,
-        TrongTaiTu: '',
-        TrongTaiDen: '',
-        SoCho: '',
-        LoaiPTGapSuCo: 'Xe chở hàng',
-        LoaiPTCuuHo: 'Xe cẩu, kéo',
+        serviceCode: 'CRANE_BELOW_ROAD',
+        pricingMode: 'FIXED',
+        basePrice: 1500000,
+        from: 1,
+        fromOperator: '<',
+        to: 3,
+        toOperator: '≤',
+        'cond.load_capacity.from': '',
+        'cond.load_capacity.to': '',
+        'cond.seat_number': '',
+        'cond.vehicleType': 'Xe chở hàng',
+        'cond.rescueVehicleType': 'Xe cẩu, kéo',
       },
     ]);
     const surchargeSheet = XLSX.utils.json_to_sheet([
       {
-        TenPhuPhi: 'Thời gian yêu cầu cứu hộ',
-        Kieu: 'Hệ số',
-        GiaTri: 1.15,
-        TieuChi: 'timeWindow',
-        GiaTriTieuChi: '22:00-06:00',
+        surchargeCode: 'TIME_REQUEST',
+        type: 'COEFFICIENT',
+        value: 1.15,
+        operator: 'BETWEEN',
+        criterionFrom: '22:00',
+        fromOperator: '<',
+        criterionTo: '06:00',
+        toOperator: '≤',
+        criterionValue: '',
       },
       {
-        TenPhuPhi: 'Thời gian thực hiện cứu hộ',
-        Kieu: 'Hệ số',
-        GiaTri: 1.1,
-        TieuChi: 'executionTimeWindow',
-        GiaTriTieuChi: '18:00-22:00',
+        surchargeCode: 'TIME_EXECUTION',
+        type: 'COEFFICIENT',
+        value: 1.1,
+        operator: 'BETWEEN',
+        criterionFrom: '18:00',
+        fromOperator: '<',
+        criterionTo: '22:00',
+        toOperator: '≤',
+        criterionValue: '',
       },
       {
-        TenPhuPhi: 'Tuyến cao tốc',
-        Kieu: 'Cố định',
-        GiaTri: 150000,
-        TieuChi: 'isHighway',
-        GiaTriTieuChi: 'Cao tốc Bắc – Nam phía Đông (CT.01)',
+        surchargeCode: 'HIGHWAY_ROUTE',
+        type: 'FIXED',
+        value: 150000,
+        operator: '=',
+        criterionFrom: '',
+        fromOperator: '',
+        criterionTo: '',
+        toOperator: '',
+        criterionValue: 'ISHIGHWAY__CAO_TOC_BAC_NAM_PHIA_DONG_CT_01',
       },
       {
-        TenPhuPhi: 'Tuyến cao tốc',
-        Kieu: 'Cố định',
-        GiaTri: 180000,
-        TieuChi: 'isHighway',
-        GiaTriTieuChi: 'Hà Nội – Hải Phòng (CT.04)',
+        surchargeCode: 'HIGHWAY_ROUTE',
+        type: 'FIXED',
+        value: 180000,
+        operator: '=',
+        criterionFrom: '',
+        fromOperator: '',
+        criterionTo: '',
+        toOperator: '',
+        criterionValue: 'ISHIGHWAY__HA_NOI_HAI_PHONG_CT_04',
       },
       {
-        TenPhuPhi: 'Thời tiết',
-        Kieu: 'Cố định',
-        GiaTri: 250000,
-        TieuChi: 'weather',
-        GiaTriTieuChi: 'Bão',
+        surchargeCode: 'WEATHER_STORM',
+        type: 'FIXED',
+        value: 250000,
+        operator: '=',
+        criterionFrom: '',
+        fromOperator: '',
+        criterionTo: '',
+        toOperator: '',
+        criterionValue: 'WEATHER__BAO',
       },
       {
-        TenPhuPhi: 'Lễ/Tết',
-        Kieu: 'Hệ số',
-        GiaTri: 1.2,
-        TieuChi: 'holiday',
-        GiaTriTieuChi: 'Có',
+        surchargeCode: 'HOLIDAY',
+        type: 'COEFFICIENT',
+        value: 1.2,
+        operator: '=',
+        criterionFrom: '',
+        fromOperator: '',
+        criterionTo: '',
+        toOperator: '',
+        criterionValue: 'HOLIDAY__CO',
       },
     ]);
     XLSX.utils.book_append_sheet(wb, guideSheet, 'HuongDan');
@@ -1431,17 +2252,26 @@ const RescueFeeForm: React.FC = () => {
     const infoRows = readSheet('ThongTin');
     const info: Record<string, unknown> = {};
     infoRows.forEach((row) => {
-      const key = String(row.Truong ?? row.Field ?? row.key ?? '').trim();
+      const key = String(row.Truong ?? row.Field ?? row.field ?? row.key ?? '').trim();
       const value = row.GiaTri ?? row.Value ?? row.value;
       if (key) info[key] = value;
     });
     const stackRaw = String(info.stackSurcharges ?? '').toLowerCase();
+    const vatRaw = String(info.includesVat ?? '').toLowerCase();
     return {
       code: info.code,
       name: info.name,
       target: info.target || 'SUPPLIER',
-      kind: info.kind || 'SUPPLIER_EXTERNAL',
-      status: info.status || 'DRAFT',
+      scope: {
+        objectType: info['scope.objectType'] || info.objectType,
+        orderType: info['scope.orderType'] || info.orderType,
+      },
+      kind: inferKindFromTargetAndObjectType(
+        (info.target as FeeTarget | undefined) || 'SUPPLIER',
+        String(info['scope.objectType'] ?? info.objectType ?? ''),
+        form.kind
+      ),
+      status: info.status || 'ACTIVE',
       settings: {
         retailMarkupFactor: Number(info.retailMarkupFactor) || form.settings.retailMarkupFactor,
         roundMode: info.roundMode || form.settings.roundMode,
@@ -1451,6 +2281,12 @@ const RescueFeeForm: React.FC = () => {
           stackRaw === 'false' ||
           stackRaw === '0'
         ),
+        includesVat:
+          vatRaw.includes('đã bao gồm') ||
+          vatRaw.includes('da bao gom') ||
+          vatRaw === 'true' ||
+          vatRaw === '1' ||
+          vatRaw === 'yes',
       },
       services: readSheet('DichVu'),
       surcharges: readSheet('PhuPhi'),
@@ -1459,16 +2295,28 @@ const RescueFeeForm: React.FC = () => {
 
   const handleExcelFileSelected = async (file: File) => {
     setTableImportFileName(file.name);
-    setTableImportError('');
+    setTableImportIssues([]);
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheetIssues = validateFeeTableImportWorkbookSheets(workbook.SheetNames);
+      if (sheetIssues.length > 0) {
+        setTableImportIssues(sheetIssues);
+        setTableImportJsonText('');
+        return;
+      }
       const payload = parseExcelWorkbook(workbook);
       setTableImportJsonText(JSON.stringify(payload, null, 2));
       setTableImportMode('json');
-      setTableImportError('');
+      setTableImportIssues([]);
     } catch {
-      setTableImportError('Không đọc được file Excel. Vui lòng dùng đúng template.');
+      setTableImportIssues([
+        {
+          sheet: 'File',
+          field: 'file',
+          message: 'Không đọc được file Excel. Vui lòng dùng đúng template.',
+        },
+      ]);
     }
   };
 
@@ -1661,15 +2509,18 @@ const RescueFeeForm: React.FC = () => {
     );
     if (!criterion) return;
     const useBetween = criterion.valueType === 'RANGE' || criterion.valueType === 'TIME';
-    const condition: FeeRuleCondition = {
-      criterionKey: criterion.key,
-      criterionLabel: criterion.label,
-      operator: useBetween ? 'BETWEEN' : '=',
-      value: defaultValueForOperator(
-        useBetween ? 'BETWEEN' : '=',
-        criterion.allowedValues
-      ),
-    };
+    const condition: FeeRuleCondition = useBetween
+      ? {
+          criterionKey: criterion.key,
+          criterionLabel: criterion.label,
+          ...betweenConditionDefaults(),
+        }
+      : {
+          criterionKey: criterion.key,
+          criterionLabel: criterion.label,
+          operator: '=',
+          value: defaultValueForOperator('=', criterion.allowedValues),
+        };
     updateServiceRule(ruleId, {
       conditions: [...(rule.conditions ?? []), condition],
     });
@@ -1819,12 +2670,45 @@ const RescueFeeForm: React.FC = () => {
   const kindOptions = (Object.keys(FEE_KIND_LABELS) as FeeTableKind[]).filter((k) =>
     form.target === 'CUSTOMER' ? k.startsWith('CUSTOMER_') : k.startsWith('SUPPLIER_')
   );
-  const isRetailKind = form.kind === 'CUSTOMER_RETAIL';
-  const hasRetailMarkupConfig = isRetailKind && Number(form.settings.retailMarkupFactor) > 0;
-  const skipsPriceMatrixTabs = hasRetailMarkupConfig;
+  const usesMarkupOnly = usesRetailMarkupOnlyPricing(form);
+  const skipsPriceMatrixTabs = usesMarkupOnly;
   const visibleTabs = skipsPriceMatrixTabs
     ? TABS.filter((tab) => tab.id === 'general')
     : TABS;
+
+  const setRetailMarkupOnlyMode = (enabled: boolean) => {
+    setForm((prev) => {
+      if (enabled) {
+        if (prev.target !== 'CUSTOMER') {
+          return prev;
+        }
+        return {
+          ...prev,
+          kind: 'CUSTOMER_RETAIL',
+          serviceRules: [],
+          surchargeRules: [],
+          priceCriteria: [],
+          settings: {
+            ...prev.settings,
+            retailMarkupFactor:
+              Number(prev.settings.retailMarkupFactor) > 0
+                ? prev.settings.retailMarkupFactor
+                : RETAIL_MARKUP_DEFAULT_FACTOR,
+          },
+        };
+      }
+      return {
+        ...prev,
+        settings: {
+          ...prev.settings,
+          retailMarkupFactor: 0,
+        },
+      };
+    });
+    if (enabled) {
+      setActiveTab('general');
+    }
+  };
   const selectedServiceHeads: string[] = Array.from(
     new Set<string>(form.serviceRules.map((rule) => rule.serviceDetail))
   );
@@ -1833,12 +2717,20 @@ const RescueFeeForm: React.FC = () => {
     serviceType: matrixServiceType,
     serviceDetail: matrixServiceDetail,
     pricingMode: matrixPricingMode,
+    vehicleType: matrixVehicleType,
+    rescueVehicleType: matrixRescueVehicleType,
+    seatNumber: matrixSeatNumber,
+    loadCapacity: matrixLoadCapacity,
   };
   const hasMatrixFilter =
     Boolean(matrixKeyword.trim()) ||
     Boolean(matrixServiceType) ||
     Boolean(matrixServiceDetail) ||
-    Boolean(matrixPricingMode);
+    Boolean(matrixPricingMode) ||
+    Boolean(matrixVehicleType) ||
+    Boolean(matrixRescueVehicleType) ||
+    Boolean(matrixSeatNumber.trim()) ||
+    Boolean(matrixLoadCapacity.trim());
   const filteredMatrixRules = form.serviceRules.filter((rule) =>
     ruleMatchesMatrixFilter(rule, matrixFilters)
   );
@@ -1850,7 +2742,29 @@ const RescueFeeForm: React.FC = () => {
     setMatrixServiceType('');
     setMatrixServiceDetail('');
     setMatrixPricingMode('');
+    setMatrixVehicleType('');
+    setMatrixRescueVehicleType('');
+    setMatrixSeatNumber('');
+    setMatrixLoadCapacity('');
   };
+  const matrixVehicleTypeOptions = useMemo(() => {
+    const fromCriteria =
+      (form.priceCriteria ?? [])
+        .find((criterion) => criterion.key === 'vehicleType')
+        ?.allowedValues ?? [];
+    return collectListCriterionOptions(form.serviceRules, ['vehicleType'], fromCriteria);
+  }, [form.priceCriteria, form.serviceRules]);
+  const matrixRescueVehicleTypeOptions = useMemo(() => {
+    const fromCriteria =
+      (form.priceCriteria ?? [])
+        .find((criterion) => criterion.key === 'rescueVehicleType')
+        ?.allowedValues ?? [];
+    return collectListCriterionOptions(
+      form.serviceRules,
+      ['rescueVehicleType'],
+      fromCriteria
+    );
+  }, [form.priceCriteria, form.serviceRules]);
   const catalogLeafServices = SERVICE_OPTIONS.flatMap((option) =>
     option.children?.length ? [...option.children] : [option.value]
   );
@@ -1890,6 +2804,46 @@ const RescueFeeForm: React.FC = () => {
       !criteriaRuleUsedKeys.has(criterion.key)
   );
 
+  const criteriaModalValidation = useMemo(
+    () =>
+      validateAdditionalCriteriaConditions(
+        criteriaRuleConditions.map(({ condition }) => condition),
+        form.priceCriteria ?? []
+      ),
+    [criteriaRuleConditions, form.priceCriteria]
+  );
+
+  useEffect(() => {
+    if (!criteriaRuleId || !criteriaRule) return;
+    const priceCriteria = form.priceCriteria ?? [];
+    let changed = false;
+    const nextConditions = (criteriaRule.conditions ?? []).map((condition) => {
+      if (condition.criterionKey === criteriaRulePrimaryKey) return condition;
+      const criterion = priceCriteria.find((item) => item.key === condition.criterionKey);
+      const allowed = allowedOperatorsForCriterion(criterion);
+      if (allowed.includes(condition.operator)) return condition;
+      changed = true;
+      if (criterion?.valueType === 'RANGE' || criterion?.valueType === 'TIME') {
+        return {
+          ...condition,
+          ...betweenConditionDefaults(),
+          criterionKey: condition.criterionKey,
+          criterionLabel: condition.criterionLabel,
+        };
+      }
+      return {
+        ...condition,
+        operator: '=' as const,
+        value: defaultValueForOperator('=', criterion?.allowedValues),
+      };
+    });
+    if (changed) {
+      updateServiceRule(criteriaRuleId, { conditions: nextConditions });
+    }
+    // Chỉ chuẩn hóa khi mở modal / đổi dòng
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [criteriaRuleId]);
+
   useEffect(() => {
     if (skipsPriceMatrixTabs && activeTab !== 'general') {
       setActiveTab('general');
@@ -1897,23 +2851,36 @@ const RescueFeeForm: React.FC = () => {
   }, [skipsPriceMatrixTabs, activeTab]);
 
   const completeCriteriaModal = () => {
-    const hasEmpty = criteriaRuleConditions.some(({ condition }) =>
-      isConditionValueEmpty(condition)
+    const result = validateAdditionalCriteriaConditions(
+      criteriaRuleConditions.map(({ condition }) => condition),
+      form.priceCriteria ?? []
     );
-    if (hasEmpty) {
-      setCriteriaModalError('Vui lòng nhập giá trị cho tất cả tiêu chí bổ sung');
-      return;
-    }
-    const invalidRange = criteriaRuleConditions.some(({ condition }) => {
-      if (condition.operator !== 'BETWEEN' || !Array.isArray(condition.value)) return false;
-      return Number(condition.value[0]) > Number(condition.value[1]);
-    });
-    if (invalidRange) {
-      setCriteriaModalError('Khoảng Từ – Đến: giá trị Từ không được lớn hơn Đến');
+    if (!result.ok) {
+      setCriteriaModalError(result.message);
       return;
     }
     setCriteriaModalError('');
     setCriteriaRuleId(null);
+  };
+
+  const handleAddCriteriaRuleCondition = () => {
+    if (!criteriaRule) return;
+    const result = validateAdditionalCriteriaConditions(
+      criteriaRuleConditions.map(({ condition }) => condition),
+      form.priceCriteria ?? []
+    );
+    if (!result.ok) {
+      setCriteriaModalError(
+        `${result.message}. Hãy hoàn thiện trước khi thêm tiêu chí mới.`
+      );
+      return;
+    }
+    if (!canAddCriteriaRuleCondition) {
+      setCriteriaModalError('Đã dùng hết tiêu chí có thể thêm cho dòng giá này');
+      return;
+    }
+    setCriteriaModalError('');
+    addPriceCondition(criteriaRule.id);
   };
 
   return (
@@ -1994,7 +2961,7 @@ const RescueFeeForm: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex gap-2 border-b bg-gray-50 px-5 py-3">
+            <div className="flex flex-wrap items-center gap-2 border-b bg-gray-50 px-5 py-3">
               <button
                 type="button"
                 onClick={() => {
@@ -2022,6 +2989,30 @@ const RescueFeeForm: React.FC = () => {
               >
                 Excel
               </button>
+              <div className="ml-auto flex min-w-[220px] max-w-full flex-1 items-center gap-2 sm:max-w-sm">
+                <label className="whitespace-nowrap text-[10px] font-bold uppercase text-gray-500">
+                  Demo lỗi
+                </label>
+                <select
+                  value={tableImportDemoCase}
+                  onChange={(e) => {
+                    const value = e.target.value as TableImportDemoCaseId | '';
+                    if (!value) {
+                      setTableImportDemoCase('');
+                      return;
+                    }
+                    previewTableImportDemoCase(value);
+                  }}
+                  className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 outline-none focus:border-vetc-green"
+                >
+                  <option value="">Chọn case để xem…</option>
+                  {TABLE_IMPORT_DEMO_CASES.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="flex-1 space-y-3 overflow-y-auto p-5">
@@ -2034,7 +3025,8 @@ const RescueFeeForm: React.FC = () => {
                     value={tableImportJsonText}
                     onChange={(e) => {
                       setTableImportJsonText(e.target.value);
-                      setTableImportError('');
+                      setTableImportIssues([]);
+                      setTableImportDemoCase('');
                     }}
                     rows={18}
                     spellCheck={false}
@@ -2044,6 +3036,17 @@ const RescueFeeForm: React.FC = () => {
                     Object gồm <code>code</code>, <code>name</code>, <code>target</code> (
                     {FEE_TARGET_LABELS.SUPPLIER}), <code>services[]</code>, <code>surcharges[]</code>,{' '}
                     <code>priceCriteria[]</code>. Import sẽ thay thế dòng giá/phụ phí tương ứng.
+                    {tableImportDemoCase && tableImportDemoCase !== 'ok' && (
+                      <span className="mt-1 block font-semibold text-amber-800">
+                        Đang xem demo lỗi — banner đỏ bên dưới đã preview; bấm Áp dụng sẽ validate lại
+                        (không ghi form nếu còn lỗi).
+                      </span>
+                    )}
+                    {tableImportDemoCase === 'ok' && (
+                      <span className="mt-1 block font-semibold text-vetc-green">
+                        Case hợp lệ — bấm Áp dụng để nạp vào bảng phí.
+                      </span>
+                    )}
                   </div>
                 </>
               ) : (
@@ -2094,12 +3097,22 @@ const RescueFeeForm: React.FC = () => {
                   )}
                 </>
               )}
-              {tableImportError && (
-                <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  {tableImportError}
-                </div>
-              )}
             </div>
+
+            {tableImportIssues.length > 0 && (
+              <div className="border-t border-red-100 bg-red-50 px-5 py-3 text-xs text-red-700">
+                <p className="font-bold">
+                  Không thể import — {tableImportIssues.length} lỗi
+                </p>
+                <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-4">
+                  {tableImportIssues.map((issue, index) => (
+                    <li key={`${issue.sheet}-${issue.field}-${issue.row ?? 'x'}-${index}`}>
+                      {formatFeeTableImportIssue(issue)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 border-t bg-gray-50 px-5 py-4">
               <button
@@ -2177,12 +3190,45 @@ const RescueFeeForm: React.FC = () => {
                         kind: syncKindWithTarget(target, prev.kind),
                         scope: {
                           ...prev.scope,
+                          objectType: defaultObjectTypeByTarget(target),
                           ...(target === 'CUSTOMER'
                             ? { supplierId: undefined, supplierName: undefined }
                             : { enterpriseCode: undefined }),
                         },
+                        settings: {
+                          ...prev.settings,
+                          retailMarkupFactor:
+                            target === 'CUSTOMER' ? prev.settings.retailMarkupFactor : 0,
+                        },
                       }));
                     }}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Loại đối tượng</label>
+                  <AppSelect
+                    value={form.scope.objectType ?? defaultObjectTypeByTarget(form.target)}
+                    options={OBJECT_TYPE_OPTIONS_BY_TARGET[form.target]}
+                    onChange={(value) =>
+                      update('scope', {
+                        ...form.scope,
+                        objectType:
+                          (value as FeeObjectType | '') || defaultObjectTypeByTarget(form.target),
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Loại đơn</label>
+                  <AppSelect
+                    value={form.scope.orderType ?? 'PACKAGE'}
+                    options={ORDER_TYPE_OPTIONS}
+                    onChange={(value) =>
+                      update('scope', {
+                        ...form.scope,
+                        orderType: (value as FeeOrderType | '') || 'PACKAGE',
+                      })
+                    }
                   />
                 </div>
                 <div>
@@ -2195,7 +3241,24 @@ const RescueFeeForm: React.FC = () => {
                     }))}
                     onChange={(value) => {
                       const kind = value as FeeTableKind;
-                      update('kind', kind);
+                      setForm((prev) => ({
+                        ...prev,
+                        kind,
+                        settings: {
+                          ...prev.settings,
+                          retailMarkupFactor:
+                            kind === 'CUSTOMER_RETAIL' && usesRetailMarkupOnlyPricing(prev)
+                              ? prev.settings.retailMarkupFactor
+                              : 0,
+                        },
+                        ...(kind !== 'CUSTOMER_RETAIL' && usesRetailMarkupOnlyPricing(prev)
+                          ? {
+                              serviceRules: [],
+                              surchargeRules: [],
+                              priceCriteria: [],
+                            }
+                          : {}),
+                      }));
                       if (kind === 'CUSTOMER_RETAIL' && activeTab !== 'general') {
                         setActiveTab('general');
                       }
@@ -2204,14 +3267,15 @@ const RescueFeeForm: React.FC = () => {
                 </div>
                 <div>
                   <label className={labelClass}>Trạng thái</label>
-                  <AppSelect
-                    value={form.status}
-                    options={(Object.keys(FEE_STATUS_LABELS) as FeeTableStatus[]).map((status) => ({
-                      value: status,
-                      label: FEE_STATUS_LABELS[status],
-                    }))}
-                    onChange={(value) => update('status', value as FeeTableStatus)}
+                  <input
+                    className={`${inputClass} bg-gray-50 text-gray-700`}
+                    value={FEE_STATUS_LABELS.ACTIVE}
+                    readOnly
+                    title="Lưu bảng phí sẽ kích hoạt trạng thái Đang hiệu lực"
                   />
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Lưu sẽ luôn đặt bảng ở trạng thái Đang hiệu lực (ACTIVE). Không dùng nháp.
+                  </p>
                 </div>
                 <div>
                   <label className={labelClass}>Phiên bản</label>
@@ -2332,16 +3396,43 @@ const RescueFeeForm: React.FC = () => {
 
             <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
               <SectionHeader title="Tham số tính của bảng phí" number={3} />
-              <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-4 p-4">
+                <label
+                  className={`flex items-start gap-3 rounded-lg border p-3 ${
+                    form.target === 'CUSTOMER'
+                      ? 'cursor-pointer border-gray-200 bg-gray-50/80'
+                      : 'cursor-not-allowed border-gray-200 bg-gray-100/70 opacity-70'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    disabled={form.target !== 'CUSTOMER'}
+                    checked={usesMarkupOnly}
+                    onChange={(e) => setRetailMarkupOnlyMode(e.target.checked)}
+                  />
+                  <span className="text-sm leading-relaxed text-gray-700">
+                    <span className="font-semibold text-gray-900">
+                      Chỉ áp dụng hệ số giá khách lẻ
+                    </span>
+                    <span className="mt-1 block text-xs text-gray-500">
+                      {form.target === 'CUSTOMER'
+                        ? 'Bật: đơn dùng hệ số × giá, không cấu hình ma trận dòng giá / phụ phí. Tắt: cấu hình bảng phí đầy đủ — hai chế độ loại trừ nhau.'
+                        : 'Chỉ áp dụng cho bảng phí Khách hàng. Đổi "Đối tượng tính" sang Khách hàng để dùng chế độ này.'}
+                    </span>
+                  </span>
+                </label>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <label className={labelClass}>Hệ số giá khách lẻ</label>
                   <input
                     type="number"
                     min="1"
                     step="0.05"
-                    disabled={!isRetailKind}
-                    className={`${inputClass} ${!isRetailKind ? 'cursor-not-allowed bg-gray-100 text-gray-500' : ''}`}
-                    value={form.settings.retailMarkupFactor}
+                    disabled={!usesMarkupOnly}
+                    className={`${inputClass} ${!usesMarkupOnly ? 'cursor-not-allowed bg-gray-100 text-gray-500' : ''}`}
+                    value={usesMarkupOnly ? form.settings.retailMarkupFactor : ''}
+                    placeholder={usesMarkupOnly ? undefined : '—'}
                     onChange={(e) =>
                       update('settings', {
                         ...form.settings,
@@ -2350,9 +3441,9 @@ const RescueFeeForm: React.FC = () => {
                     }
                   />
                   <p className="mt-1 text-[10px] text-gray-400">
-                    {isRetailKind
-                      ? 'Áp dụng khi lấy giá Public x Hệ số'
-                      : 'Chỉ enable khi Loại bảng = Khách hàng lẻ'}
+                    {usesMarkupOnly
+                      ? 'Phí KH = giá NCC (hoặc Public theo policy) × hệ số'
+                      : 'Chỉ nhập khi bật "Chỉ áp dụng hệ số giá khách lẻ"'}
                   </p>
                 </div>
                 <div>
@@ -2390,17 +3481,44 @@ const RescueFeeForm: React.FC = () => {
                   />
                   {skipsPriceMatrixTabs && (
                     <p className="mt-1 text-[10px] text-gray-400">
-                      Không áp dụng — bảng KH lẻ nhân hệ số theo giá Public.
+                      Không áp dụng — bảng chỉ dùng hệ số giá khách lẻ.
                     </p>
                   )}
+                </div>
+                <div>
+                  <label className={labelClass}>Giá đã bao gồm VAT?</label>
+                  <AppSelect
+                    value={form.settings.includesVat ? 'INCLUDED' : 'EXCLUDED'}
+                    options={[
+                      { value: 'INCLUDED', label: 'Đã bao gồm VAT' },
+                      { value: 'EXCLUDED', label: 'Chưa bao gồm VAT' },
+                    ]}
+                    onChange={(value) =>
+                      update('settings', {
+                        ...form.settings,
+                        includesVat: value === 'INCLUDED',
+                      })
+                    }
+                  />
+                  <p className="mt-1 text-[10px] text-gray-400">
+                    Cờ khai báo trên bảng; mức giá cấu hình được hiểu theo lựa chọn này.
+                  </p>
+                </div>
                 </div>
               </div>
               {skipsPriceMatrixTabs && (
                 <div className="border-t border-amber-100 bg-amber-50 px-4 py-3 text-[11px] leading-relaxed text-amber-900">
-                  <span className="font-bold">Khách hàng lẻ + hệ số:</span> không cần cấu hình{' '}
+                  <span className="font-bold">Chế độ chỉ hệ số:</span> không cấu hình{' '}
                   <span className="font-semibold">Dòng giá theo tiêu chí</span> và{' '}
-                  <span className="font-semibold">Phụ phí có điều kiện</span>. Phí KH = giá Public × hệ số{' '}
+                  <span className="font-semibold">Phụ phí có điều kiện</span>. Phí KH trên đơn =
+                  giá cơ sở × hệ số{' '}
                   <span className="font-bold">{form.settings.retailMarkupFactor}</span>.
+                </div>
+              )}
+              {!skipsPriceMatrixTabs && form.kind === 'CUSTOMER_RETAIL' && (
+                <div className="border-t border-blue-100 bg-blue-50 px-4 py-3 text-[11px] leading-relaxed text-blue-900">
+                  <span className="font-bold">Chế độ bảng phí đầy đủ:</span> cấu hình ma trận dòng
+                  giá / phụ phí bên dưới. Không dùng hệ số giá khách lẻ trên bảng này.
                 </div>
               )}
             </div>
@@ -2696,36 +3814,6 @@ const RescueFeeForm: React.FC = () => {
                       />
                     </div>
                   </div>
-                  <div className="w-[150px]">
-                    <label className={labelClass}>Loại DV</label>
-                    <select
-                      className={inputClass}
-                      value={matrixServiceType}
-                      onChange={(e) =>
-                        setMatrixServiceType(e.target.value as '' | ServiceType)
-                      }
-                    >
-                      <option value="">Tất cả</option>
-                      <option value="ONSITE">Kích bình</option>
-                      <option value="TOWING">Kéo xe</option>
-                      <option value="CRANE">Cẩu xe</option>
-                    </select>
-                  </div>
-                  <div className="min-w-[200px] flex-1">
-                    <label className={labelClass}>Đầu dịch vụ</label>
-                    <select
-                      className={inputClass}
-                      value={matrixServiceDetail}
-                      onChange={(e) => setMatrixServiceDetail(e.target.value)}
-                    >
-                      <option value="">Tất cả</option>
-                      {selectedServiceHeads.map((serviceDetail) => (
-                        <option key={serviceDetail} value={serviceDetail}>
-                          {serviceDetail}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                   <div className="w-[140px]">
                     <label className={labelClass}>Cách tính</label>
                     <select
@@ -2740,16 +3828,103 @@ const RescueFeeForm: React.FC = () => {
                       <option value="PER_UNIT">Theo đơn vị</option>
                     </select>
                   </div>
-                  {hasMatrixFilter && (
-                    <button
-                      type="button"
-                      onClick={clearMatrixFilters}
-                      className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-gray-600 hover:border-vetc-green hover:text-vetc-green"
+                </div>
+                <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                  <div>
+                    <label className={labelClass}>Loại DV</label>
+                    <select
+                      className={inputClass}
+                      value={matrixServiceType}
+                      onChange={(e) =>
+                        setMatrixServiceType(e.target.value as '' | ServiceType)
+                      }
                     >
-                      <X size={12} />
-                      Xóa lọc
-                    </button>
-                  )}
+                      <option value="">Tất cả</option>
+                      <option value="ONSITE">Hỗ trợ tại chỗ</option>
+                      <option value="TOWING">Kéo xe</option>
+                      <option value="CRANE">Cẩu xe</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Đầu dịch vụ</label>
+                    <select
+                      className={inputClass}
+                      value={matrixServiceDetail}
+                      onChange={(e) => setMatrixServiceDetail(e.target.value)}
+                    >
+                      <option value="">Tất cả</option>
+                      {selectedServiceHeads.map((serviceDetail) => (
+                        <option key={serviceDetail} value={serviceDetail}>
+                          {serviceDetail}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Loại xe khách</label>
+                    <select
+                      className={inputClass}
+                      value={matrixVehicleType}
+                      onChange={(e) => setMatrixVehicleType(e.target.value)}
+                    >
+                      <option value="">Tất cả</option>
+                      {matrixVehicleTypeOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Loại xe cứu hộ</label>
+                    <select
+                      className={inputClass}
+                      value={matrixRescueVehicleType}
+                      onChange={(e) => setMatrixRescueVehicleType(e.target.value)}
+                    >
+                      <option value="">Tất cả</option>
+                      {matrixRescueVehicleTypeOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Số chỗ</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      className={inputClass}
+                      placeholder="VD: 5"
+                      value={matrixSeatNumber}
+                      onChange={(e) => setMatrixSeatNumber(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Trọng tải</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        className={inputClass}
+                        placeholder="VD: 2.5"
+                        value={matrixLoadCapacity}
+                        onChange={(e) => setMatrixLoadCapacity(e.target.value)}
+                      />
+                      {hasMatrixFilter && (
+                        <button
+                          type="button"
+                          onClick={clearMatrixFilters}
+                          className="inline-flex shrink-0 items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-gray-600 hover:border-vetc-green hover:text-vetc-green"
+                          title="Xóa lọc"
+                        >
+                          <X size={12} />
+                          Xóa
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="text-[10px] text-gray-500">
                   Hiển thị {filteredMatrixRules.length}/{form.serviceRules.length} dòng giá
@@ -2966,73 +4141,27 @@ const RescueFeeForm: React.FC = () => {
                                 Không áp dụng
                               </div>
                             ) : (
-                              <div className="grid grid-cols-[1fr_30px_auto_30px_1fr] items-center gap-1.5">
-                                <div className="relative">
-                                  <input
-                                    type="number"
-                                    className={`${inputClass} pr-8 text-right`}
-                                    placeholder="Từ"
-                                    value={
-                                      Array.isArray(primaryCondition.value)
-                                        ? primaryCondition.value[0] ?? ''
-                                        : primaryCondition.value ?? ''
-                                    }
-                                    onChange={(e) => {
-                                      const current = Array.isArray(primaryCondition.value)
-                                        ? primaryCondition.value
-                                        : [primaryCondition.value ?? '', ''];
-                                      updatePrimaryCondition(rule.id, primaryConfig.key, {
-                                        operator: 'BETWEEN',
-                                        value: [e.target.value, current[1] ?? ''],
-                                      });
-                                    }}
-                                  />
-                                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">
-                                    {primaryUnit}
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  tabIndex={-1}
-                                  className="h-[30px] rounded border bg-gray-50 text-xs font-bold text-gray-600"
-                                  title="Giá trị bắt đầu không bao gồm"
-                                >
-                                  &lt;
-                                </button>
-                                <span className="text-xs font-bold text-gray-400">~</span>
-                                <button
-                                  type="button"
-                                  tabIndex={-1}
-                                  className="h-[30px] rounded bg-vetc-green text-xs font-bold text-white"
-                                  title="Giá trị kết thúc có bao gồm"
-                                >
-                                  ≤
-                                </button>
-                                <div className="relative">
-                                  <input
-                                    type="number"
-                                    className={`${inputClass} pr-8 text-right`}
-                                    placeholder="Đến"
-                                    value={
-                                      Array.isArray(primaryCondition.value)
-                                        ? primaryCondition.value[1] ?? ''
-                                        : ''
-                                    }
-                                    onChange={(e) => {
-                                      const current = Array.isArray(primaryCondition.value)
-                                        ? primaryCondition.value
-                                        : [primaryCondition.value ?? '', ''];
-                                      updatePrimaryCondition(rule.id, primaryConfig.key, {
-                                        operator: 'BETWEEN',
-                                        value: [current[0] ?? '', e.target.value],
-                                      });
-                                    }}
-                                  />
-                                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">
-                                    {primaryUnit}
-                                  </span>
-                                </div>
-                              </div>
+                              <RangeBoundInputs
+                                from={
+                                  Array.isArray(primaryCondition.value)
+                                    ? primaryCondition.value[0] ?? ''
+                                    : primaryCondition.value ?? ''
+                                }
+                                to={
+                                  Array.isArray(primaryCondition.value)
+                                    ? primaryCondition.value[1] ?? ''
+                                    : ''
+                                }
+                                fromInclusive={primaryCondition.fromInclusive}
+                                toInclusive={primaryCondition.toInclusive}
+                                unit={primaryUnit}
+                                onChange={(patch) =>
+                                  updatePrimaryCondition(rule.id, primaryConfig.key, {
+                                    operator: 'BETWEEN',
+                                    ...patch,
+                                  })
+                                }
+                              />
                             )}
                           </td>
                           <td className="border-b border-r p-2">
@@ -3266,10 +4395,32 @@ const RescueFeeForm: React.FC = () => {
                           const singleValue = Array.isArray(condition.value)
                             ? String(condition.value[0] ?? '')
                             : String(condition.value ?? '');
+                          const operatorOptions = allowedOperatorsForCriterion(criterion).map(
+                            (operator) => {
+                              const labels: Record<FeeRuleCondition['operator'], string> = {
+                                '=': 'Bằng',
+                                IN: 'Thuộc danh sách',
+                                BETWEEN: 'Từ – Đến',
+                                '>=': '≥',
+                                '<=': '≤',
+                              };
+                              return { value: operator, label: labels[operator] };
+                            }
+                          );
+                          const rowError = criteriaModalValidation.rowErrors.find(
+                            (issue) => issue.rowIndex === rowIndex
+                          );
                           return (
                             <div
                               key={`${criteriaRule.id}-modal-${index}`}
-                              className="grid grid-cols-1 gap-3 rounded-lg border bg-gray-50/50 p-3 md:grid-cols-[minmax(0,1.4fr)_100px_minmax(0,1.5fr)_36px] md:items-center"
+                              className={`space-y-1 rounded-lg border p-3 ${
+                                rowError
+                                  ? 'border-red-300 bg-red-50/40'
+                                  : 'border-gray-200 bg-gray-50/50'
+                              }`}
+                            >
+                            <div
+                              className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.4fr)_100px_minmax(0,1.5fr)_36px] md:items-center"
                             >
                               <div className="min-w-0">
                                 <div className="mb-1 text-[10px] font-bold uppercase text-gray-400 md:hidden">
@@ -3295,14 +4446,20 @@ const RescueFeeForm: React.FC = () => {
                                       (item) => item.key === value
                                     );
                                     if (!next) return;
-                                    const operator: FeeRuleCondition['operator'] =
-                                      next.valueType === 'RANGE' ? 'BETWEEN' : '=';
-                                    updatePriceCondition(criteriaRule.id, index, {
-                                      criterionKey: next.key,
-                                      criterionLabel: next.label,
-                                      operator,
-                                      value: defaultValueForOperator(operator, next.allowedValues),
-                                    });
+                                    if (next.valueType === 'RANGE' || next.valueType === 'TIME') {
+                                      updatePriceCondition(criteriaRule.id, index, {
+                                        criterionKey: next.key,
+                                        criterionLabel: next.label,
+                                        ...betweenConditionDefaults(),
+                                      });
+                                    } else {
+                                      updatePriceCondition(criteriaRule.id, index, {
+                                        criterionKey: next.key,
+                                        criterionLabel: next.label,
+                                        operator: '=',
+                                        value: defaultValueForOperator('=', next.allowedValues),
+                                      });
+                                    }
                                     setCriteriaModalError('');
                                   }}
                                 />
@@ -3313,22 +4470,22 @@ const RescueFeeForm: React.FC = () => {
                                 </div>
                                 <AppSelect
                                   value={condition.operator}
-                                  options={[
-                                    { value: '=', label: 'Bằng' },
-                                    { value: 'IN', label: 'Thuộc danh sách' },
-                                    { value: 'BETWEEN', label: 'Từ – Đến' },
-                                    { value: '>=', label: '≥' },
-                                    { value: '<=', label: '≤' },
-                                  ]}
+                                  options={operatorOptions}
                                   onChange={(value) => {
                                     const operator = value as FeeRuleCondition['operator'];
-                                    updatePriceCondition(criteriaRule.id, index, {
-                                      operator,
-                                      value: defaultValueForOperator(
+                                    if (operator === 'BETWEEN') {
+                                      updatePriceCondition(criteriaRule.id, index, {
+                                        ...betweenConditionDefaults(),
+                                      });
+                                    } else {
+                                      updatePriceCondition(criteriaRule.id, index, {
                                         operator,
-                                        criterion?.allowedValues
-                                      ),
-                                    });
+                                        value: defaultValueForOperator(
+                                          operator,
+                                          criterion?.allowedValues
+                                        ),
+                                      });
+                                    }
                                     setCriteriaModalError('');
                                   }}
                                 />
@@ -3338,49 +4495,27 @@ const RescueFeeForm: React.FC = () => {
                                   Giá trị
                                 </div>
                                 {condition.operator === 'BETWEEN' ? (
-                                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                                    <input
-                                      type="number"
-                                      className={inputClass}
-                                      placeholder="Từ"
-                                      value={
-                                        Array.isArray(condition.value)
-                                          ? condition.value[0] ?? ''
-                                          : ''
-                                      }
-                                      onChange={(e) => {
-                                        const current = Array.isArray(condition.value)
-                                          ? condition.value
-                                          : ['', ''];
-                                        updatePriceCondition(criteriaRule.id, index, {
-                                          operator: 'BETWEEN',
-                                          value: [e.target.value, current[1] ?? ''],
-                                        });
-                                        setCriteriaModalError('');
-                                      }}
-                                    />
-                                    <span className="text-gray-400">–</span>
-                                    <input
-                                      type="number"
-                                      className={inputClass}
-                                      placeholder="Đến"
-                                      value={
-                                        Array.isArray(condition.value)
-                                          ? condition.value[1] ?? ''
-                                          : ''
-                                      }
-                                      onChange={(e) => {
-                                        const current = Array.isArray(condition.value)
-                                          ? condition.value
-                                          : ['', ''];
-                                        updatePriceCondition(criteriaRule.id, index, {
-                                          operator: 'BETWEEN',
-                                          value: [current[0] ?? '', e.target.value],
-                                        });
-                                        setCriteriaModalError('');
-                                      }}
-                                    />
-                                  </div>
+                                  <RangeBoundInputs
+                                    from={
+                                      Array.isArray(condition.value)
+                                        ? condition.value[0] ?? ''
+                                        : ''
+                                    }
+                                    to={
+                                      Array.isArray(condition.value)
+                                        ? condition.value[1] ?? ''
+                                        : ''
+                                    }
+                                    fromInclusive={condition.fromInclusive}
+                                    toInclusive={condition.toInclusive}
+                                    onChange={(patch) => {
+                                      updatePriceCondition(criteriaRule.id, index, {
+                                        operator: 'BETWEEN',
+                                        ...patch,
+                                      });
+                                      setCriteriaModalError('');
+                                    }}
+                                  />
                                 ) : condition.operator === 'IN' ? (
                                   hasListValues ? (
                                     <AppSelect
@@ -3417,7 +4552,11 @@ const RescueFeeForm: React.FC = () => {
                                   )
                                 ) : (
                                   <input
-                                    type="text"
+                                    type={
+                                      condition.operator === '>=' || condition.operator === '<='
+                                        ? 'number'
+                                        : 'text'
+                                    }
                                     className={inputClass}
                                     placeholder="Nhập giá trị"
                                     value={singleValue}
@@ -3439,6 +4578,12 @@ const RescueFeeForm: React.FC = () => {
                                 <Trash2 size={14} />
                               </button>
                             </div>
+                            {rowError && (
+                              <p className="text-[11px] font-semibold text-red-600">
+                                {rowError.message}
+                              </p>
+                            )}
+                            </div>
                           );
                         })}
                         {criteriaRuleConditions.length === 0 && (
@@ -3453,7 +4598,7 @@ const RescueFeeForm: React.FC = () => {
                       <button
                         type="button"
                         disabled={!canAddCriteriaRuleCondition}
-                        onClick={() => addPriceCondition(criteriaRule.id)}
+                        onClick={handleAddCriteriaRuleCondition}
                         className="mt-4 inline-flex items-center gap-1 rounded border border-vetc-green px-3 py-2 text-xs font-bold text-vetc-green disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-300"
                       >
                         <Plus size={14} />
@@ -3620,12 +4765,20 @@ const RescueFeeForm: React.FC = () => {
                               onChange={(e) => {
                                 const next = (form.priceCriteria ?? []).find((c) => c.key === e.target.value);
                                 if (!next) return;
-                                updatePriceCondition(rule.id, conditionIndex, {
-                                  criterionKey: next.key,
-                                  criterionLabel: next.label,
-                                  operator: next.valueType === 'RANGE' ? 'BETWEEN' : '=',
-                                  value: next.valueType === 'RANGE' ? ['', ''] : next.allowedValues?.[0] ?? '',
-                                });
+                                if (next.valueType === 'RANGE') {
+                                  updatePriceCondition(rule.id, conditionIndex, {
+                                    criterionKey: next.key,
+                                    criterionLabel: next.label,
+                                    ...betweenConditionDefaults(),
+                                  });
+                                } else {
+                                  updatePriceCondition(rule.id, conditionIndex, {
+                                    criterionKey: next.key,
+                                    criterionLabel: next.label,
+                                    operator: '=',
+                                    value: next.allowedValues?.[0] ?? '',
+                                  });
+                                }
                               }}
                             >
                               {(form.priceCriteria ?? [])
@@ -3637,13 +4790,16 @@ const RescueFeeForm: React.FC = () => {
                               value={condition.operator}
                               onChange={(e) => {
                                 const operator = e.target.value as FeeRuleCondition['operator'];
-                                updatePriceCondition(rule.id, conditionIndex, {
-                                  operator,
-                                  value:
-                                    operator === 'BETWEEN'
-                                      ? ['', '']
-                                      : criterion?.allowedValues?.[0] ?? '',
-                                });
+                                if (operator === 'BETWEEN') {
+                                  updatePriceCondition(rule.id, conditionIndex, {
+                                    ...betweenConditionDefaults(),
+                                  });
+                                } else {
+                                  updatePriceCondition(rule.id, conditionIndex, {
+                                    operator,
+                                    value: criterion?.allowedValues?.[0] ?? '',
+                                  });
+                                }
                               }}
                             >
                               <option value="=">=</option>
@@ -3653,37 +4809,18 @@ const RescueFeeForm: React.FC = () => {
                               <option value="<=">&lt;=</option>
                             </select>
                             {condition.operator === 'BETWEEN' ? (
-                              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                                <input
-                                  type="number"
-                                  className={inputClass}
-                                  placeholder="Từ"
-                                  value={Array.isArray(condition.value) ? condition.value[0] ?? '' : ''}
-                                  onChange={(e) => {
-                                    const current = Array.isArray(condition.value)
-                                      ? condition.value
-                                      : ['', ''];
-                                    updatePriceCondition(rule.id, conditionIndex, {
-                                      value: [e.target.value, current[1] ?? ''],
-                                    });
-                                  }}
-                                />
-                                <span className="text-xs text-gray-400">đến</span>
-                                <input
-                                  type="number"
-                                  className={inputClass}
-                                  placeholder="Đến"
-                                  value={Array.isArray(condition.value) ? condition.value[1] ?? '' : ''}
-                                  onChange={(e) => {
-                                    const current = Array.isArray(condition.value)
-                                      ? condition.value
-                                      : ['', ''];
-                                    updatePriceCondition(rule.id, conditionIndex, {
-                                      value: [current[0] ?? '', e.target.value],
-                                    });
-                                  }}
-                                />
-                              </div>
+                              <RangeBoundInputs
+                                from={Array.isArray(condition.value) ? condition.value[0] ?? '' : ''}
+                                to={Array.isArray(condition.value) ? condition.value[1] ?? '' : ''}
+                                fromInclusive={condition.fromInclusive}
+                                toInclusive={condition.toInclusive}
+                                onChange={(patch) =>
+                                  updatePriceCondition(rule.id, conditionIndex, {
+                                    operator: 'BETWEEN',
+                                    ...patch,
+                                  })
+                                }
+                              />
                             ) : (
                               <select
                                 className={`${inputClass} bg-white`}
@@ -3981,18 +5118,15 @@ const RescueFeeForm: React.FC = () => {
                       </div>
 
                       <div className="overflow-x-auto">
-                        <table className="w-full min-w-[960px] border-collapse text-xs">
+                        <table className="w-full min-w-[720px] border-collapse text-xs">
                           <thead>
                             <tr className="bg-white text-[10px] font-bold uppercase tracking-wide text-gray-600">
+                              <th className="border-b border-r px-3 py-2 text-left">
+                                {isTimeGroup ? 'Khoảng thời gian' : 'Giá trị tiêu chí'}
+                              </th>
                               <th className="w-[160px] border-b border-r px-3 py-2 text-left">Kiểu</th>
                               <th className="w-[140px] border-b border-r px-3 py-2 text-right">
                                 Giá trị / Hệ số
-                              </th>
-                              <th className="w-[220px] border-b border-r px-3 py-2 text-left">
-                                Tiêu chí phụ
-                              </th>
-                              <th className="border-b border-r px-3 py-2 text-left">
-                                {isTimeGroup ? 'Khoảng thời gian' : 'Giá trị tiêu chí'}
                               </th>
                               <th className="w-[100px] border-b px-3 py-2 text-center">Thao tác</th>
                             </tr>
@@ -4013,50 +5147,6 @@ const RescueFeeForm: React.FC = () => {
                               return (
                                 <React.Fragment key={s.id}>
                                   <tr className="align-top even:bg-gray-50/40">
-                                    <td className="border-b border-r p-2">
-                                      <AppSelect
-                                        value={s.type}
-                                        options={[
-                                          { value: 'FIXED', label: 'Cố định' },
-                                          { value: 'COEFFICIENT', label: 'Hệ số' },
-                                        ]}
-                                        onChange={(value) =>
-                                          updateSurcharge(s.id, {
-                                            type: value as SurchargeType,
-                                          })
-                                        }
-                                      />
-                                    </td>
-                                    <td className="border-b border-r p-2">
-                                      <input
-                                        type="number"
-                                        step="0.01"
-                                        className={`${inputClass} text-right font-semibold`}
-                                        value={s.value}
-                                        onChange={(e) =>
-                                          updateSurcharge(s.id, {
-                                            value: Number(e.target.value) || 0,
-                                          })
-                                        }
-                                      />
-                                    </td>
-                                    <td className="border-b border-r p-2">
-                                      <AppSelect
-                                        value={s.conditions[0]?.criterionKey ?? ''}
-                                        placeholder="Chọn tiêu chí"
-                                        className={!s.conditions.length ? 'border-red-300' : ''}
-                                        options={SURCHARGE_CRITERIA_CATALOG.map((criterion) => ({
-                                          value: criterion.key,
-                                          label: criterion.label,
-                                          disabled: form.surchargeRules.some(
-                                            (item) =>
-                                              item.name !== s.name &&
-                                              item.conditions[0]?.criterionKey === criterion.key
-                                          ),
-                                        }))}
-                                        onChange={(value) => setSurchargeCriterion(s.id, value)}
-                                      />
-                                    </td>
                                     <td className="border-b border-r p-2">
                                       {isTimeCriterion ? (
                                         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -4106,6 +5196,33 @@ const RescueFeeForm: React.FC = () => {
                                         />
                                       )}
                                     </td>
+                                    <td className="border-b border-r p-2">
+                                      <AppSelect
+                                        value={s.type}
+                                        options={[
+                                          { value: 'FIXED', label: 'Cố định' },
+                                          { value: 'COEFFICIENT', label: 'Hệ số' },
+                                        ]}
+                                        onChange={(value) =>
+                                          updateSurcharge(s.id, {
+                                            type: value as SurchargeType,
+                                          })
+                                        }
+                                      />
+                                    </td>
+                                    <td className="border-b border-r p-2">
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        className={`${inputClass} text-right font-semibold`}
+                                        value={s.value}
+                                        onChange={(e) =>
+                                          updateSurcharge(s.id, {
+                                            value: Number(e.target.value) || 0,
+                                          })
+                                        }
+                                      />
+                                    </td>
                                     <td className="border-b p-2">
                                       <div className="flex items-center justify-center gap-1">
                                         <button
@@ -4134,8 +5251,8 @@ const RescueFeeForm: React.FC = () => {
                                   </tr>
                                   {isHoliday && (
                                     <tr className="bg-amber-50/40">
-                                      <td colSpan={5} className="border-b px-3 py-3">
-                                        <div className="mb-2 flex items-center justify-between gap-2">
+                                      <td colSpan={4} className="border-b px-3 py-3">
+                                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                           <div>
                                             <div className="text-xs font-bold text-amber-800">
                                               Ngày holiday áp dụng
@@ -4145,17 +5262,37 @@ const RescueFeeForm: React.FC = () => {
                                               này.
                                             </div>
                                           </div>
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              updateSurcharge(s.id, {
-                                                holidayDates: [...(s.holidayDates ?? []), ''],
-                                              })
-                                            }
-                                            className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-1 text-[10px] font-bold text-amber-700"
-                                          >
-                                            <Plus size={12} /> Thêm ngày
-                                          </button>
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const merged = Array.from(
+                                                  new Set([
+                                                    ...(s.holidayDates ?? []).filter((d) =>
+                                                      String(d).trim()
+                                                    ),
+                                                    ...SYSTEM_HOLIDAY_DATES,
+                                                  ])
+                                                ).sort();
+                                                updateSurcharge(s.id, { holidayDates: merged });
+                                              }}
+                                              className="inline-flex items-center gap-1 rounded border border-vetc-green bg-white px-2 py-1 text-[10px] font-bold text-vetc-green hover:bg-green-50"
+                                              title="Gộp ngày lễ/Tết từ danh mục hệ thống"
+                                            >
+                                              <Download size={12} /> Lấy từ hệ thống
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                updateSurcharge(s.id, {
+                                                  holidayDates: [...(s.holidayDates ?? []), ''],
+                                                })
+                                              }
+                                              className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-1 text-[10px] font-bold text-amber-700"
+                                            >
+                                              <Plus size={12} /> Thêm ngày
+                                            </button>
+                                          </div>
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                           {(s.holidayDates ?? []).map((date, index) => (
@@ -4190,7 +5327,8 @@ const RescueFeeForm: React.FC = () => {
                                           ))}
                                           {(s.holidayDates ?? []).length === 0 && (
                                             <div className="text-xs text-amber-700">
-                                              Chưa có ngày holiday. Nhấn “Thêm ngày” để cấu hình.
+                                              Chưa có ngày holiday. Nhấn “Lấy từ hệ thống” hoặc
+                                              “Thêm ngày”.
                                             </div>
                                           )}
                                         </div>

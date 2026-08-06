@@ -1,0 +1,16 @@
+@startuml
+start
+:User mo man Chi tiet bang phi;
+:He thong tai serviceRules va priceCriteria;
+:Render bang 4 cot va bo loc 6 truong;
+:User chon filter;
+:Ap dieu kien AND tren danh sach dong;
+:Hien thi X tren Y dong;
+
+:User mo man Chinh sua bang phi;
+:Render tab Dong gia theo to hop tieu chi;
+:User bam icon cau hinh tieu chi bo sung;
+:Mo modal cau hinh dieu kien bo sung;
+:Luu rule va render lai badge/summary;
+stop
+@enduml

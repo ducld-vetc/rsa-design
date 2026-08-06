@@ -2,7 +2,8 @@
 
 > Tài liệu thiết kế schema — căn cứ luồng cũ trên Postgres Dev (`rsa-dev` / `dev-rsa`) và mô hình chức năng mới trong `rsa-design` (`rescueFeeMockData.ts`, form cấu hình bảng phí).  
 > **Phạm vi:** tài liệu BA/DBA review. Không thay migration production trong bước này.  
-> **Ngày quan sát Dev:** 2026-08-03.
+> **Ngày quan sát Dev:** 2026-08-03.  
+> **BRD nghiệp vụ cấu hình + tính phí đơn:** [BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md](./BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md)
 
 ---
 
@@ -239,7 +240,7 @@ flowchart TB
 | `fee_table`                | “Vỏ” bảng phí: mã, tên, `target` (CUSTOMER/SUPPLIER), `kind` (Public, Retail, DN, NCC nội bộ/ngoài/fallback), trạng thái hiện hành.  |
 | `fee_table_version`        | Phiên bản nội dung bảng phí theo thời gian. Version ACTIVE coi là bất biến; sửa cấu hình = tạo version mới để đơn cũ vẫn audit được. |
 | `fee_table_scope`          | Phạm vi áp dụng của một version: doanh nghiệp, NCC, khu vực, loại dịch vụ/xe. Null = không giới hạn chiều đó.                        |
-| `fee_table_settings`       | Tham số tính của version: hệ số KH lẻ, làm tròn, nhân hệ số vs lấy max, cờ fallback.                                                 |
+| `fee_table_settings`       | Tham số tính của version: hệ số KH lẻ, làm tròn, nhân hệ số vs lấy max, cờ fallback, giá đã bao gồm VAT hay chưa. |
 | `fee_price_line`           | Một dòng trong ma trận giá: gắn dịch vụ + giá cơ sở + FIXED/PER_UNIT. Nhiều dòng cùng dịch vụ = các tổ hợp tiêu chí khác nhau. **Không lưu value tiêu chí** — value nằm ở `fee_price_line_condition`. |
 | `fee_price_line_condition` | **Bảng cấu hình value tiêu chí theo từng line.** Mỗi hàng: `fee_price_line_id` + `criterion_key` + `operator` + `value_json`. Nhiều hàng cùng line = AND (vd. PTI kéo: `vehicleType` + `seat_number` + `distanceKm BETWEEN`; cẩu: + `roadDistance BETWEEN`). Line không có hàng condition = khớp mọi context (vd. kích bình). |
 | `fee_surcharge_rule`       | Phụ phí / hệ số điều kiện (FIXED tiền hoặc COEFFICIENT), gồm Lễ/Tết (`holiday_dates_json`), stackable, trần.                         |
@@ -258,213 +259,219 @@ flowchart TB
 | `rescue_order_fee_adjustment` | Lịch sử chỉnh tay / phân bổ lại tổng / tính lại — audit before/after.                                                                                                            |
 
 
-```mermaid
-erDiagram
-  fee_criterion_def ||--o{ fee_criterion_field_map : "maps_to_source"
-  fee_criterion_def ||--o{ fee_price_line_condition : "used_in"
-  fee_criterion_def ||--o{ fee_surcharge_condition : "used_in"
+@startuml
+' ================== Entities & Fields ==================
 
-  fee_table ||--|{ fee_table_version : "has_versions"
-  fee_table_version ||--|| fee_table_scope : "scope_1_1"
-  fee_table_version ||--|| fee_table_settings : "settings_1_1"
-  fee_table_version ||--o{ fee_price_line : "price_lines"
-  fee_table_version ||--o{ fee_surcharge_rule : "surcharges"
+entity fee_criterion_def {
+  * id : bigint <<PK>>
+  * key : varchar <<UK>> // "weather distanceKm batteryType"
+  * label : varchar
+  * value_type : varchar // "LIST RANGE TIME"
+  * values_json : jsonb
+  * status : varchar // "ACTIVE INACTIVE"
+  * updated_at : timestamptz
+}
 
-  fee_service_catalog ||--o{ fee_service_catalog : "parent_child"
-  fee_service_catalog ||--o{ fee_price_line : "priced_as"
+entity fee_criterion_field_map {
+  * id : bigint <<PK>>
+  * criterion_key : varchar <<FK>>
+  * source_path : varchar // "order.weather line.distanceKm"
+  * transform : varchar // "nullable"
+  * scope : varchar // "ORDER LINE VEHICLE"
+  * status : varchar
+}
 
-  fee_price_line ||--o{ fee_price_line_condition : "AND_conditions"
-  fee_surcharge_rule ||--o{ fee_surcharge_condition : "AND_conditions"
+entity fee_service_catalog {
+  * id : bigint <<PK>>
+  * code : varchar <<UK>>
+  * name : varchar
+  * service_type : varchar // "ONSITE TOWING CRANE"
+  * parent_id : bigint <<FK>> // "nullable"
+  * legacy_service_id : bigint // map service.service_id
+  * status : varchar
+}
 
-  fee_table_version ||--o{ rescue_order_fee_snapshot : "applied_as_supplier_or_customer"
-  rescue_order_v2 ||--o| rescue_order_fee_snapshot : "has_fee_snapshot"
-  rescue_order_fee_snapshot ||--o{ rescue_order_fee_line : "lines"
-  rescue_order_service ||--o| rescue_order_fee_line : "fee_for_service"
-  rescue_order_fee_line ||--o{ rescue_order_fee_adjustment : "audit"
-  rescue_order_fee_snapshot ||--o{ rescue_order_fee_adjustment : "order_level_adj"
+entity incidental_fee_def {
+  * id : bigint <<PK>>
+  * code : varchar <<UK>>
+  * name : varchar
+  * suggested_price : numeric
+  * is_catch_all : boolean
+  * status : varchar
+}
 
-  fee_criterion_def {
-    bigint id PK
-    varchar key UK "weather distanceKm batteryType"
-    varchar label
-    varchar value_type "LIST RANGE TIME"
-    jsonb values_json
-    varchar status "ACTIVE INACTIVE"
-    timestamptz updated_at
-  }
+entity fee_table {
+  * id : bigint <<PK>>
+  * code : varchar <<UK>>
+  * name : varchar
+  * target : varchar // "CUSTOMER SUPPLIER"
+  * kind : varchar // "PUBLIC RETAIL BUSINESS INTERNAL EXTERNAL FALLBACK"
+  * current_version : int
+  * status : varchar // "DRAFT ACTIVE EXPIRED INACTIVE"
+}
 
-  fee_criterion_field_map {
-    bigint id PK
-    varchar criterion_key FK
-    varchar source_path "order.weather line.distanceKm"
-    varchar transform "nullable"
-    varchar scope "ORDER LINE VEHICLE"
-    varchar status
-  }
+entity fee_table_version {
+  * id : bigint <<PK>>
+  * fee_table_id : bigint <<FK>>
+  * version : int <<UK>> // unique with fee_table_id
+  * valid_from : date
+  * valid_to : date
+  * priority : int
+  * status : varchar // "immutable when ACTIVE"
+  * note : text
+  * activated_at : timestamptz
+}
 
-  fee_service_catalog {
-    bigint id PK
-    varchar code UK
-    varchar name
-    varchar service_type "ONSITE TOWING CRANE"
-    bigint parent_id FK "nullable"
-    bigint legacy_service_id "map service.service_id"
-    varchar status
-  }
+entity fee_table_scope {
+  * fee_table_version_id : bigint <<PK,FK>>
+  * enterprise_code : varchar // "nullable KH"
+  * supplier_id : varchar // "nullable NCC"
+  * supplier_name : varchar
+  * areas_json : jsonb
+  * service_types_json : jsonb
+  * vehicle_types_json : jsonb
+}
 
-  incidental_fee_def {
-    bigint id PK
-    varchar code UK
-    varchar name
-    numeric suggested_price
-    boolean is_catch_all
-    varchar status
-  }
+entity fee_table_settings {
+  * fee_table_version_id : bigint <<PK,FK>>
+  * retail_markup_factor : numeric // "CUSTOMER_RETAIL"
+  * round_mode : varchar // "NEAREST_1000 NEAREST_100 NONE"
+  * stack_surcharges : boolean // "true=STACK false=MAX"
+  * is_fallback : boolean
+  * includes_vat : boolean // "true=gia da bao gom VAT"
+}
 
-  fee_table {
-    bigint id PK
-    varchar code UK
-    varchar name
-    varchar target "CUSTOMER SUPPLIER"
-    varchar kind "PUBLIC RETAIL BUSINESS INTERNAL EXTERNAL FALLBACK"
-    int current_version
-    varchar status "DRAFT ACTIVE EXPIRED INACTIVE"
-  }
+entity fee_price_line {
+  * id : bigint <<PK>>
+  * fee_table_version_id : bigint <<FK>>
+  * service_catalog_id : bigint <<FK>>
+  * service_name : varchar
+  * base_price : numeric
+  * pricing_mode : varchar // "FIXED PER_UNIT"
+  * unit : varchar // "km nullable"
+  * included_qty : numeric
+  * price_per_extra : numeric
+  * min_price : numeric
+  * max_price : numeric
+  * sort_order : int
+}
 
-  fee_table_version {
-    bigint id PK
-    bigint fee_table_id FK
-    int version UK "unique with fee_table_id"
-    date valid_from
-    date valid_to
-    int priority
-    varchar status "immutable when ACTIVE"
-    text note
-    timestamptz activated_at
-  }
+entity fee_price_line_condition {
+  * id : bigint <<PK>>
+  * fee_price_line_id : bigint <<FK>>
+  * criterion_key : varchar <<FK>>
+  * operator : varchar // "eq IN BETWEEN gte lte"
+  * value_json : jsonb // "scalar array or from-to"
+}
 
-  fee_table_scope {
-    bigint fee_table_version_id PK_FK
-    varchar enterprise_code "nullable KH"
-    varchar supplier_id "nullable NCC"
-    varchar supplier_name
-    jsonb areas_json
-    jsonb service_types_json
-    jsonb vehicle_types_json
-  }
+entity fee_surcharge_rule {
+  * id : bigint <<PK>>
+  * fee_table_version_id : bigint <<FK>>
+  * name : varchar
+  * type : varchar // "FIXED COEFFICIENT"
+  * value : numeric
+  * stackable : boolean
+  * exclusive_group : varchar
+  * cap_amount : numeric
+  * holiday_dates_json : jsonb
+  * sort_order : int
+}
 
-  fee_table_settings {
-    bigint fee_table_version_id PK_FK
-    numeric retail_markup_factor "CUSTOMER_RETAIL"
-    varchar round_mode "NEAREST_1000 NEAREST_100 NONE"
-    boolean stack_surcharges "true=STACK false=MAX"
-    boolean is_fallback
-  }
+entity fee_surcharge_condition {
+  * id : bigint <<PK>>
+  * fee_surcharge_rule_id : bigint <<FK>>
+  * criterion_key : varchar <<FK>>
+  * operator : varchar
+  * value_json : jsonb
+}
 
-  fee_price_line {
-    bigint id PK
-    bigint fee_table_version_id FK
-    bigint service_catalog_id FK
-    varchar service_name
-    numeric base_price
-    varchar pricing_mode "FIXED PER_UNIT"
-    varchar unit "km nullable"
-    numeric included_qty
-    numeric price_per_extra
-    numeric min_price
-    numeric max_price
-    int sort_order
-  }
+entity rescue_order_v2 {
+  * rescue_order_v2_id : bigint <<PK>>
+  * order_code : varchar // "existing table"
+}
 
-  fee_price_line_condition {
-    bigint id PK
-    bigint fee_price_line_id FK
-    varchar criterion_key FK
-    varchar operator "eq IN BETWEEN gte lte"
-    jsonb value_json "scalar array or from-to"
-  }
+entity rescue_order_service {
+  * rescue_order_service_id : bigint <<PK>>
+  * rescue_order_v2_id : bigint <<FK>>
+  * service_id : bigint <<FK>>
+  * additional_sv_name : varchar
+}
 
-  fee_surcharge_rule {
-    bigint id PK
-    bigint fee_table_version_id FK
-    varchar name
-    varchar type "FIXED COEFFICIENT"
-    numeric value
-    boolean stackable
-    varchar exclusive_group
-    numeric cap_amount
-    jsonb holiday_dates_json
-    int sort_order
-  }
+entity rescue_order_fee_snapshot {
+  * id : bigint <<PK>>
+  * rescue_order_v2_id : bigint <<FK>>
+  * supplier_table_id : bigint <<FK>>
+  * supplier_table_code : varchar
+  * supplier_version : int
+  * customer_table_id : bigint <<FK>>
+  * customer_table_code : varchar
+  * customer_version : int
+  * customer_fee_mode : varchar // "PACKAGE_PUBLIC RETAIL_MARKUP BUSINESS"
+  * retail_markup_factor : numeric
+  * input_context_json : jsonb
+  * calculated_at : timestamptz
+}
 
-  fee_surcharge_condition {
-    bigint id PK
-    bigint fee_surcharge_rule_id FK
-    varchar criterion_key FK
-    varchar operator
-    jsonb value_json
-  }
+entity rescue_order_fee_line {
+  * id : bigint <<PK>>
+  * snapshot_id : bigint <<FK>>
+  * rescue_order_service_id : bigint <<FK>>
+  * service_name : varchar
+  * supplier_amount : numeric
+  * customer_amount : numeric
+  * customer_individual_amount : numeric // "KHCN"
+  * customer_enterprise_amount : numeric // "KHDN"
+  * fixed_price : numeric
+  * customer_coefficient : numeric
+  * supplier_coefficient : numeric
+  * customer_source : varchar
+  * supplier_source : varchar
+  * is_customer_manual : boolean
+  * is_supplier_manual : boolean
+  * matched_supplier_line_id : bigint <<FK>>
+  * matched_customer_line_id : bigint <<FK>>
+  * breakdown_json : jsonb
+  * sort_order : int
+}
 
-  rescue_order_v2 {
-    bigint rescue_order_v2_id PK
-    varchar order_code "existing table"
-  }
+entity rescue_order_fee_adjustment {
+  * id : bigint <<PK>>
+  * fee_line_id : bigint <<FK>> // "nullable"
+  * snapshot_id : bigint <<FK>>
+  * adjustment_type : varchar // "MANUAL_EDIT REDISTRIBUTE RECALC"
+  * before_json : jsonb
+  * after_json : jsonb
+  * note : text
+  * created_at : timestamptz
+}
 
-  rescue_order_service {
-    bigint rescue_order_service_id PK
-    bigint rescue_order_v2_id FK
-    bigint service_id FK
-    varchar additional_sv_name
-  }
 
-  rescue_order_fee_snapshot {
-    bigint id PK
-    bigint rescue_order_v2_id FK
-    bigint supplier_table_id FK
-    varchar supplier_table_code
-    int supplier_version
-    bigint customer_table_id FK
-    varchar customer_table_code
-    int customer_version
-    varchar customer_fee_mode "PACKAGE_PUBLIC RETAIL_MARKUP BUSINESS"
-    numeric retail_markup_factor
-    jsonb input_context_json
-    timestamptz calculated_at
-  }
+' ================== Relationships ==================
 
-  rescue_order_fee_line {
-    bigint id PK
-    bigint snapshot_id FK
-    bigint rescue_order_service_id FK
-    varchar service_name
-    numeric supplier_amount
-    numeric customer_amount
-    numeric customer_individual_amount "KHCN"
-    numeric customer_enterprise_amount "KHDN"
-    numeric fixed_price
-    numeric customer_coefficient
-    numeric supplier_coefficient
-    varchar customer_source
-    varchar supplier_source
-    boolean is_customer_manual
-    boolean is_supplier_manual
-    bigint matched_supplier_line_id FK
-    bigint matched_customer_line_id FK
-    jsonb breakdown_json
-    int sort_order
-  }
+fee_criterion_def     ||--o{ fee_criterion_field_map        : maps_to_source
+fee_criterion_def     ||--o{ fee_price_line_condition       : used_in
+fee_criterion_def     ||--o{ fee_surcharge_condition        : used_in
 
-  rescue_order_fee_adjustment {
-    bigint id PK
-    bigint fee_line_id FK "nullable"
-    bigint snapshot_id FK
-    varchar adjustment_type "MANUAL_EDIT REDISTRIBUTE RECALC"
-    jsonb before_json
-    jsonb after_json
-    text note
-    timestamptz created_at
-  }
-```
+fee_table             ||--|{ fee_table_version              : has_versions
+fee_table_version     ||--|| fee_table_scope                : scope_1_1
+fee_table_version     ||--|| fee_table_settings             : settings_1_1
+fee_table_version     ||--o{ fee_price_line                 : price_lines
+fee_table_version     ||--o{ fee_surcharge_rule             : surcharges
+
+fee_service_catalog   ||--o{ fee_service_catalog            : parent_child
+fee_service_catalog   ||--o{ fee_price_line                 : priced_as
+
+fee_price_line        ||--o{ fee_price_line_condition       : AND_conditions
+fee_surcharge_rule    ||--o{ fee_surcharge_condition        : AND_conditions
+
+fee_table_version     ||--o{ rescue_order_fee_snapshot      : applied_as_supplier_or_customer
+rescue_order_v2       ||--o| rescue_order_fee_snapshot      : has_fee_snapshot
+rescue_order_fee_snapshot ||--o{ rescue_order_fee_line      : lines
+rescue_order_service  ||--o| rescue_order_fee_line          : fee_for_service
+rescue_order_fee_line ||--o{ rescue_order_fee_adjustment    : audit
+rescue_order_fee_snapshot ||--o{ rescue_order_fee_adjustment: order_level_adj
+
+@enduml
 
 
 
@@ -569,7 +576,7 @@ erDiagram
 | `target`                    | VARCHAR(16)        | `CUSTOMER` | `SUPPLIER`                     |
 | `kind`                      | VARCHAR(64)        | Xem enum bên dưới                           |
 | `current_version`           | INT                | Bản đang ACTIVE (denormalize)               |
-| `status`                    | VARCHAR(16)        | `DRAFT` | `ACTIVE` | `EXPIRED` | `INACTIVE` |
+| `status`                    | VARCHAR(16)        | `ACTIVE` | `EXPIRED` | `INACTIVE` (không dùng DRAFT — cấu hình tạm trên FE đến khi Lưu) |
 | `updated_at` / `updated_by` |                    |                                             |
 
 
@@ -627,6 +634,7 @@ Rule UX: `target=CUSTOMER` → không dùng `supplier_*`; `target=SUPPLIER` → 
 | `round_mode`           | VARCHAR(32)   | `NEAREST_1000` | `NEAREST_100` | `NONE`           |
 | `stack_surcharges`     | BOOLEAN       | `true` = nhân hệ số; `false` = lấy hệ số cao nhất |
 | `is_fallback`          | BOOLEAN       | Đánh dấu bảng fallback NCC                        |
+| `includes_vat`         | BOOLEAN       | `true` = mức giá trong bảng đã bao gồm VAT; `false` = chưa bao gồm |
 
 
 #### `fee_price_line`

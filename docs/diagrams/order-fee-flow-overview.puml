@@ -1,0 +1,57 @@
+@startuml
+skinparam activityBackgroundColor #FEFEFE
+title Luong tinh phi tren don - tong quan
+
+|#LightBlue|Tao don|
+start
+:Tao don + chon dich vu / tieu chi;
+:Tinh phi NCC bang FALLBACK\n(chua co NCC);
+if (Loai don?) then (Don goi)
+  :KH = Public cho phan ngoai goi\n(khong ngoai goi = 0);
+elseif (Don le ca nhan) then
+  if (Mode KH?) then (Public co dinh)
+    :KH = CUSTOMER_PUBLIC;
+  else (Phu thuoc NCC)
+    :KH = RETAIL_MARKUP\n= round(NCC x he so);
+  endif
+elseif (Don le DN) then
+  if (Co bang BUSINESS?) then (Co)
+    :KH = CUSTOMER_BUSINESS;
+  else (Chua co)
+    :KH = xu ly nhu don le ca nhan;
+  endif
+endif
+:Ghi snapshot + fee_line;
+
+|#LightYellow|Dieu phoi|
+:Tim / gan don vi cuu ho (NCC);
+if (NCC bao gia thu cong?) then (Co)
+  :Ghi NCC = gia bao gia\n(source/manual NCC);
+else (Khong)
+  if (Co bang NCC rieng?) then (Co)
+    :Tinh lai NCC theo bang NCC;
+  else (Khong)
+    :Giu / dung FALLBACK;
+  endif
+endif
+if (Don le ca nhan va KH phu thuoc NCC?) then (Co)
+  :Tinh lai KH theo NCC moi;
+else (Khong)
+  :Giu phi KH (bang KH doc lap);
+endif
+:Cap nhat snapshot + fee_line\n(+ adjustment neu can);
+
+|#LightGreen|Doi tieu chi / Recalc|
+:User doi thong tin core\n(DN/NCC/km/xe/thoi tiet...);
+if (Dang co phi thu cong?) then (Khong)
+  :Tu dong recalc engine;
+  :Cap nhat snapshot + fee_line;
+else (Co)
+  :Ap tieu chi moi;\nGiu so phi cu + banner lech;
+endif
+if (User bam Tinh lai?) then (Co)
+  :Xac nhan neu dang manual;
+  :Recalc engine + adjustment RECALC;
+endif
+stop
+@enduml
