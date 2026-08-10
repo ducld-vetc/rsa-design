@@ -38,7 +38,7 @@ flowchart TD
     A3{Loại đơn?}
     A4[KH = Public phần ngoài gói<br/>không ngoài gói = 0]
     A5{Mode KH?}
-    A6[KH = CUSTOMER_PUBLIC]
+    A6[KH = Public / CUSTOMER_INDIVIDUAL]
     A7[KH = RETAIL_MARKUP<br/>round NCC × hệ số]
     A8{Có bảng BUSINESS?}
     A9[KH = CUSTOMER_BUSINESS]
@@ -119,10 +119,10 @@ flowchart TD
 
 #### A1. Phí NCC
 
-- Đơn mới **chưa gán NCC** → chưa chọn được bảng `SUPPLIER_EXTERNAL` / `SUPPLIER_INTERNAL` theo supplier.
-- Hệ thống tính **phí NCC base** theo bảng `SUPPLIER_EXTERNAL_FALLBACK` (hoặc fallback nội bộ tương đương khi cấu hình dùng chung).
+- Đơn mới **chưa gán NCC** → chưa chọn được bảng `PARTNER_EXTERNAL` / `PARTNER_INTERNAL` theo partner.
+- Hệ thống tính **phí NCC base** theo bảng `PARTNER_EXTERNAL` + `is_fallback` (hoặc fallback nội bộ tương đương khi cấu hình dùng chung).
 - Snapshot ghi nhận bảng fallback + version ACTIVE tại thời điểm tính.
-- `supplier_source` = `FALLBACK` (hoặc tương đương).
+- `partner_source` = `FALLBACK` (hoặc tương đương).
 
 
 
@@ -131,10 +131,10 @@ flowchart TD
 
 | Loại đơn                                   | Cách tính KH                                                                                                | `customer_fee_mode`                                                                   |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| **Đơn gói**                                | Phần trong gói không thu thêm; phần **ngoài gói** tính theo `CUSTOMER_PUBLIC`. Không ngoài gói → KH = **0** | `PACKAGE_PUBLIC`                                                                      |
-| **Đơn lẻ (cá nhân)** — bảng Public cố định | Tính độc lập trên `CUSTOMER_PUBLIC`                                                                         | `RETAIL` / `PACKAGE_PUBLIC` tùy cấu hình sản phẩm; ưu tiên Public cố định khi có bảng |
-| **Đơn lẻ (cá nhân)** — phụ thuộc NCC       | `round(supplier_amount × retail_markup_factor)`                                                             | `RETAIL_MARKUP`                                                                       |
-| **Đơn lẻ (DN) có bảng riêng**              | `CUSTOMER_BUSINESS` khớp `enterprise_code`                                                                  | `BUSINESS`                                                                            |
+| **Đơn gói**                                | Phần trong gói không thu thêm; phần **ngoài gói** tính theo bảng Public (`CUSTOMER_INDIVIDUAL` + `order_type` gói). Không ngoài gói → KH = **0** | `PACKAGE_PUBLIC`                                                                      |
+| **Đơn lẻ (cá nhân)** — bảng Public cố định | Tính độc lập trên bảng Public (`CUSTOMER_INDIVIDUAL`)                                                                         | `RETAIL` / `PACKAGE_PUBLIC` tùy cấu hình sản phẩm; ưu tiên Public cố định khi có bảng |
+| **Đơn lẻ (cá nhân)** — phụ thuộc NCC       | `round(partner_amount × retail_markup_factor)`                                                             | `RETAIL_MARKUP`                                                                       |
+| **Đơn lẻ (DN) có bảng riêng**              | `CUSTOMER_BUSINESS` khớp `corporate_customer_id`                                                                  | `BUSINESS`                                                                            |
 | **Đơn lẻ (DN) chưa có bảng riêng**         | Xử lý **giống đơn lẻ cá nhân** (Public hoặc Markup)                                                         | `RETAIL` / `RETAIL_MARKUP`                                                            |
 
 
@@ -142,8 +142,8 @@ flowchart TD
 
 #### A3. Dữ liệu ghi lúc tạo
 
-- Insert/update `rescue_order_fee_snapshot`
-- Insert N × `rescue_order_fee_line` (mỗi dịch vụ trên đơn)
+- Insert/update `ro_fee_snapshot`
+- Insert N × `ro_fee_line` (mỗi dịch vụ trên đơn)
 - Chưa có `adjustment` trừ khi user chỉnh tay ngay sau tạo
 
 ---
@@ -159,9 +159,9 @@ flowchart TD
 
 | Tình huống                                                                           | Hành vi                                                                                                             |
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| NCC có bảng phí riêng (`SUPPLIER_INTERNAL` / `SUPPLIER_EXTERNAL` theo `supplier_id`) | **Tính lại** base theo bảng NCC ACTIVE + version mới nhất thỏa điều kiện                                            |
-| NCC không có bảng riêng                                                              | Giữ fallback hoặc resolve `SUPPLIER_EXTERNAL_FALLBACK`                                                              |
-| NCC **báo giá** (thoả thuận ngoài bảng)                                              | Ghi `supplier_amount` = giá báo giá; `is_supplier_manual = true`; `supplier_source = Bao_gia_NCC` (hoặc `Thủ công`) |
+| NCC có bảng phí riêng (`PARTNER_INTERNAL` / `PARTNER_EXTERNAL` theo `partner_id`) | **Tính lại** base theo bảng NCC ACTIVE + version mới nhất thỏa điều kiện                                            |
+| NCC không có bảng riêng                                                              | Giữ fallback hoặc resolve `PARTNER_EXTERNAL` + `is_fallback`                                                              |
+| NCC **báo giá** (thoả thuận ngoài bảng)                                              | Ghi `partner_amount` = giá báo giá; `is_partner_manual = true`; `partner_source = Bao_gia_NCC` (hoặc `Thủ công`) |
 
 
 
@@ -181,9 +181,9 @@ flowchart TD
 
 #### B3. Dữ liệu ghi lúc điều phối
 
-- Cập nhật snapshot: `supplier_table_*`, `supplier_version`, context NCC
-- Cập nhật `fee_line.supplier_*` (± `customer_*` nếu Markup)
-- Nếu đổi số so với lần trước → `rescue_order_fee_adjustment` type `RECALC` hoặc `NCC_ASSIGN`
+- Cập nhật snapshot: `partner_table_*`, `partner_version`, context NCC
+- Cập nhật `fee_line.partner_*` (± `customer_*` nếu Markup)
+- Nếu đổi số so với lần trước → `ro_fee_adj` type `RECALC` hoặc `NCC_ASSIGN`
 
 ---
 
@@ -216,20 +216,20 @@ flowchart TD
 
 | UC          | Tên                                     | Tiền điều kiện                              | Luồng chính                                  | Hậu điều kiện                               | Tác động dữ liệu                                                                                                               |
 | ----------- | --------------------------------------- | ------------------------------------------- | -------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **UC-T01**  | Tạo đơn gói (chưa NCC)                  | Đơn gói, có/không phần ngoài gói            | NCC = fallback; KH = Public ngoài gói hoặc 0 | Có phí khởi tạo                             | **snapshot:** supplier=FALLBACK, mode=`PACKAGE_PUBLIC`; **fee_line:** supplier từ fallback, customer từ Public/0               |
-| **UC-T02a** | Tạo đơn lẻ CN — Public cố định          | Không DN / không Markup                     | NCC=fallback; KH=`CUSTOMER_PUBLIC`           | Phí KH độc lập NCC                          | **snapshot:** mode Public/RETAIL cố định; **fee_line:** customer từ Public                                                     |
+| **UC-T01**  | Tạo đơn gói (chưa NCC)                  | Đơn gói, có/không phần ngoài gói            | NCC = fallback; KH = Public ngoài gói hoặc 0 | Có phí khởi tạo                             | **snapshot:** partner=FALLBACK, mode=`PACKAGE_PUBLIC`; **fee_line:** partner từ fallback, customer từ Public/0               |
+| **UC-T02a** | Tạo đơn lẻ CN — Public cố định          | Không DN / không Markup                     | NCC=fallback; KH=Public (`CUSTOMER_INDIVIDUAL`)           | Phí KH độc lập NCC                          | **snapshot:** mode Public/RETAIL cố định; **fee_line:** customer từ Public                                                     |
 | **UC-T02b** | Tạo đơn lẻ CN — Markup                  | Cấu hình phụ thuộc NCC                      | NCC=fallback; KH=`round(NCC×factor)`         | KH đổi khi NCC đổi sau này                  | **snapshot:** mode=`RETAIL_MARKUP`, lưu `retail_markup_factor`; **fee_line:** customer từ công thức markup                     |
-| **UC-T03a** | Tạo đơn lẻ DN có bảng                   | Có `enterprise_code` + bảng BUSINESS ACTIVE | NCC=fallback; KH=`CUSTOMER_BUSINESS`         | KH theo DN                                  | **snapshot:** mode=`BUSINESS`, customer_table=DN; **fee_line:** customer từ DN; có thể tách KHCN/KHDN                          |
+| **UC-T03a** | Tạo đơn lẻ DN có bảng                   | Có `corporate_customer_id` + bảng BUSINESS ACTIVE | NCC=fallback; KH=`CUSTOMER_BUSINESS`         | KH theo DN                                  | **snapshot:** mode=`BUSINESS`, customer_table=DN; **fee_line:** customer từ DN; có thể tách KHCN/KHDN                          |
 | **UC-T03b** | Tạo đơn lẻ DN chưa có bảng              | Có DN nhưng không match BUSINESS            | Xử lý như UC-T02a/b                          | Giống lẻ CN                                 | Như UC-T02 tương ứng                                                                                                           |
-| **UC-D01**  | Gán NCC có bảng riêng                   | Đã tạo đơn; chọn NCC có fee table           | Recalc NCC theo bảng NCC                     | Snapshot NCC đổi version/bảng               | **snapshot:** cập nhật supplier_table/version; **fee_line:** cập nhật `supplier_amount`; **adjustment:** `NCC_ASSIGN`/`RECALC` |
-| **UC-D02**  | Gán NCC không bảng                      | NCC không có EXTERNAL/INTERNAL riêng        | Giữ/resolve FALLBACK                         | NCC vẫn fallback                            | **snapshot:** supplier vẫn fallback (ghi `supplier_id` trên đơn); amount có thể không đổi                                      |
-| **UC-D03**  | NCC báo giá thủ công                    | NCC gửi giá ngoài bảng                      | Ghi giá báo giá, cờ manual NCC               | Không auto đè khi đổi tiêu chí (sticky NCC) | **fee_line:** `is_supplier_manual=true`, source báo giá; **adjustment:** `MANUAL_EDIT`                                         |
-| **UC-D04**  | Gán NCC + đơn Markup                    | Mode `RETAIL_MARKUP`                        | Sau recalc NCC → recalc KH                   | KH đổi theo NCC mới                         | **fee_line:** cập nhật cả supplier + customer; **adjustment:** `RECALC`                                                        |
-| **UC-D05**  | Gán NCC + đơn gói / DN / Public cố định | Mode không phụ thuộc NCC                    | Chỉ recalc NCC                               | KH giữ nguyên                               | Chỉ `supplier_`* trên fee_line/snapshot                                                                                        |
+| **UC-D01**  | Gán NCC có bảng riêng                   | Đã tạo đơn; chọn NCC có fee table           | Recalc NCC theo bảng NCC                     | Snapshot NCC đổi version/bảng               | **snapshot:** cập nhật partner_table/version; **fee_line:** cập nhật `partner_amount`; **adjustment:** `NCC_ASSIGN`/`RECALC` |
+| **UC-D02**  | Gán NCC không bảng                      | NCC không có EXTERNAL/INTERNAL riêng        | Giữ/resolve FALLBACK                         | NCC vẫn fallback                            | **snapshot:** partner vẫn fallback (ghi `partner_id` trên đơn); amount có thể không đổi                                      |
+| **UC-D03**  | NCC báo giá thủ công                    | NCC gửi giá ngoài bảng                      | Ghi giá báo giá, cờ manual NCC               | Không auto đè khi đổi tiêu chí (sticky NCC) | **fee_line:** `is_partner_manual=true`, source báo giá; **adjustment:** `MANUAL_EDIT`                                         |
+| **UC-D04**  | Gán NCC + đơn Markup                    | Mode `RETAIL_MARKUP`                        | Sau recalc NCC → recalc KH                   | KH đổi theo NCC mới                         | **fee_line:** cập nhật cả partner + customer; **adjustment:** `RECALC`                                                        |
+| **UC-D05**  | Gán NCC + đơn gói / DN / Public cố định | Mode không phụ thuộc NCC                    | Chỉ recalc NCC                               | KH giữ nguyên                               | Chỉ `partner_*` trên fee_line/snapshot                                                                                        |
 | **UC-R01**  | Đổi tiêu chí — không manual             | Không cờ manual                             | Auto recalc NCC+KH theo mode                 | Phí đồng bộ tiêu chí                        | **snapshot:** `input_context_json` mới; **fee_line:** amounts mới; **adjustment:** `RECALC`                                    |
 | **UC-R02**  | Đổi tiêu chí — đang manual              | Có manual KH và/hoặc NCC                    | Không auto recalc; sticky                    | Banner lệch                                 | **snapshot/context** có thể cập nhật tiêu chí; **fee_line amounts giữ**; flag `out_of_sync`; không bắt buộc adjustment amount  |
 | **UC-R03**  | Recalc tường minh                       | User bấm Tính lại                           | Xác nhận nếu manual → engine                 | Đồng bộ lại; xóa sticky                     | **fee_line:** overwrite catalog lines (giữ `isCustom`); **adjustment:** `RECALC` before/after                                  |
-| **UC-C01**  | Đổi cấu hình bảng phí ACTIVE            | Admin activate version mới                  | Đơn cũ giữ snapshot version cũ               | Đơn mới dùng version mới                    | **Không** update `rescue_order_fee_`* của đơn cũ; master: version cũ EXPIRED, mới ACTIVE                                       |
+| **UC-C01**  | Đổi cấu hình bảng phí ACTIVE            | Admin activate version mới                  | Đơn cũ giữ snapshot version cũ               | Đơn mới dùng version mới                    | **Không** update `ro_fee_*` của đơn cũ; master: version cũ EXPIRED, mới ACTIVE                                       |
 
 
 
@@ -237,11 +237,11 @@ flowchart TD
 ### 4.2. Ma trận tác động bảng runtime
 
 
-| Sự kiện            | `rescue_order_fee_snapshot`             | `rescue_order_fee_line`             | `rescue_order_fee_adjustment` | `fee_table*` master     |
+| Sự kiện            | `ro_fee_snapshot`             | `ro_fee_line`             | `ro_fee_adj` | `fee_table*` master     |
 | ------------------ | --------------------------------------- | ----------------------------------- | ----------------------------- | ----------------------- |
 | Tạo đơn            | Insert                                  | Insert N dòng                       | —                             | Chỉ đọc ACTIVE          |
-| Gán NCC (bảng)     | Update supplier ref/version             | Update supplier (± customer Markup) | RECALC / NCC_ASSIGN           | Chỉ đọc                 |
-| NCC báo giá        | Có thể giữ table ref + ghi note/context | Update supplier + manual flag       | MANUAL_EDIT                   | Không                   |
+| Gán NCC (bảng)     | Update partner ref/version             | Update partner (± customer Markup) | RECALC / NCC_ASSIGN           | Chỉ đọc                 |
+| NCC báo giá        | Có thể giữ table ref + ghi note/context | Update partner + manual flag       | MANUAL_EDIT                   | Không                   |
 | Đổi tiêu chí auto  | Update context                          | Update amounts                      | RECALC                        | Chỉ đọc                 |
 | Sticky             | Context có thể đổi                      | Amount giữ                          | Optional note                 | Không                   |
 | Recalc nút         | Update full                             | Overwrite catalog                   | RECALC                        | Chỉ đọc                 |
@@ -266,7 +266,7 @@ flowchart TD
 | BR-ORD-07 | Đổi tiêu chí không manual → auto recalc; có manual → không auto recalc (sticky).                      | BR-21, BR-22 |
 | BR-ORD-08 | Recalc tường minh ghi đè dòng catalog; giữ dòng dịch vụ tùy chỉnh (`isCustom`).                       | BR-24        |
 | BR-ORD-09 | Đổi cấu hình master không tự cập nhật đơn đã snapshot.                                                | BR-06        |
-| BR-ORD-10 | Mọi đổi số tiền có ý nghĩa nghiệp vụ nên ghi `rescue_order_fee_adjustment` (before/after).            | Schema       |
+| BR-ORD-10 | Mọi đổi số tiền có ý nghĩa nghiệp vụ nên ghi `ro_fee_adj` (before/after).            | Schema       |
 
 
 ---
@@ -289,7 +289,7 @@ sequenceDiagram
     rect rgb(230,242,255)
     Note over User,DB: Phase A — Tạo đơn
     User->>UI: Tạo đơn (chưa NCC)
-    UI->>Eng: FeeCalculationInput (supplier chưa gán)
+    UI->>Eng: FeeCalculationInput (partner chưa gán)
     Eng->>Fee: Resolve NCC = FALLBACK
     Eng->>Fee: Resolve KH theo loại đơn
     Eng-->>UI: Breakdown NCC + KH
@@ -300,11 +300,11 @@ sequenceDiagram
     Note over User,DB: Phase B — Điều phối
     User->>UI: Gán NCC / nhận báo giá
     alt NCC báo giá
-      UI->>DB: Update supplier_amount (manual)
+      UI->>DB: Update partner_amount (manual)
     else Có bảng NCC
-      UI->>Eng: Recalc với supplierId
-      Eng->>Fee: SUPPLIER_INTERNAL/EXTERNAL
-      Eng-->>UI: supplier mới
+      UI->>Eng: Recalc với partnerId
+      Eng->>Fee: PARTNER_INTERNAL/EXTERNAL
+      Eng-->>UI: partner mới
       UI->>DB: Update snapshot/fee_line
     else Không bảng
       Eng->>Fee: FALLBACK
@@ -337,9 +337,9 @@ sequenceDiagram
 
 | #      | Chủ đề                                                                                            | Ghi chú                             |
 | ------ | ------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| OP-F01 | Khi chưa NCC, fallback dùng `SUPPLIER_EXTERNAL_FALLBACK` hay thêm kind `UNASSIGNED`?              | Hiện chốt: dùng FALLBACK hiện có    |
+| OP-F01 | Khi chưa NCC, fallback dùng `PARTNER_EXTERNAL` + `is_fallback` hay thêm object_type `UNASSIGNED`? | Hiện chốt: `PARTNER_EXTERNAL` + `settings.is_fallback` |
 | OP-F02 | Đơn lẻ CN chọn Public cố định vs Markup — cấu hình ở đâu (loại bảng / cờ đơn / tham số hệ thống)? | Cần PO gắn master config            |
-| OP-F03 | NCC báo giá: có cho phép vừa giữ matched table vừa override amount không?                         | Đề xuất: có, + `is_supplier_manual` |
+| OP-F03 | NCC báo giá: có cho phép vừa giữ matched table vừa override amount không?                         | Đề xuất: có, + `is_partner_manual` |
 
 
 ---
@@ -353,6 +353,6 @@ sequenceDiagram
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | [BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md](./BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md) | Rule tổng, permission, OP đã chốt                                       |
 | [fee-schema-redesign.md](./fee-schema-redesign.md)                                       | snapshot / fee_line / adjustment                                        |
-| `rescueFeeMockData.ts`                                                                   | `resolveSupplierTable` / `resolveCustomerTable` / `calculateRescueFees` |
+| `rescueFeeMockData.ts`                                                                   | `resolvePartnerTable` / `resolveCustomerTable` / `calculateRescueFees` |
 
 

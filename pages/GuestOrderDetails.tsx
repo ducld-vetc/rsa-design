@@ -106,7 +106,7 @@ import {
   isTimeSurchargeCriterion,
   inferServiceType,
   rescueFeeTables,
-  FEE_KIND_LABELS,
+  FEE_OBJECT_TYPE_LABELS,
   FEE_STATUS_LABELS,
   type FeeSnapshot,
   type FeeRuleCondition,
@@ -232,12 +232,12 @@ type AdjustmentRow = {
   serviceName: string;
   fixedPrice: string;
   adjustmentType: string;
-  supplierAdjustmentType?: string;
+  partnerAdjustmentType?: string;
   /** Hệ số phía KH */
   customerCoefficient: string;
   /** Hệ số phía NCC */
-  supplierCoefficient: string;
-  /** @deprecated dùng supplierCoefficient — giữ để tương thích edit logic cũ */
+  partnerCoefficient: string;
+  /** @deprecated dùng partnerCoefficient — giữ để tương thích edit logic cũ */
   coefficient: string;
   ceilingPrice: string;
   discount: string;
@@ -249,13 +249,13 @@ type AdjustmentRow = {
   customerPaidKhdn?: string;
   isCustom?: boolean;
   isCustomerFeeManual?: boolean;
-  isSupplierFeeManual?: boolean;
+  isPartnerFeeManual?: boolean;
   customerSource?: string;
-  supplierSource?: string;
+  partnerSource?: string;
   customerSurchargeItems?: SurchargeBreakdownItem[];
-  supplierSurchargeItems?: SurchargeBreakdownItem[];
+  partnerSurchargeItems?: SurchargeBreakdownItem[];
   customerCoefficientFormula?: string;
-  supplierCoefficientFormula?: string;
+  partnerCoefficientFormula?: string;
 };
 
 const parseMoney = (value: string) => parseFloat(value.replace(/,/g, '')) || 0;
@@ -309,9 +309,9 @@ const hasManualFeeOverrides = (rows: AdjustmentRow[]) =>
   rows.some(
     (row) =>
       row.isCustomerFeeManual === true ||
-      row.isSupplierFeeManual === true ||
+      row.isPartnerFeeManual === true ||
       row.customerSource === 'Thủ công' ||
-      row.supplierSource === 'Thủ công'
+      row.partnerSource === 'Thủ công'
   );
 
 const mapUiWeatherToEngine = (label: string): NonNullable<FeeCalculationInput['weather']> => {
@@ -374,8 +374,8 @@ const distributeTotalAcrossRows = (
   });
 };
 
-const supplierCoefOf = (row: AdjustmentRow) =>
-  parseFloat(row.supplierCoefficient ?? row.coefficient) || 0;
+const partnerCoefOf = (row: AdjustmentRow) =>
+  parseFloat(row.partnerCoefficient ?? row.coefficient) || 0;
 
 const parseAdjustmentLabels = (value?: string) =>
   (value || '')
@@ -551,7 +551,7 @@ const applyTotalPriceToRow = (
   options?: { retailMarkup?: number; preserveCustomerPaid?: boolean }
 ): AdjustmentRow => {
   const fixed = parseMoney(row.fixedPrice);
-  const coef = supplierCoefOf(row);
+  const coef = partnerCoefOf(row);
   const diff = fixed * coef - totalPrice;
   const markup = options?.retailMarkup ?? getRetailMarkupFactor();
 
@@ -575,11 +575,11 @@ const applyTotalPriceToRow = (
 
 const recalculateRowsFromFixedPrices = (rows: AdjustmentRow[]): AdjustmentRow[] =>
   rows.map((row) => {
-    if (row.isSupplierFeeManual) {
+    if (row.isPartnerFeeManual) {
       return applyTotalPriceToRow(row, parseMoney(row.totalPrice), { preserveCustomerPaid: true });
     }
     const fixed = parseMoney(row.fixedPrice);
-    const coef = supplierCoefOf(row) || 1;
+    const coef = partnerCoefOf(row) || 1;
     return applyTotalPriceToRow(row, Math.round(fixed * coef), {
       preserveCustomerPaid: row.isCustomerFeeManual,
     });
@@ -613,8 +613,8 @@ const computeUpdatedRows = (
       }
     }
 
-    if (field === 'supplierCoefficient' || field === 'coefficient') {
-      updatedRow.supplierCoefficient = processedValue;
+    if (field === 'partnerCoefficient' || field === 'coefficient') {
+      updatedRow.partnerCoefficient = processedValue;
       updatedRow.coefficient = processedValue;
     }
 
@@ -639,28 +639,28 @@ const computeUpdatedRows = (
 
       const coefStr = maxCoef.toFixed(2);
       updatedRow.coefficient = coefStr;
-      updatedRow.supplierCoefficient = coefStr;
+      updatedRow.partnerCoefficient = coefStr;
       const detailItems = buildItemsFromAdjustmentLabels(selectedLabels);
-      updatedRow.supplierSurchargeItems = detailItems;
-      updatedRow.supplierAdjustmentType = selectedLabels.join(', ');
-      updatedRow.supplierCoefficientFormula = buildCoefFormulaFromItems(detailItems);
+      updatedRow.partnerSurchargeItems = detailItems;
+      updatedRow.partnerAdjustmentType = selectedLabels.join(', ');
+      updatedRow.partnerCoefficientFormula = buildCoefFormulaFromItems(detailItems);
     }
 
     if (
       field === 'fixedPrice' ||
       field === 'coefficient' ||
-      field === 'supplierCoefficient' ||
+      field === 'partnerCoefficient' ||
       field === 'totalPrice' ||
       field === 'adjustmentType'
     ) {
       const fixed = parseMoney(updatedRow.fixedPrice);
-      const coef = supplierCoefOf(updatedRow);
+      const coef = partnerCoefOf(updatedRow);
       if (
         (field === 'fixedPrice' ||
           field === 'coefficient' ||
-          field === 'supplierCoefficient' ||
+          field === 'partnerCoefficient' ||
           field === 'adjustmentType') &&
-        !updatedRow.isSupplierFeeManual
+        !updatedRow.isPartnerFeeManual
       ) {
         const nextTotal = Math.round(fixed * coef);
         updatedRow.totalPrice = nextTotal.toLocaleString('en-US');
@@ -911,7 +911,7 @@ const AppliedPriceTableView: React.FC<{ table: PriceTable }> = ({ table }) => (
       </div>
       <div className="rounded border bg-gray-50 px-3 py-2">
         <div className="text-gray-500">Loại bảng</div>
-        <div className="font-bold text-gray-800">{FEE_KIND_LABELS[table.kind]}</div>
+        <div className="font-bold text-gray-800">{FEE_OBJECT_TYPE_LABELS[table.objectType]}</div>
       </div>
       <div className="rounded border bg-gray-50 px-3 py-2">
         <div className="text-gray-500">Trạng thái</div>
@@ -1020,10 +1020,10 @@ const AppliedFeeTablesModal: React.FC<{
   snapshot: FeeSnapshot | null;
 }> = ({ open, onClose, snapshot }) => {
   const navigate = useNavigate();
-  const supplierTable = useMemo(
+  const partnerTable = useMemo(
     () =>
-      snapshot?.supplierTableId
-        ? rescueFeeTables.find((table) => table.id === snapshot.supplierTableId) ?? null
+      snapshot?.partnerTableId
+        ? rescueFeeTables.find((table) => table.id === snapshot.partnerTableId) ?? null
         : null,
     [snapshot]
   );
@@ -1035,16 +1035,16 @@ const AppliedFeeTablesModal: React.FC<{
     [snapshot]
   );
 
-  const [activeTab, setActiveTab] = useState<'SUPPLIER' | 'CUSTOMER'>('SUPPLIER');
+  const [activeTab, setActiveTab] = useState<'PARTNER' | 'CUSTOMER'>('PARTNER');
 
   useEffect(() => {
-    if (open) setActiveTab('SUPPLIER');
+    if (open) setActiveTab('PARTNER');
   }, [open]);
 
   const configTableId =
-    activeTab === 'SUPPLIER'
-      ? snapshot?.supplierTableId
-      : snapshot?.customerTableId || snapshot?.supplierTableId;
+    activeTab === 'PARTNER'
+      ? snapshot?.partnerTableId
+      : snapshot?.customerTableId || snapshot?.partnerTableId;
 
   const handleOpenFeeConfig = () => {
     if (!configTableId) {
@@ -1087,15 +1087,15 @@ const AppliedFeeTablesModal: React.FC<{
         <div className="flex gap-2 border-b bg-gray-50 px-4 pt-3">
           <button
             type="button"
-            onClick={() => setActiveTab('SUPPLIER')}
+            onClick={() => setActiveTab('PARTNER')}
             className={`rounded-t-lg px-3 py-2 text-[11px] font-bold uppercase tracking-wide ${
-              activeTab === 'SUPPLIER'
+              activeTab === 'PARTNER'
                 ? 'bg-white text-vetc-green border border-b-white border-gray-200 -mb-px'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             Bảng NCC
-            {snapshot?.supplierTableCode ? ` · ${snapshot.supplierTableCode}` : ''}
+            {snapshot?.partnerTableCode ? ` · ${snapshot.partnerTableCode}` : ''}
           </button>
           <button
             type="button"
@@ -1116,9 +1116,9 @@ const AppliedFeeTablesModal: React.FC<{
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          {activeTab === 'SUPPLIER' ? (
-            supplierTable ? (
-              <AppliedPriceTableView table={supplierTable} />
+          {activeTab === 'PARTNER' ? (
+            partnerTable ? (
+              <AppliedPriceTableView table={partnerTable} />
             ) : (
               <p className="text-sm text-gray-500">Không tìm thấy bảng phí NCC trên snapshot.</p>
             )
@@ -1132,9 +1132,9 @@ const AppliedFeeTablesModal: React.FC<{
                 </span>
                 .
               </p>
-              {supplierTable ? (
+              {partnerTable ? (
                 <p className="mt-2 text-[11px] text-blue-800">
-                  Tham chiếu bảng NCC: {supplierTable.code} — {supplierTable.name}
+                  Tham chiếu bảng NCC: {partnerTable.code} — {partnerTable.name}
                 </p>
               ) : null}
             </div>
@@ -1335,29 +1335,29 @@ const GuestOrderDetails: React.FC<{
       serviceName: line.serviceName,
       fixedPrice: formatMoneyVi(line.fixedPrice),
       adjustmentType: line.adjustmentLabels.join(', '),
-      supplierAdjustmentType: (line.supplierAdjustmentLabels || []).join(', '),
+      partnerAdjustmentType: (line.partnerAdjustmentLabels || []).join(', '),
       customerCoefficient: String(line.coefficient),
-      supplierCoefficient: String(line.supplierCoefficient),
-      coefficient: String(line.supplierCoefficient),
+      partnerCoefficient: String(line.partnerCoefficient),
+      coefficient: String(line.partnerCoefficient),
       ceilingPrice: '0',
       discount: formatMoneyVi(line.discount),
-      totalPrice: formatMoneyVi(line.supplierAmount),
+      totalPrice: formatMoneyVi(line.partnerAmount),
       customerPaid: formatMoneyVi(line.customerAmount),
       isCustom: false,
       isCustomerFeeManual: false,
-      isSupplierFeeManual: false,
+      isPartnerFeeManual: false,
       customerSource: line.customerSource,
-      supplierSource: line.supplierSource,
+      partnerSource: line.partnerSource,
       customerSurchargeItems: line.customerSurchargeItems ?? [],
-      supplierSurchargeItems: line.supplierSurchargeItems ?? [],
+      partnerSurchargeItems: line.partnerSurchargeItems ?? [],
       customerCoefficientFormula: line.customerCoefficientFormula,
-      supplierCoefficientFormula: line.supplierCoefficientFormula,
+      partnerCoefficientFormula: line.partnerCoefficientFormula,
     }));
 
   const buildInitialFeeRows = (): { rows: AdjustmentRow[]; snapshot: FeeSnapshot | null } => {
     const breakdown = calculateRescueFees({
       customerType: 'PACKAGE',
-      supplierType: 'INTERNAL',
+      partnerType: 'INTERNAL',
       packageBenefitAmount: 800000,
       weather: 'NORMAL',
       isNight: true,
@@ -1396,8 +1396,8 @@ const GuestOrderDetails: React.FC<{
     feeSnapshot?.customerFeeMode === 'BUSINESS'
       ? selectedEnterprise || feeSnapshot.customerTableCode || 'VETC'
       : 'VETC';
-  const supplierFeeSourceText =
-    feeSnapshot?.supplierTableCode?.includes('INT') ||
+  const partnerFeeSourceText =
+    feeSnapshot?.partnerTableCode?.includes('INT') ||
     partnerName.toLowerCase().includes('vetc') ||
     partnerName.toLowerCase().includes('carpla')
       ? 'VETC'
@@ -1492,7 +1492,14 @@ const GuestOrderDetails: React.FC<{
   };
   const [isStatusUpdateModalOpen, setIsStatusUpdateModalOpen] = useState(false);
   const [isShareLocationWebviewOpen, setIsShareLocationWebviewOpen] = useState(false);
+  /** Demo webview: normal | thiếu vị trí cứu hộ (auto GPS) */
+  const [webviewDemoMode, setWebviewDemoMode] = useState<'normal' | 'missing-rescue'>('normal');
   const [currentStatus, setCurrentStatus] = useState(navState?.portalStatusId ?? 'EXECUTE-RESCUING');
+
+  const openShareLocationWebview = (mode: 'normal' | 'missing-rescue' = 'normal') => {
+    setWebviewDemoMode(mode);
+    setIsShareLocationWebviewOpen(true);
+  };
 
   useEffect(() => {
     if (!navState) return;
@@ -1569,7 +1576,7 @@ const GuestOrderDetails: React.FC<{
       ? Math.max(
           ...adjustmentRows.flatMap((r) => [
             parseFloat(r.customerCoefficient) || 0,
-            parseFloat(r.supplierCoefficient ?? r.coefficient) || 0,
+            parseFloat(r.partnerCoefficient ?? r.coefficient) || 0,
           ])
         )
       : 0;
@@ -1643,8 +1650,8 @@ const GuestOrderDetails: React.FC<{
           ...applyTotalPriceToRow(row, amount, {
             preserveCustomerPaid: row.isCustomerFeeManual,
           }),
-          isSupplierFeeManual: true,
-          supplierSource: 'Thủ công',
+          isPartnerFeeManual: true,
+          partnerSource: 'Thủ công',
         })
       )
     );
@@ -1776,8 +1783,8 @@ const GuestOrderDetails: React.FC<{
   const handleAddService = (serviceName: string, customPrice?: string) => {
     const defaultPrice = customPrice && customPrice.trim() !== '' ? formatMoneyInput(customPrice) : '500,000';
     const defaultCoefficient = '1';
-    const supplierAmount = parseMoney(defaultPrice);
-    const customerAmount = Math.round(supplierAmount * getRetailMarkupFactor());
+    const partnerAmount = parseMoney(defaultPrice);
+    const customerAmount = Math.round(partnerAmount * getRetailMarkupFactor());
 
     const markupCoef = String(getRetailMarkupFactor());
     const newRow: AdjustmentRow = {
@@ -1785,9 +1792,9 @@ const GuestOrderDetails: React.FC<{
       serviceName: serviceName,
       fixedPrice: defaultPrice,
       adjustmentType: '',
-      supplierAdjustmentType: '',
+      partnerAdjustmentType: '',
       customerCoefficient: markupCoef,
-      supplierCoefficient: defaultCoefficient,
+      partnerCoefficient: defaultCoefficient,
       coefficient: defaultCoefficient,
       ceilingPrice: '0',
       discount: '0',
@@ -1795,9 +1802,9 @@ const GuestOrderDetails: React.FC<{
       customerPaid: customerAmount.toLocaleString('en-US'),
       isCustom: serviceName === 'Dịch vụ khác' || Boolean(customPrice),
       isCustomerFeeManual: false,
-      isSupplierFeeManual: Boolean(customPrice),
+      isPartnerFeeManual: Boolean(customPrice),
       customerSource: customPrice ? 'Thủ công' : customerFeeSourceText,
-      supplierSource: customPrice ? 'Thủ công' : supplierFeeSourceText,
+      partnerSource: customPrice ? 'Thủ công' : partnerFeeSourceText,
     };
     if (customPrice) markManualFeeTouched();
     setCustomerTotalOverride(null);
@@ -1918,8 +1925,8 @@ const GuestOrderDetails: React.FC<{
               ...applyTotalPriceToRow(row, nextPrice, {
                 preserveCustomerPaid: row.isCustomerFeeManual,
               }),
-              isSupplierFeeManual: true,
-              supplierSource: 'Thủ công',
+              isPartnerFeeManual: true,
+              partnerSource: 'Thủ công',
             }
           : row
       )
@@ -2019,9 +2026,9 @@ const GuestOrderDetails: React.FC<{
 
     return {
       customerType: nextEnterprise ? 'RETAIL_BUSINESS' : 'PACKAGE',
-      supplierType: isInternal ? 'INTERNAL' : 'EXTERNAL',
-      enterpriseCode: nextEnterprise || undefined,
-      supplierName: nextPartner,
+      partnerType: isInternal ? 'INTERNAL' : 'EXTERNAL',
+      corporateCustomerId: nextEnterprise || undefined,
+      partnerName: nextPartner,
       packageBenefitAmount: nextEnterprise ? undefined : 800000,
       weather: mapUiWeatherToEngine(nextWeather),
       severity: mapUiSeverityToEngine(nextSeverity),
@@ -2161,7 +2168,7 @@ const GuestOrderDetails: React.FC<{
     const shouldMarkSupplierManual = [
       'fixedPrice',
       'coefficient',
-      'supplierCoefficient',
+      'partnerCoefficient',
       'adjustmentType',
     ].includes(field);
     const shouldMarkCustomerManual = field === 'customerCoefficient';
@@ -2173,7 +2180,7 @@ const GuestOrderDetails: React.FC<{
         if (row.id !== id) return row;
         let next = row;
         if (shouldMarkSupplierManual) {
-          next = { ...next, isSupplierFeeManual: true, supplierSource: 'Thủ công' };
+          next = { ...next, isPartnerFeeManual: true, partnerSource: 'Thủ công' };
         }
         if (shouldMarkCustomerManual) {
           next = { ...next, isCustomerFeeManual: true, customerSource: 'Thủ công' };
@@ -2302,6 +2309,15 @@ const GuestOrderDetails: React.FC<{
   };
   const rescueCoords = parseCoords(mapCoords);
   const towCoords = parseCoords(towingCoords);
+  /** Demo: trạm & tài xế lệch nhẹ so với điểm cứu hộ để hiển thị trên map webview */
+  const stationCoords =
+    rescueCoords.lat != null && rescueCoords.lng != null
+      ? { lat: rescueCoords.lat + 0.012, lng: rescueCoords.lng - 0.008 }
+      : {};
+  const driverCoords =
+    rescueCoords.lat != null && rescueCoords.lng != null
+      ? { lat: rescueCoords.lat + 0.005, lng: rescueCoords.lng + 0.006 }
+      : {};
 
   return (
       <div className="space-y-6 animate-in fade-in duration-700 max-w-[1600px] mx-auto pb-20">
@@ -2437,12 +2453,21 @@ const GuestOrderDetails: React.FC<{
                     <span className="text-xs text-blue-600 font-medium truncate flex-1">{shareLocationUrl}</span>
                     <button
                       type="button"
-                      onClick={() => setIsShareLocationWebviewOpen(true)}
+                      onClick={() => openShareLocationWebview('normal')}
                       className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded border border-vetc-green text-vetc-green text-[10px] font-bold hover:bg-green-50 transition-colors"
                       title="Xem trước giao diện Webview khách hàng"
                     >
                       <Smartphone size={12} />
                       Webview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openShareLocationWebview('missing-rescue')}
+                      className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded border border-amber-400 text-amber-700 text-[10px] font-bold hover:bg-amber-50 transition-colors"
+                      title="Demo: khách chưa có vị trí cứu hộ — tự lấy GPS"
+                    >
+                      <AlertTriangle size={12} />
+                      Demo thiếu vị trí
                     </button>
                     <button 
                       onClick={() => {
@@ -3123,8 +3148,8 @@ const GuestOrderDetails: React.FC<{
                     <div className="font-bold uppercase tracking-wide text-[10px] mb-1">Snapshot bảng phí</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <div>
-                        NCC: <span className="font-semibold">{feeSnapshot.supplierTableCode}</span> —{' '}
-                        {feeSnapshot.supplierTableName} (v{feeSnapshot.supplierVersion})
+                        NCC: <span className="font-semibold">{feeSnapshot.partnerTableCode}</span> —{' '}
+                        {feeSnapshot.partnerTableName} (v{feeSnapshot.partnerVersion})
                       </div>
                       <div>
                         KH:{' '}
@@ -3441,9 +3466,9 @@ const GuestOrderDetails: React.FC<{
                         <tbody>
                         {adjustmentRows.map((row, idx) => {
                           const customerCoef = parseFloat(row.customerCoefficient) || 0;
-                          const supplierCoef = parseFloat(row.supplierCoefficient ?? row.coefficient) || 0;
+                          const partnerCoef = parseFloat(row.partnerCoefficient ?? row.coefficient) || 0;
                           const isMaxCustomer = customerCoef === maxCoefficient && maxCoefficient > 1;
-                          const isMaxSupplier = supplierCoef === maxCoefficient && maxCoefficient > 1;
+                          const isMaxPartner = partnerCoef === maxCoefficient && maxCoefficient > 1;
                           const { khcn, khdn } = resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum);
                           return (
                               <tr key={row.id} className={`border-b hover:bg-gray-50 transition-colors`}>
@@ -3525,10 +3550,10 @@ const GuestOrderDetails: React.FC<{
                                         className={`text-right font-bold text-gray-800 ${adjustmentRows.length === 1 ? 'bg-gray-50' : ''}`}
                                       />
                                       <div className="flex justify-end">
-                                        <span className={`text-[9px] font-semibold ${row.isSupplierFeeManual ? 'text-amber-700' : 'text-gray-700'}`}>
-                                          {row.isSupplierFeeManual
+                                        <span className={`text-[9px] font-semibold ${row.isPartnerFeeManual ? 'text-amber-700' : 'text-gray-700'}`}>
+                                          {row.isPartnerFeeManual
                                             ? 'Thủ công'
-                                            : row.supplierSource || supplierFeeSourceText}
+                                            : row.partnerSource || partnerFeeSourceText}
                                         </span>
                                       </div>
                                     </div>
@@ -3538,21 +3563,21 @@ const GuestOrderDetails: React.FC<{
                                         {row.totalPrice}
                                       </div>
                                       <div className="flex justify-end">
-                                        <span className={`text-[9px] font-semibold ${row.isSupplierFeeManual ? 'text-amber-700' : 'text-gray-700'}`}>
-                                          {row.isSupplierFeeManual
+                                        <span className={`text-[9px] font-semibold ${row.isPartnerFeeManual ? 'text-amber-700' : 'text-gray-700'}`}>
+                                          {row.isPartnerFeeManual
                                             ? 'Thủ công'
-                                            : row.supplierSource || supplierFeeSourceText}
+                                            : row.partnerSource || partnerFeeSourceText}
                                         </span>
                                       </div>
                                     </div>
                                   )}
                                 </td>
-                                <td className={`p-2 text-center border ${isMaxSupplier ? 'bg-amber-50' : ''}`}>
+                                <td className={`p-2 text-center border ${isMaxPartner ? 'bg-amber-50' : ''}`}>
                                   <CoefficientWithTooltip
-                                    value={row.supplierCoefficient ?? row.coefficient}
-                                    items={row.supplierSurchargeItems ?? []}
-                                    formula={row.supplierCoefficientFormula}
-                                    highlight={isMaxSupplier}
+                                    value={row.partnerCoefficient ?? row.coefficient}
+                                    items={row.partnerSurchargeItems ?? []}
+                                    formula={row.partnerCoefficientFormula}
+                                    highlight={isMaxPartner}
                                     tone="neutral"
                                   />
                                 </td>
@@ -4244,20 +4269,43 @@ const GuestOrderDetails: React.FC<{
 
         <ShareLocationWebviewModal
           isOpen={isShareLocationWebviewOpen}
-          onClose={() => setIsShareLocationWebviewOpen(false)}
+          onClose={() => {
+            setIsShareLocationWebviewOpen(false);
+            setWebviewDemoMode('normal');
+          }}
           data={{
-            orderId: mockFormData.orderId ?? displayOrderId,
+            orderId:
+              webviewDemoMode === 'missing-rescue'
+                ? `${mockFormData.orderId ?? displayOrderId}-NOLOC`
+                : mockFormData.orderId ?? displayOrderId,
             plate: mockFormData.customer.plate,
             orderTypeLabel: selectedPackage === 'Không có' ? 'Đơn lẻ' : 'Đơn gói',
             customerName: mockFormData.assistance.rescueName,
             customerPhone: mockFormData.assistance.rescuePhone,
-            rescueAddress: mapAddress,
+            rescueAddress: webviewDemoMode === 'missing-rescue' ? '' : mapAddress,
             towingDestination,
-            rescueLat: rescueCoords.lat,
-            rescueLng: rescueCoords.lng,
+            rescueLat: webviewDemoMode === 'missing-rescue' ? undefined : rescueCoords.lat,
+            rescueLng: webviewDemoMode === 'missing-rescue' ? undefined : rescueCoords.lng,
             towingLat: towCoords.lat,
             towingLng: towCoords.lng,
-            currentStatus,
+            stationLat:
+              webviewDemoMode === 'missing-rescue' ? undefined : stationCoords.lat,
+            stationLng:
+              webviewDemoMode === 'missing-rescue' ? undefined : stationCoords.lng,
+            driverLat: webviewDemoMode === 'missing-rescue' ? undefined : driverCoords.lat,
+            driverLng: webviewDemoMode === 'missing-rescue' ? undefined : driverCoords.lng,
+            driverName:
+              webviewDemoMode === 'missing-rescue'
+                ? undefined
+                : selectedDriver?.name ?? 'Nguyễn Văn Tài',
+            driverPhone: webviewDemoMode === 'missing-rescue' ? undefined : driverPhone,
+            driverVehicleType:
+              webviewDemoMode === 'missing-rescue' ? undefined : rescueVehicleType,
+            driverVehiclePlate:
+              webviewDemoMode === 'missing-rescue' ? undefined : '29C-568.99',
+            stationName: webviewDemoMode === 'missing-rescue' ? undefined : stationName,
+            currentStatus:
+              webviewDemoMode === 'missing-rescue' ? 'WAITING_CONFIRM' : currentStatus,
             services: selectedServices,
             createdAt: '15:26 - 03/07/2026',
             customerRatings: {

@@ -1,15 +1,15 @@
 {
   "code": "SUP-EXT-PARTNER",
   "name": "Bảng phí đối tác mẫu",
-  "target": "SUPPLIER",
+  "target": "PARTNER",
   "scope": {
-    "objectType": "SUPPLIER_EXTERNAL",
+    "objectType": "PARTNER_EXTERNAL",
     "orderType": "PACKAGE_SINGLE"
   },
   "validFrom": "2026-01-01",
   "validTo": "2099-12-31",
-  "supplierId": "NCC-001",
-  "supplierName": "NCC mẫu",
+  "partnerId": "NCC-001",
+  "partnerName": "NCC mẫu",
   "settings": {
     "retailMarkupFactor": 0,
     "roundMode": "NEAREST_1000",

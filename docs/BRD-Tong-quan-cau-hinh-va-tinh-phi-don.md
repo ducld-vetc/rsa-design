@@ -32,7 +32,7 @@ Cho phép hệ thống **cấu hình bảng phí độc lập cho KH và NCC**, 
 
 - Vòng đời bảng phí: tạo, sửa, nhân bản, hiệu lực (status/version), xem chi tiết, lịch sử phiên bản.
 - Tiêu chí ma trận, dòng giá, phụ phí có điều kiện.
-- Chọn bảng phí (supplier / customer) theo ngữ cảnh đơn.
+- Chọn bảng phí (partner / customer) theo ngữ cảnh đơn.
 - Engine tính phí dịch vụ + phụ phí + làm tròn + chế độ KH (Public / DN / Lẻ / Markup).
 - Snapshot phí gắn đơn (bảng + version + số tiền đã tính).
 - Màn **Quản lý / Chi tiết đơn** (Portal): hiển thị phí, đổi tiêu chí, tính lại, phí thủ công (sticky), cảnh báo khi đã cọc/TT một phần.
@@ -69,7 +69,7 @@ Cho phép hệ thống **cấu hình bảng phí độc lập cho KH và NCC**, 
 
 | Khái niệm                   | Mô tả ngắn                                                              |
 | --------------------------- | ----------------------------------------------------------------------- |
-| Bảng phí NCC (`SUPPLIER_*`) | Giá chi trả / đối soát NCC                                              |
+| Bảng phí Partner/NCC (`PARTNER_*`) | Giá chi trả / đối soát NCC                                              |
 | Bảng phí KH (`CUSTOMER_*`)  | Giá thu / hiển thị với KH                                               |
 | Dòng giá                    | Một mức giá theo tổ hợp tiêu chí AND + cách tính FIXED/PER_UNIT         |
 | Phụ phí                     | FIXED (cộng tiền) hoặc COEFFICIENT (nhân hệ số), có điều kiện kích hoạt |
@@ -120,7 +120,7 @@ sequenceDiagram
 | Step | Step name                    | Actor     | Description                                                          |
 | ---- | ---------------------------- | --------- | -------------------------------------------------------------------- |
 | 1    | Mở form                      | Admin/Ops | Vào `/rescue-fee-config/create` hoặc `/edit/:id`                     |
-| 2    | Khai báo chung               | Admin/Ops | Target KH/NCC, kind, hiệu lực, làm tròn, stack phụ phí, markup KH lẻ |
+| 2    | Khai báo chung               | Admin/Ops | Target KH/Partner, object_type, order_type, hiệu lực, làm tròn, stack phụ phí, markup KH lẻ |
 | 3    | Khai báo tiêu chí & dòng giá | Admin/Ops | Các chiều ma trận + dòng giá theo dịch vụ                            |
 | 4    | Phụ phí                      | Admin/Ops | Điều kiện + FIXED/COEFFICIENT                                        |
 | 5    | Lưu                          | System    | Validate BR-CFG rồi upsert; mock không bắt buộc “duyệt publish” tách bước |
@@ -135,7 +135,7 @@ sequenceDiagram
 
 ### 2.2. Chọn bảng phí và tính phí khi tạo / nạp đơn
 
-Mỗi đơn cứu hộ chọn **hai bảng độc lập**: bảng **NCC** (`target = SUPPLIER`) và bảng **KH** (`target = CUSTOMER`), rồi tính dòng giá + phụ phí trên từng bảng. Chi tiết phase tạo đơn / điều phối: [BRD-Luong-tinh-phi-tren-don.md](./BRD-Luong-tinh-phi-tren-don.md).
+Mỗi đơn cứu hộ chọn **hai bảng độc lập**: bảng **NCC** (`target = PARTNER`) và bảng **KH** (`target = CUSTOMER`), rồi tính dòng giá + phụ phí trên từng bảng. Chi tiết thuật toán chọn bảng / map field / match dòng: [BRD-Luong-tinh-phi-tren-don.md §3](./BRD-Luong-tinh-phi-tren-don.md). Phase tạo đơn / điều phối: cùng file §4.
 
 ```mermaid
 sequenceDiagram
@@ -164,7 +164,7 @@ sequenceDiagram
 | Step | Step name      | Actor  | Description                                                           |
 | ---- | -------------- | ------ | --------------------------------------------------------------------- |
 | 1    | Chuẩn bị input | System | Tập hợp dịch vụ trên đơn, km, thời tiết, DN, loại NCC, …              |
-| 2    | Resolve NCC    | Engine | INTERNAL → `SUPPLIER_INTERNAL`; EXTERNAL → bảng NCC rồi fallback      |
+| 2    | Resolve NCC    | Engine | INTERNAL → `PARTNER_INTERNAL`; EXTERNAL → bảng NCC rồi fallback      |
 | 3    | Resolve KH     | Engine | RETAIL / BUSINESS / PACKAGE_PUBLIC / RETAIL_MARKUP                    |
 | 4    | Match dòng giá | Engine | Điều kiện AND; progressive kéo nếu có; cẩu theo khoảng `roadDistance` |
 | 5    | Phụ phí        | Engine | Kích hoạt theo điều kiện; stack hệ số hoặc lấy max theo cấu hình      |
@@ -177,36 +177,36 @@ sequenceDiagram
 
 | Nhóm | Trường chính | Dùng để |
 | ---- | ------------ | ------- |
-| KH | `customerType` (`PACKAGE` / `RETAIL` / `RETAIL_BUSINESS`), `enterpriseCode` | Nhánh chọn bảng KH / mode |
-| NCC | `supplierType` (`INTERNAL` / `EXTERNAL`), `supplierId`, `supplierName` | Nhánh chọn bảng NCC |
+| KH | `customerType` (`PACKAGE` / `RETAIL` / `RETAIL_BUSINESS`), `corporateCustomerId` | Nhánh chọn bảng KH / mode |
+| NCC | `partnerType` (`INTERNAL` / `EXTERNAL`), `partnerId`, `partnerName` | Nhánh chọn bảng NCC |
 | Thời điểm | `asOfDate` (mặc định ngày hiện tại) | Lọc hiệu lực `validFrom`–`validTo` |
 | Tiêu chí match bảng | Các key trong `criteria` bảng (DN, NCC, …) | `tableMatchesContext` |
 | Dòng dịch vụ | `lines[]` (loại DV, km, chỗ, tải, …) | **Sau** khi đã chọn bảng — match dòng giá / phụ phí |
 
-> Chọn **bảng** chỉ dựa target/kind/scope/criteria/hiệu lực. Match **dòng giá** diễn ra sau khi đã có bảng (không dùng để chọn bảng).
+> Chọn **bảng** chỉ dựa target/object_type/order_type/scope/criteria/hiệu lực. Match **dòng giá** diễn ra sau khi đã có bảng (không dùng để chọn bảng).
 
 ##### Bước 1 — Bộ lọc ứng viên chung (`selectPriceTable`)
 
-Áp dụng giống nhau khi tìm 1 bảng theo `target` + danh sách `kinds`:
+Áp dụng giống nhau khi tìm 1 bảng theo `target` + danh sách `object_types`:
 
-1. `target` khớp (`CUSTOMER` hoặc `SUPPLIER`).
+1. `target` khớp (`CUSTOMER` hoặc `PARTNER`).
 2. `status = ACTIVE` (BR-05).
 3. `asOfDate` nằm trong `[validFrom, validTo]`.
-4. `kind` ∈ danh sách kind đang tìm (vd. chỉ `SUPPLIER_EXTERNAL`).
-5. **Scope:** nếu bảng có `scope.enterpriseCode` / `scope.supplierId` thì phải khớp context đơn; bảng không khai scope chiều đó → coi là không giới hạn chiều đó.
+4. `object_type` ∈ danh sách `object_type` đang tìm (vd. chỉ `PARTNER_EXTERNAL`).
+5. **Scope:** nếu bảng có `scope.corporateCustomerId` / `scope.partnerId` thì phải khớp context đơn; bảng không khai scope chiều đó → coi là không giới hạn chiều đó.
 6. **Criteria bảng:** mọi tiêu chí nhóm AND phải khớp; nhóm OR (nếu có) ít nhất một khớp. Bảng không có criteria → luôn đạt bước này.
 7. **Xếp hạng** (lấy **1** bảng đầu):
-   - Specificity cao hơn thắng (`enterpriseCode` / `supplierId` trên scope + số criteria).
-   - Cùng specificity → `priority` cao hơn.
-   - Cùng priority → `version` cao hơn.
+   - Specificity cao hơn thắng (`corporateCustomerId` / `partnerId` trên scope + số criteria).
+   - Cùng specificity → `version` cao hơn.
+   - **Không** dùng `priority` (deprecated — xem [BRD luồng đơn §3](./BRD-Luong-tinh-phi-tren-don.md) / BR-ORD-11).
 
 Không còn ứng viên sau lọc → `null` (xử lý theo nhánh NCC/KH bên dưới — BR-12 / BR-13 / BR-14).
 
 ```mermaid
 flowchart TD
   input[FeeCalculationInput]
-  filter[Lọc ACTIVE + hiệu lực + target + kind + scope + criteria]
-  rank[Sort specificity rồi priority rồi version]
+  filter[Lọc ACTIVE + hiệu lực + target + object_type + order_type + scope + criteria]
+  rank[Sort specificity rồi version]
   pick[Lấy 1 bảng]
   none[null — xử lý theo nhánh]
   input --> filter
@@ -214,15 +214,15 @@ flowchart TD
   filter -->|Không| none
 ```
 
-##### Bước 2 — Xác định bảng NCC (`resolveSupplierTable`)
+##### Bước 2 — Xác định bảng NCC (`resolvePartnerTable`)
 
 | # | Điều kiện trên đơn | Hành vi chọn bảng | Kết quả nếu không có |
 | - | ------------------ | ----------------- | -------------------- |
-| 2.1 | **Chưa gán NCC** (Phase A tạo đơn) | Dùng `SUPPLIER_EXTERNAL_FALLBACK` (ACTIVE, thường `isFallback = true`) | Lỗi nghiệp vụ — không bịa giá (BR-12) |
-| 2.2 | `supplierType = INTERNAL` | `selectPriceTable` kind `SUPPLIER_INTERNAL`; nếu null → lấy bảng INTERNAL ACTIVE mặc định | Lỗi nếu vẫn không có |
-| 2.3 | `supplierType = EXTERNAL` + có `supplierId` | Ưu tiên `SUPPLIER_EXTERNAL` khớp `supplierId` | Sang 2.4 |
-| 2.4 | EXTERNAL không có bảng riêng | `SUPPLIER_EXTERNAL_FALLBACK` | Lỗi (BR-12) |
-| 2.5 | NCC **báo giá thủ công** | **Không** đổi bảng bắt buộc; ghi đè `supplier_amount` + cờ manual (vẫn có thể giữ ref bảng đã resolve để audit) | — |
+| 2.1 | **Chưa gán NCC** (Phase A tạo đơn) | Dùng `PARTNER_EXTERNAL` + `is_fallback` (ACTIVE, thường `isFallback = true`) | Lỗi nghiệp vụ — không bịa giá (BR-12) |
+| 2.2 | `partnerType = INTERNAL` | `selectPriceTable` object_type `PARTNER_INTERNAL`; nếu null → lấy bảng INTERNAL ACTIVE mặc định | Lỗi nếu vẫn không có |
+| 2.3 | `partnerType = EXTERNAL` + có `partnerId` | Ưu tiên `PARTNER_EXTERNAL` khớp `partnerId` | Sang 2.4 |
+| 2.4 | EXTERNAL không có bảng riêng | `PARTNER_EXTERNAL` + `is_fallback` | Lỗi (BR-12) |
+| 2.5 | NCC **báo giá thủ công** | **Không** đổi bảng bắt buộc; ghi đè `partner_amount` + cờ manual (vẫn có thể giữ ref bảng đã resolve để audit) | — |
 
 ##### Bước 3 — Xác định bảng KH + `customerFeeMode` (`resolveCustomerTable`)
 
@@ -230,18 +230,18 @@ Thứ tự đánh giá (một đơn chỉ ra **một** mode):
 
 | # | Điều kiện | Bảng / mode | Ghi chú |
 | - | --------- | ----------- | ------- |
-| 3.1 | Đơn **gói** (`customerType = PACKAGE`) | `CUSTOMER_PUBLIC` → mode `PACKAGE_PUBLIC` | Trong gói = 0; ngoài gói tính Public rồi trừ quyền lợi (BR-15) |
-| 3.2 | Đơn lẻ **DN** (`RETAIL_BUSINESS` hoặc có `enterpriseCode`) | `CUSTOMER_BUSINESS` khớp `enterpriseCode` → mode `BUSINESS` | Không có bảng DN → xử lý như lẻ CN (3.3/3.4) theo [BRD luồng đơn](./BRD-Luong-tinh-phi-tren-don.md); BR-13 khi bắt buộc có bảng DN |
-| 3.3 | Đơn lẻ CN + có bảng `CUSTOMER_RETAIL` | Bảng RETAIL → mode `RETAIL` | Tính độc lập trên bảng KH |
-| 3.4 | Đơn lẻ CN + không có bảng RETAIL / cấu hình phụ thuộc NCC | Không gắn bảng KH ma trận → mode `RETAIL_MARKUP` | `customer = round(NCC × retailMarkupFactor)` (BR-14) |
-| 3.5 | Đơn lẻ CN + Public cố định (cấu hình sản phẩm) | `CUSTOMER_PUBLIC` | KH không đổi khi chỉ gán NCC |
+| 3.1 | Đơn **gói** (`customerType = PACKAGE`) | `object_type=CUSTOMER_INDIVIDUAL` + `order_type` gói (Public) → mode `PACKAGE_PUBLIC` | Trong gói = 0; ngoài gói tính Public rồi trừ quyền lợi (BR-15) |
+| 3.2 | Đơn lẻ **DN** (`RETAIL_BUSINESS` hoặc có `corporateCustomerId`) | `CUSTOMER_BUSINESS` khớp `corporateCustomerId` → mode `BUSINESS` | Không có bảng DN → xử lý như lẻ CN (3.3/3.4) theo [BRD luồng đơn](./BRD-Luong-tinh-phi-tren-don.md); BR-13 khi bắt buộc có bảng DN |
+| 3.3 | Đơn lẻ CN + có bảng `CUSTOMER_INDIVIDUAL` ma trận (không markup-only) | Bảng CN → mode `RETAIL` | Tính độc lập trên bảng KH |
+| 3.4 | Đơn lẻ CN + không có bảng CN ma trận / cấu hình phụ thuộc Partner | Không gắn bảng KH ma trận → mode `RETAIL_MARKUP` | `customer = round(NCC × retailMarkupFactor)` (BR-14) |
+| 3.5 | Đơn lẻ CN + Public cố định (cấu hình sản phẩm) | `CUSTOMER_INDIVIDUAL` Public | KH không đổi khi chỉ gán NCC |
 
 ##### Bước 4 — Sau khi đã có bảng: tính số trên đơn (không chọn bảng nữa)
 
 1. Với mỗi dòng dịch vụ: match `fee_price_line` / `serviceRules` theo điều kiện AND (xe, chỗ, tải, `distanceKm`, `roadDistance`, …).
 2. Áp phụ phí bảng tương ứng (NCC và/hoặc KH).
 3. Làm tròn theo `roundMode` bảng.
-4. Ghi `rescue_order_fee_snapshot` (id/code/**version** NCC & KH, mode, context) + `fee_line` (BR-17).
+4. Ghi `ro_fee_snapshot` (id/code/**version** NCC & KH, mode, context) + `fee_line` (BR-17).
 
 ##### Bước 5 — Khi nào chạy lại bước 2–4
 
@@ -369,7 +369,7 @@ Chi tiết đầy đủ: BRD thanh toán. Trong phạm vi phí:
 | **DRIVER / KH** | Không                                                 | Không / chỉ số phải trả (nếu có app) | Không                                              | Không           | Không                          |
 
 
-**Row-level:** bảng phí BUSINESS theo `enterprise_code`; bảng EXTERNAL theo `supplierId`. Đơn: theo vùng / đội / đơn được gán.
+**Row-level:** bảng phí BUSINESS theo `corporate_customer_id`; bảng EXTERNAL theo `partnerId`. Đơn: theo vùng / đội / đơn được gán.
 
 ---
 
@@ -405,7 +405,7 @@ Chi tiết đầy đủ: BRD thanh toán. Trong phạm vi phí:
 
 | Thành phần | Mô tả                               |
 | ---------- | ----------------------------------- |
-| Bộ lọc     | Target, kind, status, mã/tên        |
+| Bộ lọc     | Target, object_type, order_type, status, mã/tên        |
 | Hàng bảng  | Code, tên, version, status, phạm vi |
 | Thao tác   | Xem, sửa, nhân bản                  |
 
@@ -474,7 +474,7 @@ Chi tiết lọc ma trận xem/chi tiết: [BRD-UI-ma-tran-bang-phi.md](./BRD-UI
 | UC-13 | Lưu đơn khi phí tăng sau đã cọc         | Đơn+TT       | OSA            | Đã TT một phần                | Modal cảnh báo                          | `billable`↑, `remain`↑                               | Cập nhật charge; có thể PENDING FINAL           | BR-30, BR-31      |
 | UC-14 | Lưu đơn khi phí giảm dưới đã TT         | Đơn+TT       | OSA            | Đã TT > billable mới          | Modal cảnh báo                          | `refund_amount` tăng                                 | Cập nhật charge                                 | BR-30, BR-32      |
 | UC-15 | Thiếu bảng NCC / thiếu fallback         | Đơn          | System         | EXTERNAL không có bảng        | Tính phí                                | Báo lỗi rõ; không tạo số ảo                          | Không ghi snapshot thành công                   | BR-12             |
-| UC-16 | KH DN thiếu bảng BUSINESS               | Đơn          | System         | Có `enterpriseCode`           | Tính phí                                | Báo lỗi thiếu bảng DN                                | Không ghi snapshot thành công                   | BR-13             |
+| UC-16 | KH DN thiếu bảng BUSINESS               | Đơn          | System         | Có `corporateCustomerId`           | Tính phí                                | Báo lỗi thiếu bảng DN                                | Không ghi snapshot thành công                   | BR-13             |
 | UC-17 | KH lẻ không có bảng RETAIL              | Đơn          | System         | Mode RETAIL                   | Tính phí                                | `RETAIL_MARKUP` từ hệ số bảng NCC                    | Snapshot mode MARKUP                            | BR-14             |
 | UC-18 | Đơn gói / Public trừ quyền lợi gói      | Đơn          | System         | Có `packageBenefitAmount`     | Tính phí                                | Trừ quyền lợi theo thứ tự dòng                       | Amount KH sau trừ gói                           | BR-15             |
 
@@ -492,7 +492,7 @@ Chi tiết lọc ma trận xem/chi tiết: [BRD-UI-ma-tran-bang-phi.md](./BRD-UI
 
 | ID    | Quy tắc                                                                                                                                                       |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BR-01 | Bảng phí tách `target = CUSTOMER | SUPPLIER`; không trộn policy KH/NCC trên cùng bản ghi như model `price_policy` cũ.                                         |
+| BR-01 | Bảng phí tách `target = CUSTOMER | PARTNER`; không trộn policy KH/NCC trên cùng bản ghi như model `price_policy` cũ.                                         |
 | BR-02 | Một bảng chứa nhiều dịch vụ / nhiều dòng giá; điều kiện trên cùng dòng = **AND**.                                                                             |
 | BR-03 | (TO-BE) Version **ACTIVE** không sửa nội dung dòng giá; chỉnh sửa tạo version mới rồi kích hoạt. Preview mock có thể cho sửa trực tiếp — cần chốt triển khai. |
 | BR-04 | Nhân bản chỉ **sao chép tạm trên FE** (không ghi danh sách); tăng gợi ý version/code; user chỉnh rồi **Lưu → ACTIVE**. Không có trạng thái nháp (DRAFT). |
@@ -501,9 +501,9 @@ Chi tiết lọc ma trận xem/chi tiết: [BRD-UI-ma-tran-bang-phi.md](./BRD-UI
 | BR-07 | Kéo xe theo `distanceKm`: nếu cùng tổ hợp có **cả FIXED và PER_UNIT** → chọn **FIXED gần nhất** (`from` lớn nhất với `km >= from`), cộng giá FIXED đó + các bậc PER_UNIT có `from >= to` của FIXED đó; **bỏ qua** mọi bậc trước FIXED gần nhất. Chỉ FIXED → lấy FIXED gần nhất. Chỉ PER_UNIT → cộng dồn đơn vị từng bậc. |
 | BR-08 | Cẩu: bậc theo `roadDistance` (mét); không dùng progressive kiểu kéo; tư thế `cranePosture` chỉ bậc >150m khi cấu hình.                                        |
 | BR-09 | Phụ phí COEFFICIENT: stack theo `stackSurcharges` (nhân các hệ số) hoặc lấy hệ số lớn nhất; có thể có `exclusiveGroup` và `capAmount`.                        |
-| BR-CFG-01 | Khi lưu (luôn `ACTIVE`): 1 `enterpriseCode` chỉ 1 bảng ACTIVE; 1 `supplierId` chỉ 1 bảng ACTIVE; bảng không gắn DN/NCC tối đa 1 ACTIVE theo `(target, kind)`. Bản sao nhân bản chỉ tạm trên FE cho đến khi Lưu. |
-| BR-CFG-02 | Lưu bắt buộc: `code`, `name`, `validFrom`; `validFrom ≤ validTo` nếu có Đến; `CUSTOMER_BUSINESS` → `enterpriseCode`; `SUPPLIER_EXTERNAL` → `supplierId`. Khai báo `includesVat` (đã/chưa bao gồm VAT) trên tham số bảng. |
-| BR-CFG-03 | Hai chế độ **loại trừ nhau** trên bảng `CUSTOMER_RETAIL`: (A) **chỉ hệ số** (`retailMarkupFactor > 0`) — không có dòng giá / phụ phí; (B) **ma trận đầy đủ** — bắt buộc dòng giá + phụ phí như bảng thường, `retailMarkupFactor = 0`. Các loại bảng khác không dùng hệ số KH lẻ. |
+| BR-CFG-01 | Khi lưu (luôn `ACTIVE`): 1 `corporateCustomerId` chỉ 1 bảng ACTIVE; 1 `partnerId` chỉ 1 bảng ACTIVE; bảng không gắn DN/NCC tối đa 1 ACTIVE theo `(target, object_type, order_type)`. Bản sao nhân bản chỉ tạm trên FE cho đến khi Lưu. |
+| BR-CFG-02 | Lưu bắt buộc: `code`, `name`, `validFrom`; `validFrom ≤ validTo` nếu có Đến; `CUSTOMER_BUSINESS` → `corporateCustomerId`; `PARTNER_EXTERNAL` → `partnerId`. Khai báo `includesVat` (đã/chưa bao gồm VAT) trên tham số bảng. |
+| BR-CFG-03 | Hai chế độ **loại trừ nhau** trên bảng `CUSTOMER_INDIVIDUAL` (lẻ): (A) **chỉ hệ số** (`retailMarkupFactor > 0`) — không có dòng giá / phụ phí; (B) **ma trận đầy đủ** — bắt buộc dòng giá + phụ phí như bảng thường, `retailMarkupFactor = 0`. Các `object_type` khác không dùng hệ số KH lẻ. |
 | BR-CFG-04 | Trong cùng tổ hợp tiêu chí (AND, cùng dịch vụ), các khoảng `distanceKm` / `roadDistance` BETWEEN phải liên tục: chạm biên OK (`[0,10]`+`[10,9999]`); cấm gap và overlap nội. |
 | BR-CFG-05 | Phụ phí thời gian bắt buộc đủ Từ–Đến; phụ phí Lễ/Tết bắt buộc ≥ 1 ngày `holidayDates`. Tiêu chí ma trận kiểu LIST phải có `allowedValues`. |
 
@@ -515,10 +515,10 @@ Chi tiết lọc ma trận xem/chi tiết: [BRD-UI-ma-tran-bang-phi.md](./BRD-UI
 
 | ID    | Quy tắc                                                                                                                                                         |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BR-10 | Chọn bảng: lọc ACTIVE + hiệu lực + khớp scope + khớp criteria bảng → sắp xếp specificity → priority → version → lấy 1.                                          |
-| BR-11 | NCC INTERNAL dùng `SUPPLIER_INTERNAL`; EXTERNAL ưu tiên bảng theo `supplierId`, không có thì `SUPPLIER_EXTERNAL_FALLBACK`.                                      |
+| BR-10 | Chọn bảng: lọc ACTIVE + hiệu lực + khớp scope + khớp criteria bảng → sắp xếp **specificity → version** → lấy 1. **Không** dùng `priority` (deprecated). Chi tiết: [BRD-Luong-tinh-phi-tren-don.md §3](./BRD-Luong-tinh-phi-tren-don.md). |
+| BR-11 | NCC INTERNAL dùng `PARTNER_INTERNAL`; EXTERNAL ưu tiên bảng theo `partnerId`, không có thì `PARTNER_EXTERNAL` + `is_fallback`.                                      |
 | BR-12 | Không tìm được bảng NCC phù hợp (kể cả fallback) → **lỗi nghiệp vụ**, không bịa giá.                                                                            |
-| BR-13 | Mode BUSINESS bắt buộc có bảng `CUSTOMER_BUSINESS` khớp `enterpriseCode`.                                                                                       |
+| BR-13 | Mode BUSINESS bắt buộc có bảng `CUSTOMER_BUSINESS` khớp `corporateCustomerId`.                                                                                       |
 | BR-14 | Mode RETAIL: có bảng RETAIL thì tính độc lập trên bảng KH; không có thì `RETAIL_MARKUP` = round(NCC × `retailMarkupFactor`).                                    |
 | BR-15 | Mode PACKAGE_PUBLIC: tính theo Public rồi trừ `packageBenefitAmount` theo thứ tự dòng.                                                                          |
 | BR-16 | Làm tròn theo `roundMode` bảng (mặc định đề xuất `NEAREST_1000`).                                                                                               |
@@ -616,6 +616,7 @@ Chi tiết lọc ma trận xem/chi tiết: [BRD-UI-ma-tran-bang-phi.md](./BRD-UI
 | OP-07 | `rescueVehicleType` trên line PTI                 | Catalog có, line có thể không gắn          | Ẩn filter hoặc gắn line khi cần      | BA                 |
 | OP-08 | Biên BETWEEN đóng/mở vs engine BE                 | Preview `>= from && <= to`                 | Khớp BE production                   | BE                 |
 | OP-09 | Dual-run `price_policy` vs `fee_*`                | Schema TBD                                 | Kế hoạch cutovero                    | PO/DBA             |
+| OP-10 | Bỏ `priority` khỏi engine mock + schema theo BR-10 / BR-ORD-11 | Docs + mock đã chốt specificity → version; `fee_table_version` không còn `priority`/`status` | Migration DB + dual-write cleanup | Dev/DBA |
 
 
 ---
@@ -635,6 +636,7 @@ Chi tiết lọc ma trận xem/chi tiết: [BRD-UI-ma-tran-bang-phi.md](./BRD-UI
 | `rsa-design/shared/CustomerFeeChangeWarningModal.tsx`        | Modal đổi phí khi đã TT                   |
 | [fee-table-pti-enterprise.md](./fee-table-pti-enterprise.md) | Rule giá PTI                              |
 | [fee-schema-redesign.md](./fee-schema-redesign.md)           | Snapshot & version DB                     |
+| [BRD-Luong-tinh-phi-tren-don.md](./BRD-Luong-tinh-phi-tren-don.md) | Phase đơn + **§3 chọn bảng / match dòng** |
 | BRD thanh toán (`rsa-docs/...`)                              | remain / refund / QR khi đổi billable     |
 
 

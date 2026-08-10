@@ -3,7 +3,7 @@
 > Seed TypeScript: [`../data/feeTablePtiEnterpriseSeed.ts`](../data/feeTablePtiEnterpriseSeed.ts)  
 > Spec nghiệp vụ: [`fee-table-pti-enterprise.md`](./fee-table-pti-enterprise.md)
 
-**Thống kê seed:** 13 tiêu chí · 13 field map · 6 dịch vụ catalog · **142 dòng giá** (4 tại chỗ + **26** kéo + 112 cẩu) · **442** `fee_price_line_condition` · **7 phụ phí** · ví dụ 1 snapshot đơn.
+**Thống kê seed:** 13 tiêu chí · 13 field map · **6 service** (ref master) · **142 dòng giá** (4 tại chỗ + **26** kéo + 112 cẩu) · **442** `fee_price_line_condition` · **7 phụ phí** · ví dụ 1 snapshot đơn.
 
 **Model:** không nhóm G. Cột Excel “chỗ / tải” → line độc lập (pass/cargo). Kéo = **FIXED ≤10** + **PER_UNIT từ km 11**. Điều kiện trên cùng line = **AND**.
 
@@ -11,19 +11,19 @@
 
 ## A. `fee_table`
 
-| id | code | name | target | kind | current_version | status |
-|----|------|------|--------|------|-----------------|--------|
-| ft-pti-001 | CUS-DN-PTI-2026 | Bảng phí KH DN — PTI (VETC × PTI) | CUSTOMER | CUSTOMER_BUSINESS | 1 | ACTIVE |
+| id | code | name | target | object_type | order_type | current_version | status |
+|----|------|------|--------|-------------|------------|-----------------|--------|
+| ft-pti-001 | CUS-DN-PTI-2026 | Bảng phí KH DN — PTI (VETC × PTI) | CUSTOMER | CUSTOMER_BUSINESS | PACKAGE_SINGLE | 1 | ACTIVE |
 
 ## B. `fee_table_version`
 
-| id | fee_table_id | version | valid_from | valid_to | priority | status | note |
-|----|--------------|---------|------------|----------|----------|--------|------|
-| ftv-pti-v1 | ft-pti-001 | 1 | 2026-01-01 | 2026-12-31 | 200 | ACTIVE | pass/cargo AND, không nhóm G |
+| id | fee_table_id | version | valid_from | valid_to | note |
+|----|--------------|---------|------------|----------|------|
+| ftv-pti-v1 | ft-pti-001 | 1 | 2026-01-01 | 2026-12-31 | pass/cargo AND, không nhóm G |
 
 ## C. `fee_table_scope`
 
-| fee_table_version_id | enterprise_code | supplier_id | service_types_json |
+| fee_table_version_id | corporate_customer_id | partner_id | service_types_json |
 |----------------------|-----------------|-------------|--------------------|
 | ftv-pti-v1 | PTI | null | ["ONSITE","TOWING","CRANE"] |
 
@@ -55,23 +55,23 @@
 
 ---
 
-## F. `fee_criterion_field_map` (rút gọn)
+## F. `fee_criterion_mapping_field` (rút gọn)
 
-| criterion_key | source_path | transform | scope |
-|---------------|-------------|-----------|-------|
-| vehicleType | vehicle.vehicleType | — | VEHICLE |
-| seat_number | vehicle.seat_number | — | VEHICLE |
-| load_capacity | vehicle.load_capacity | — | VEHICLE |
-| rescueVehicleType | order.rescueVehicleType | — | ORDER |
-| roadDistance | line.roadDistance | — | LINE |
-| cranePosture | line.cranePosture | — | LINE |
-| distanceKm | line.distanceKm | — | LINE |
-| areaTerrain | order.areaTerrain | — | ORDER |
-| isHighway | order.highwayRoute | BOOL_OR_ROUTE_TO_YES_NO | ORDER |
-| timeWindow | order.requestTime | — | ORDER |
-| weather | order.weather | UI_WEATHER_TO_LABEL | ORDER |
-| locationType | order.locationType | — | ORDER |
-| extraEquipment | line.extraEquipment | — | LINE |
+| criterion_key | table_mapping | field_mapping | scope |
+|---------------|---------------|---------------|-------|
+| vehicleType | vehicle | vehicleType | VEHICLE |
+| seat_number | vehicle | seat_number | VEHICLE |
+| load_capacity | vehicle | load_capacity | VEHICLE |
+| rescueVehicleType | order | rescueVehicleType | ORDER |
+| roadDistance | line | roadDistance | LINE |
+| cranePosture | line | cranePosture | LINE |
+| distanceKm | line | distanceKm | LINE |
+| areaTerrain | order | areaTerrain | ORDER |
+| isHighway | order | highwayRoute / BOOL_OR_ROUTE_TO_YES_NO | ORDER |
+| timeWindow | order | requestTime | ORDER |
+| weather | order | weather / UI_WEATHER_TO_LABEL | ORDER |
+| locationType | order | locationType | ORDER |
+| extraEquipment | line | extraEquipment | LINE |
 
 ### F1. Cách cấu hình chỗ / tải + km kéo (AND, không nhóm G)
 
@@ -93,16 +93,20 @@ Cột Excel “2–12 chỗ / tải ≤1,4 tấn” → 2 nhánh xe × 2 dòng k
 
 ---
 
-## G. `fee_service_catalog`
+## G. `service` (master hiện hữu — tham chiếu)
 
-| id | code | name | service_type |
-|----|------|------|--------------|
+Không seed catalog phí riêng. Dùng `service.service_id` / `service_code`; loại DV = `service.category`.
+
+| service_id (demo) | service_code | name | category |
+|-------------------|--------------|------|----------|
 | 101 | ONSITE_JUMP | Kích bình | ONSITE |
 | 102 | ONSITE_PATCH | Vá lốp tại chỗ | ONSITE |
 | 103 | ONSITE_SPARE | Thay lốp dự phòng | ONSITE |
 | 104 | ONSITE_FUEL | Cung cấp nhiên liệu (…) | ONSITE |
 | 201 | TOW_GENERIC | Kéo xe | TOWING |
 | 301 | CRANE_GENERIC | Cẩu xe | CRANE |
+
+> Id trên chỉ là placeholder demo — production map đúng `service` thật trong DB.
 
 ---
 

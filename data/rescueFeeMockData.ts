@@ -1,23 +1,16 @@
 /** Hệ thống cấu hình phí cứu hộ — model, mock data, engine chọn bảng & tính từng dòng */
 
 export type CustomerType = 'PACKAGE' | 'RETAIL' | 'RETAIL_BUSINESS';
-export type SupplierType = 'INTERNAL' | 'EXTERNAL';
+export type PartnerType = 'INTERNAL' | 'EXTERNAL';
 export type ServiceType = 'ONSITE' | 'TOWING' | 'CRANE';
 export type SurchargeType = 'FIXED' | 'COEFFICIENT';
-export type FeeTarget = 'CUSTOMER' | 'SUPPLIER';
+export type FeeTarget = 'CUSTOMER' | 'PARTNER';
 export type FeeObjectType =
-  | 'SUPPLIER_INTERNAL'
-  | 'SUPPLIER_EXTERNAL'
+  | 'PARTNER_INTERNAL'
+  | 'PARTNER_EXTERNAL'
   | 'CUSTOMER_INDIVIDUAL'
   | 'CUSTOMER_BUSINESS';
 export type FeeOrderType = 'PACKAGE' | 'SINGLE' | 'PACKAGE_SINGLE';
-export type FeeTableKind =
-  | 'CUSTOMER_PUBLIC'
-  | 'CUSTOMER_RETAIL'
-  | 'CUSTOMER_BUSINESS'
-  | 'SUPPLIER_INTERNAL'
-  | 'SUPPLIER_EXTERNAL'
-  | 'SUPPLIER_EXTERNAL_FALLBACK';
 export type FeeTableStatus = 'ACTIVE' | 'EXPIRED' | 'INACTIVE';
 export type FeeSourceLabel = 'VETC' | 'NCC' | 'Thủ công' | string;
 export type RoundMode = 'NEAREST_1000' | 'NEAREST_100' | 'NONE';
@@ -84,13 +77,9 @@ export interface ServicePriceRule {
 }
 
 export interface PriceTableScope {
-  enterpriseCode?: string;
-  supplierId?: string;
-  supplierName?: string;
-  /** Phân loại đối tượng áp dụng theo target (NCC nội bộ/bên ngoài, KH cá nhân/doanh nghiệp). */
-  objectType?: FeeObjectType;
-  /** Phân loại loại đơn áp dụng trên đơn cứu hộ. */
-  orderType?: FeeOrderType;
+  corporateCustomerId?: string;
+  partnerId?: string;
+  partnerName?: string;
   areas?: string[];
   serviceTypes?: ServiceType[];
   vehicleTypes?: string[];
@@ -101,9 +90,9 @@ export interface PriceTable {
   code: string;
   name: string;
   target: FeeTarget;
-  kind: FeeTableKind;
+  objectType: FeeObjectType;
+  orderType: FeeOrderType;
   applyFor: string;
-  priority: number;
   version: number;
   status: FeeTableStatus;
   validFrom: string;
@@ -153,10 +142,10 @@ export interface FeeServiceLineInput {
 
 export interface FeeCalculationInput {
   customerType: CustomerType;
-  supplierType: SupplierType;
-  enterpriseCode?: string;
-  supplierId?: string;
-  supplierName?: string;
+  partnerType: PartnerType;
+  corporateCustomerId?: string;
+  partnerId?: string;
+  partnerName?: string;
   weather?: 'NORMAL' | 'RAIN' | 'STORM';
   isNight?: boolean;
   /** Giờ yêu cầu cứu hộ (HH:mm) — khớp tiêu chí timeWindow From–To */
@@ -193,30 +182,30 @@ export interface SurchargeApplicationResult {
 export interface CalculatedFeeLine {
   serviceName: string;
   serviceType: ServiceType;
-  supplierAmount: number;
+  partnerAmount: number;
   customerAmount: number;
   fixedPrice: number;
   /** Hệ số phụ phí phía KH (hoặc markup khách lẻ) */
   coefficient: number;
   /** Hệ số phụ phí phía NCC */
-  supplierCoefficient: number;
+  partnerCoefficient: number;
   discount: number;
   adjustmentLabels: string[];
-  supplierAdjustmentLabels?: string[];
+  partnerAdjustmentLabels?: string[];
   customerSurchargeItems?: SurchargeBreakdownItem[];
-  supplierSurchargeItems?: SurchargeBreakdownItem[];
+  partnerSurchargeItems?: SurchargeBreakdownItem[];
   customerCoefficientFormula?: string;
-  supplierCoefficientFormula?: string;
-  supplierSource: FeeSourceLabel;
+  partnerCoefficientFormula?: string;
+  partnerSource: FeeSourceLabel;
   customerSource: FeeSourceLabel;
   formulaNote: string;
 }
 
 export interface FeeSnapshot {
-  supplierTableId: string;
-  supplierTableCode: string;
-  supplierTableName: string;
-  supplierVersion: number;
+  partnerTableId: string;
+  partnerTableCode: string;
+  partnerTableName: string;
+  partnerVersion: number;
   customerTableId?: string;
   customerTableCode?: string;
   customerTableName?: string;
@@ -229,7 +218,7 @@ export interface FeeSnapshot {
 
 export interface FeeBreakdown {
   lines: CalculatedFeeLine[];
-  supplierFee: number;
+  partnerFee: number;
   customerFee: number;
   margin: number;
   snapshot: FeeSnapshot;
@@ -706,17 +695,21 @@ export const formatTimeRangeLabel = (value: FeeRuleCondition['value']): string =
   return String(value ?? '');
 };
 
-export const FEE_KIND_LABELS: Record<FeeTableKind, string> = {
-  CUSTOMER_PUBLIC: 'KH Public (gói)',
-  CUSTOMER_RETAIL: 'Khách hàng lẻ',
+export const FEE_OBJECT_TYPE_LABELS: Record<FeeObjectType, string> = {
+  CUSTOMER_INDIVIDUAL: 'KH cá nhân',
   CUSTOMER_BUSINESS: 'KH doanh nghiệp',
-  SUPPLIER_INTERNAL: 'NCC nội bộ',
-  SUPPLIER_EXTERNAL: 'NCC bên ngoài (riêng)',
-  SUPPLIER_EXTERNAL_FALLBACK: 'NCC bên ngoài (fallback)',
+  PARTNER_INTERNAL: 'NCC nội bộ',
+  PARTNER_EXTERNAL: 'NCC bên ngoài',
+};
+
+export const FEE_ORDER_TYPE_LABELS: Record<FeeOrderType, string> = {
+  PACKAGE: 'Đơn gói',
+  SINGLE: 'Đơn lẻ',
+  PACKAGE_SINGLE: 'Đơn gói / đơn lẻ',
 };
 
 /** Catalog mã DN dùng cho droplist form / filter */
-export const FEE_ENTERPRISE_OPTIONS: Array<{ code: string; name: string }> = [
+export const FEE_CORPORATE_CUSTOMER_OPTIONS: Array<{ code: string; name: string }> = [
   { code: 'PTI', name: 'PTI' },
   { code: 'FORD', name: 'Ford Vietnam' },
   { code: 'TOYOTA', name: 'Toyota Vietnam' },
@@ -728,7 +721,7 @@ export const FEE_ENTERPRISE_OPTIONS: Array<{ code: string; name: string }> = [
 ];
 
 /** Catalog NCC dùng cho droplist form / filter */
-export const FEE_SUPPLIER_OPTIONS: Array<{ id: string; name: string }> = [
+export const FEE_PARTNER_OPTIONS: Array<{ id: string; name: string }> = [
   { id: 'PARTNER-RESCUEPRO', name: 'RescuePro Partner' },
   { id: 'PARTNER-SAFETYGO', name: 'SafetyGo Partner' },
   { id: 'PARTNER-FASTTOW', name: 'FastTow Partner' },
@@ -743,7 +736,7 @@ export const FEE_STATUS_LABELS: Record<FeeTableStatus, string> = {
 
 export const FEE_TARGET_LABELS: Record<FeeTarget, string> = {
   CUSTOMER: 'Khách hàng',
-  SUPPLIER: 'Nhà cung cấp',
+  PARTNER: 'Nhà cung cấp',
 };
 
 const sharedSurcharges: SurchargeRule[] = [
@@ -821,9 +814,11 @@ const DEFAULT_TABLE_SETTINGS: FeeTableSettings = {
 
 /** Bảng chỉ áp dụng hệ số × giá (không cấu hình ma trận dòng giá / phụ phí). */
 export const usesRetailMarkupOnlyPricing = (
-  table: Pick<PriceTable, 'kind' | 'settings'>
+  table: Pick<PriceTable, 'objectType' | 'orderType' | 'settings'>
 ): boolean =>
-  table.kind === 'CUSTOMER_RETAIL' && Number(table.settings.retailMarkupFactor) > 0;
+  table.objectType === 'CUSTOMER_INDIVIDUAL' &&
+  table.orderType === 'SINGLE' &&
+  Number(table.settings.retailMarkupFactor) > 0;
 
 export const RETAIL_MARKUP_DEFAULT_FACTOR = 1.5;
 
@@ -832,17 +827,17 @@ export let rescueFeeTables: PriceTable[] = [
     id: 'SUP-INTERNAL-001',
     code: 'SUP-INT-001',
     name: 'Bảng giá NCC nội bộ',
-    target: 'SUPPLIER',
-    kind: 'SUPPLIER_INTERNAL',
+    target: 'PARTNER',
+    objectType: 'PARTNER_INTERNAL',
+    orderType: 'PACKAGE_SINGLE',
     applyFor: 'NCC nội bộ',
-    priority: 100,
     version: 3,
     status: 'ACTIVE',
     validFrom: '2026-01-01',
     validTo: '2026-12-31',
     scope: { serviceTypes: ['ONSITE', 'TOWING', 'CRANE'] },
     criteria: [
-      { id: 'c1', key: 'supplierType', label: 'Loại NCC', operator: '=', value: 'INTERNAL', group: 'AND' },
+      { id: 'c1', key: 'partnerType', label: 'Loại NCC', operator: '=', value: 'INTERNAL', group: 'AND' },
     ],
     priceCriteria: [
       {
@@ -1001,17 +996,17 @@ export let rescueFeeTables: PriceTable[] = [
     id: 'SUP-EXTERNAL-FALLBACK-001',
     code: 'SUP-EXT-FB-001',
     name: 'Bảng giá fallback NCC bên ngoài',
-    target: 'SUPPLIER',
-    kind: 'SUPPLIER_EXTERNAL_FALLBACK',
+    target: 'PARTNER',
+    objectType: 'PARTNER_EXTERNAL',
+    orderType: 'PACKAGE_SINGLE',
     applyFor: 'NCC bên ngoài không có bảng riêng',
-    priority: 50,
     version: 2,
     status: 'ACTIVE',
     validFrom: '2026-01-01',
     validTo: '2026-12-31',
     scope: { serviceTypes: ['ONSITE', 'TOWING', 'CRANE'] },
     criteria: [
-      { id: 'c1', key: 'supplierType', label: 'Loại NCC', operator: '=', value: 'EXTERNAL', group: 'AND' },
+      { id: 'c1', key: 'partnerType', label: 'Loại NCC', operator: '=', value: 'EXTERNAL', group: 'AND' },
     ],
     priceCriteria: [],
     serviceRules: [
@@ -1044,21 +1039,21 @@ export let rescueFeeTables: PriceTable[] = [
     id: 'SUP-EXTERNAL-PARTNER-A',
     code: 'SUP-EXT-A-001',
     name: 'Bảng giá riêng đối tác RescuePro',
-    target: 'SUPPLIER',
-    kind: 'SUPPLIER_EXTERNAL',
+    target: 'PARTNER',
+    objectType: 'PARTNER_EXTERNAL',
+    orderType: 'PACKAGE_SINGLE',
     applyFor: 'RescuePro',
-    priority: 120,
     version: 1,
     status: 'ACTIVE',
     validFrom: '2026-01-01',
     validTo: '2026-12-31',
     scope: {
-      supplierId: 'PARTNER-RESCUEPRO',
-      supplierName: 'RescuePro',
+      partnerId: 'PARTNER-RESCUEPRO',
+      partnerName: 'RescuePro',
       serviceTypes: ['ONSITE', 'TOWING', 'CRANE'],
     },
     criteria: [
-      { id: 'c1', key: 'supplierId', label: 'Mã NCC', operator: '=', value: 'PARTNER-RESCUEPRO', group: 'AND' },
+      { id: 'c1', key: 'partnerId', label: 'Mã NCC', operator: '=', value: 'PARTNER-RESCUEPRO', group: 'AND' },
     ],
     priceCriteria: [],
     serviceRules: [
@@ -1083,9 +1078,9 @@ export let rescueFeeTables: PriceTable[] = [
     code: 'CUS-PUB-001',
     name: 'Bảng phí chung khách hàng (Public)',
     target: 'CUSTOMER',
-    kind: 'CUSTOMER_PUBLIC',
+    objectType: 'CUSTOMER_INDIVIDUAL',
+    orderType: 'PACKAGE',
     applyFor: 'Khách hàng gói — phần ngoài quyền lợi',
-    priority: 90,
     version: 4,
     status: 'ACTIVE',
     validFrom: '2026-01-01',
@@ -1136,19 +1131,19 @@ export let rescueFeeTables: PriceTable[] = [
     code: 'CUS-DN-FORD-001',
     name: 'Bảng phí riêng Ford Việt Nam',
     target: 'CUSTOMER',
-    kind: 'CUSTOMER_BUSINESS',
+    objectType: 'CUSTOMER_BUSINESS',
+    orderType: 'PACKAGE_SINGLE',
     applyFor: 'Ford Việt Nam',
-    priority: 130,
     version: 2,
     status: 'ACTIVE',
     validFrom: '2026-01-01',
     validTo: '2026-12-31',
     scope: {
-      enterpriseCode: 'FORD',
+      corporateCustomerId: 'FORD',
       serviceTypes: ['ONSITE', 'TOWING', 'CRANE'],
     },
     criteria: [
-      { id: 'c1', key: 'enterpriseCode', label: 'Mã DN', operator: '=', value: 'FORD', group: 'AND' },
+      { id: 'c1', key: 'corporateCustomerId', label: 'Mã DN', operator: '=', value: 'FORD', group: 'AND' },
     ],
     priceCriteria: [
       {
@@ -1184,16 +1179,16 @@ export let rescueFeeTables: PriceTable[] = [
     code: 'CUS-DN-TOYOTA-001',
     name: 'Bảng phí riêng Toyota Việt Nam',
     target: 'CUSTOMER',
-    kind: 'CUSTOMER_BUSINESS',
+    objectType: 'CUSTOMER_BUSINESS',
+    orderType: 'PACKAGE_SINGLE',
     applyFor: 'Toyota Việt Nam',
-    priority: 130,
     version: 1,
     status: 'ACTIVE',
     validFrom: '2026-08-01',
     validTo: '2026-12-31',
-    scope: { enterpriseCode: 'TOYOTA' },
+    scope: { corporateCustomerId: 'TOYOTA' },
     criteria: [
-      { id: 'c1', key: 'enterpriseCode', label: 'Mã DN', operator: '=', value: 'TOYOTA', group: 'AND' },
+      { id: 'c1', key: 'corporateCustomerId', label: 'Mã DN', operator: '=', value: 'TOYOTA', group: 'AND' },
     ],
     priceCriteria: [],
     serviceRules: [
@@ -1209,19 +1204,19 @@ export let rescueFeeTables: PriceTable[] = [
     code: 'CUS-DN-PTI-2026',
     name: 'Bảng phí KH DN — PTI (VETC × PTI)',
     target: 'CUSTOMER',
-    kind: 'CUSTOMER_BUSINESS',
+    objectType: 'CUSTOMER_BUSINESS',
+    orderType: 'PACKAGE_SINGLE',
     applyFor: 'PTI',
-    priority: 200,
     version: 1,
     status: 'ACTIVE',
     validFrom: '2026-01-01',
     validTo: '2026-12-31',
     scope: {
-      enterpriseCode: 'PTI',
+      corporateCustomerId: 'PTI',
       serviceTypes: ['ONSITE', 'TOWING', 'CRANE'],
     },
     criteria: [
-      { id: 'c-pti', key: 'enterpriseCode', label: 'Mã DN', operator: '=', value: 'PTI', group: 'AND' },
+      { id: 'c-pti', key: 'corporateCustomerId', label: 'Mã DN', operator: '=', value: 'PTI', group: 'AND' },
     ],
     priceCriteria: [
       {
@@ -1670,7 +1665,7 @@ export const getRetailMarkupFactor = (): number => {
   if (markupTable) return Number(markupTable.settings.retailMarkupFactor);
 
   const internal = rescueFeeTables.find(
-    (table) => table.kind === 'SUPPLIER_INTERNAL' && table.status === 'ACTIVE'
+    (table) => table.objectType === 'PARTNER_INTERNAL' && table.status === 'ACTIVE'
   );
   const legacyFactor = Number(internal?.settings.retailMarkupFactor);
   return legacyFactor > 0 ? legacyFactor : RETAIL_MARKUP_DEFAULT_FACTOR;
@@ -1720,8 +1715,8 @@ const tableMatchesContext = (
 
 const specificityScore = (table: PriceTable): number => {
   let score = table.criteria.length * 10;
-  if (table.scope.enterpriseCode) score += 50;
-  if (table.scope.supplierId) score += 50;
+  if (table.scope.corporateCustomerId) score += 50;
+  if (table.scope.partnerId) score += 50;
   if (table.scope.areas?.length) score += table.scope.areas.length * 5;
   return score;
 };
@@ -1730,7 +1725,9 @@ export const selectPriceTable = (
   tables: PriceTable[],
   opts: {
     target: FeeTarget;
-    kinds?: FeeTableKind[];
+    objectTypes?: FeeObjectType[];
+    orderTypes?: FeeOrderType[];
+    requireFallback?: boolean;
     asOfDate?: string;
     context: Record<string, string | number | boolean | undefined>;
   }
@@ -1740,12 +1737,15 @@ export const selectPriceTable = (
     if (t.target !== opts.target) return false;
     if (t.status !== 'ACTIVE') return false;
     if (!isDateInRange(asOf, t.validFrom, t.validTo)) return false;
-    if (opts.kinds && !opts.kinds.includes(t.kind)) return false;
-    if (opts.context.enterpriseCode && t.scope.enterpriseCode) {
-      if (t.scope.enterpriseCode !== opts.context.enterpriseCode) return false;
+    if (opts.objectTypes && !opts.objectTypes.includes(t.objectType)) return false;
+    if (opts.orderTypes && !opts.orderTypes.includes(t.orderType)) return false;
+    if (opts.requireFallback === true && !t.settings.isFallback) return false;
+    if (opts.requireFallback === false && t.settings.isFallback) return false;
+    if (opts.context.corporateCustomerId && t.scope.corporateCustomerId) {
+      if (t.scope.corporateCustomerId !== opts.context.corporateCustomerId) return false;
     }
-    if (opts.context.supplierId && t.scope.supplierId) {
-      if (t.scope.supplierId !== opts.context.supplierId) return false;
+    if (opts.context.partnerId && t.scope.partnerId) {
+      if (t.scope.partnerId !== opts.context.partnerId) return false;
     }
     return tableMatchesContext(t, opts.context);
   });
@@ -1755,7 +1755,6 @@ export const selectPriceTable = (
   candidates.sort((a, b) => {
     const specDiff = specificityScore(b) - specificityScore(a);
     if (specDiff !== 0) return specDiff;
-    if (b.priority !== a.priority) return b.priority - a.priority;
     return b.version - a.version;
   });
 
@@ -2055,49 +2054,50 @@ const applySurchargesToBase = (
   };
 };
 
-export const resolveSupplierTable = (input: FeeCalculationInput): PriceTable | null => {
+export const resolvePartnerTable = (input: FeeCalculationInput): PriceTable | null => {
   const asOf = input.asOfDate ?? new Date().toISOString().slice(0, 10);
   const context: Record<string, string | number | boolean | undefined> = {
-    supplierType: input.supplierType,
-    supplierId: input.supplierId,
-    supplierName: input.supplierName,
+    partnerType: input.partnerType,
+    partnerId: input.partnerId,
+    partnerName: input.partnerName,
   };
 
-  if (input.supplierType === 'INTERNAL') {
+  if (input.partnerType === 'INTERNAL') {
     return (
       selectPriceTable(rescueFeeTables, {
-        target: 'SUPPLIER',
-        kinds: ['SUPPLIER_INTERNAL'],
+        target: 'PARTNER',
+        objectTypes: ['PARTNER_INTERNAL'],
         asOfDate: asOf,
         context,
       }) ??
       rescueFeeTables.find(
-        (t) => t.kind === 'SUPPLIER_INTERNAL' && t.status === 'ACTIVE'
+        (t) => t.objectType === 'PARTNER_INTERNAL' && t.status === 'ACTIVE'
       ) ??
       null
     );
   }
 
   const own = selectPriceTable(rescueFeeTables, {
-    target: 'SUPPLIER',
-    kinds: ['SUPPLIER_EXTERNAL'],
+    target: 'PARTNER',
+    objectTypes: ['PARTNER_EXTERNAL'],
+    requireFallback: false,
     asOfDate: asOf,
-    context: { ...context, supplierId: input.supplierId },
+    context: { ...context, partnerId: input.partnerId },
   });
   if (own) return own;
 
   return (
     selectPriceTable(rescueFeeTables, {
-      target: 'SUPPLIER',
-      kinds: ['SUPPLIER_EXTERNAL_FALLBACK'],
+      target: 'PARTNER',
+      objectTypes: ['PARTNER_EXTERNAL'], requireFallback: true,
       asOfDate: asOf,
       context,
     }) ??
     rescueFeeTables.find(
       (t) =>
-        t.kind === 'SUPPLIER_EXTERNAL_FALLBACK' &&
-        t.status === 'ACTIVE' &&
-        t.settings.isFallback
+        t.objectType === 'PARTNER_EXTERNAL' &&
+        t.settings.isFallback &&
+        t.status === 'ACTIVE'
     ) ??
     null
   );
@@ -2111,7 +2111,7 @@ export const resolveCustomerTable = (
   if (input.customerType === 'RETAIL') {
     const table = selectPriceTable(rescueFeeTables, {
       target: 'CUSTOMER',
-      kinds: ['CUSTOMER_RETAIL'],
+      objectTypes: ['CUSTOMER_INDIVIDUAL'], orderTypes: ['SINGLE'],
       asOfDate: asOf,
       context: { customerType: 'RETAIL' },
     });
@@ -2124,13 +2124,13 @@ export const resolveCustomerTable = (
     return { table: null, mode: 'RETAIL_MARKUP' };
   }
 
-  if (input.customerType === 'RETAIL_BUSINESS' || input.enterpriseCode) {
+  if (input.customerType === 'RETAIL_BUSINESS' || input.corporateCustomerId) {
     const table = selectPriceTable(rescueFeeTables, {
       target: 'CUSTOMER',
-      kinds: ['CUSTOMER_BUSINESS'],
+      objectTypes: ['CUSTOMER_BUSINESS'],
       asOfDate: asOf,
       context: {
-        enterpriseCode: input.enterpriseCode,
+        corporateCustomerId: input.corporateCustomerId,
         customerType: 'RETAIL_BUSINESS',
         isEnterprise: 'true',
       },
@@ -2141,12 +2141,12 @@ export const resolveCustomerTable = (
   const table =
     selectPriceTable(rescueFeeTables, {
       target: 'CUSTOMER',
-      kinds: ['CUSTOMER_PUBLIC'],
+      objectTypes: ['CUSTOMER_INDIVIDUAL'], orderTypes: ['PACKAGE'],
       asOfDate: asOf,
       context: { customerType: 'PACKAGE' },
     }) ??
     rescueFeeTables.find(
-      (t) => t.kind === 'CUSTOMER_PUBLIC' && t.status === 'ACTIVE'
+      (t) => t.objectType === 'CUSTOMER_INDIVIDUAL' && t.orderType === 'PACKAGE' && t.status === 'ACTIVE'
     ) ??
     null;
 
@@ -2154,20 +2154,20 @@ export const resolveCustomerTable = (
 };
 
 export const calculateRescueFees = (input: FeeCalculationInput): FeeBreakdown => {
-  const supplierTable = resolveSupplierTable(input);
+  const partnerTable = resolvePartnerTable(input);
   const { table: customerTable, mode } = resolveCustomerTable(input);
 
-  if (!supplierTable) {
+  if (!partnerTable) {
     return {
       lines: [],
-      supplierFee: 0,
+      partnerFee: 0,
       customerFee: 0,
       margin: 0,
       snapshot: {
-        supplierTableId: '',
-        supplierTableCode: '',
-        supplierTableName: '',
-        supplierVersion: 0,
+        partnerTableId: '',
+        partnerTableCode: '',
+        partnerTableName: '',
+        partnerVersion: 0,
         customerFeeMode: mode,
         calculatedAt: new Date().toISOString(),
         input,
@@ -2179,61 +2179,61 @@ export const calculateRescueFees = (input: FeeCalculationInput): FeeBreakdown =>
   if ((mode === 'BUSINESS' || mode === 'PACKAGE_PUBLIC') && !customerTable && mode === 'BUSINESS') {
     return {
       lines: [],
-      supplierFee: 0,
+      partnerFee: 0,
       customerFee: 0,
       margin: 0,
       snapshot: {
-        supplierTableId: supplierTable.id,
-        supplierTableCode: supplierTable.code,
-        supplierTableName: supplierTable.name,
-        supplierVersion: supplierTable.version,
+        partnerTableId: partnerTable.id,
+        partnerTableCode: partnerTable.code,
+        partnerTableName: partnerTable.name,
+        partnerVersion: partnerTable.version,
         customerFeeMode: mode,
         calculatedAt: new Date().toISOString(),
         input,
       },
-      error: `Không tìm thấy bảng phí doanh nghiệp cho mã ${input.enterpriseCode ?? ''}`,
+      error: `Không tìm thấy bảng phí doanh nghiệp cho mã ${input.corporateCustomerId ?? ''}`,
     };
   }
 
   const markup =
-    mode === 'RETAIL_MARKUP' && customerTable?.kind === 'CUSTOMER_RETAIL'
+    mode === 'RETAIL_MARKUP' && customerTable && usesRetailMarkupOnlyPricing(customerTable)
       ? customerTable.settings.retailMarkupFactor
-      : supplierTable.settings.retailMarkupFactor || RETAIL_MARKUP_DEFAULT_FACTOR;
-  const supplierSource: FeeSourceLabel =
-    supplierTable.kind === 'SUPPLIER_INTERNAL' ? 'VETC' : 'NCC';
+      : partnerTable.settings.retailMarkupFactor || RETAIL_MARKUP_DEFAULT_FACTOR;
+  const partnerSource: FeeSourceLabel =
+    partnerTable.objectType === 'PARTNER_INTERNAL' ? 'VETC' : 'NCC';
   const customerSource: FeeSourceLabel =
-    mode === 'BUSINESS' ? input.enterpriseCode || 'VETC' : 'VETC';
+    mode === 'BUSINESS' ? input.corporateCustomerId || 'VETC' : 'VETC';
 
   let packageRemaining = input.packageBenefitAmount ?? 0;
 
   const lines: CalculatedFeeLine[] = input.lines.map((line) => {
-    const supplierBase = calcServiceBase(supplierTable, line, input);
-    const supplierWithSurcharge = applySurchargesToBase(
-      supplierBase,
-      supplierTable.surchargeRules,
+    const partnerBase = calcServiceBase(partnerTable, line, input);
+    const partnerWithSurcharge = applySurchargesToBase(
+      partnerBase,
+      partnerTable.surchargeRules,
       input,
-      supplierTable.settings.stackSurcharges
+      partnerTable.settings.stackSurcharges
     );
-    const supplierAmount = roundMoney(
-      supplierWithSurcharge.amount,
-      supplierTable.settings.roundMode
+    const partnerAmount = roundMoney(
+      partnerWithSurcharge.amount,
+      partnerTable.settings.roundMode
     );
 
     let customerAmount = 0;
     let formulaNote = '';
     let customerCoef = 1;
-    let customerFixed = supplierBase;
+    let customerFixed = partnerBase;
     let customerLabels: string[] = [];
     let customerItems: SurchargeBreakdownItem[] = [];
     let customerCoefFormula = 'Không có hệ số phụ phí (×1)';
 
     if (mode === 'RETAIL_MARKUP') {
       customerAmount = roundMoney(
-        supplierAmount * markup,
-        supplierTable.settings.roundMode
+        partnerAmount * markup,
+        partnerTable.settings.roundMode
       );
       formulaNote = `Khách lẻ: dòng NCC × ${markup}`;
-      customerFixed = supplierAmount;
+      customerFixed = partnerAmount;
       customerCoef = markup;
       customerLabels = ['Markup khách lẻ'];
       customerItems = [{ name: 'Markup khách lẻ', type: 'COEFFICIENT', value: markup }];
@@ -2282,37 +2282,37 @@ export const calculateRescueFees = (input: FeeCalculationInput): FeeBreakdown =>
     return {
       serviceName: line.serviceName,
       serviceType: line.serviceType,
-      supplierAmount,
+      partnerAmount,
       customerAmount,
-      fixedPrice: customerFixed || supplierBase,
+      fixedPrice: customerFixed || partnerBase,
       coefficient: customerCoef || 1,
-      supplierCoefficient: supplierWithSurcharge.coefficient || 1,
+      partnerCoefficient: partnerWithSurcharge.coefficient || 1,
       discount,
       adjustmentLabels: customerLabels,
-      supplierAdjustmentLabels: supplierWithSurcharge.labels,
+      partnerAdjustmentLabels: partnerWithSurcharge.labels,
       customerSurchargeItems: customerItems,
-      supplierSurchargeItems: supplierWithSurcharge.items,
+      partnerSurchargeItems: partnerWithSurcharge.items,
       customerCoefficientFormula: customerCoefFormula,
-      supplierCoefficientFormula: supplierWithSurcharge.coefficientFormula,
-      supplierSource,
+      partnerCoefficientFormula: partnerWithSurcharge.coefficientFormula,
+      partnerSource,
       customerSource,
       formulaNote,
     };
   });
 
-  const supplierFee = lines.reduce((s, l) => s + l.supplierAmount, 0);
+  const partnerFee = lines.reduce((s, l) => s + l.partnerAmount, 0);
   const customerFee = lines.reduce((s, l) => s + l.customerAmount, 0);
 
   return {
     lines,
-    supplierFee,
+    partnerFee,
     customerFee,
-    margin: customerFee - supplierFee,
+    margin: customerFee - partnerFee,
     snapshot: {
-      supplierTableId: supplierTable.id,
-      supplierTableCode: supplierTable.code,
-      supplierTableName: supplierTable.name,
-      supplierVersion: supplierTable.version,
+      partnerTableId: partnerTable.id,
+      partnerTableCode: partnerTable.code,
+      partnerTableName: partnerTable.name,
+      partnerVersion: partnerTable.version,
       customerTableId: customerTable?.id,
       customerTableCode: customerTable?.code,
       customerTableName: customerTable?.name,
@@ -2380,10 +2380,10 @@ export const emptyPriceTable = (partial?: Partial<PriceTable>): PriceTable => ({
   id: `FEE-${Date.now()}`,
   code: '',
   name: '',
-  target: 'SUPPLIER',
-  kind: 'SUPPLIER_INTERNAL',
+  target: 'PARTNER',
+  objectType: 'PARTNER_INTERNAL',
+  orderType: 'PACKAGE_SINGLE',
   applyFor: '',
-  priority: 100,
   version: 1,
   status: 'ACTIVE',
   validFrom: new Date().toISOString().slice(0, 10),

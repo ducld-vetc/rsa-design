@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Copy, Edit3, CalendarRange, ListFilter, ReceiptText, SlidersHorizontal, X } from 'lucide-react';
 import {
-  FEE_KIND_LABELS,
+  FEE_OBJECT_TYPE_LABELS,
+  FEE_ORDER_TYPE_LABELS,
   FEE_STATUS_LABELS,
   FEE_TARGET_LABELS,
   clonePriceTable,
@@ -217,7 +218,9 @@ const RescueFeeDetail: React.FC = () => {
           <div>
             <h1 className="text-lg font-black text-gray-800 uppercase tracking-tight">{table.name}</h1>
             <p className="text-xs text-gray-500">
-              {table.code} · v{table.version} · {FEE_KIND_LABELS[table.kind]}
+              {table.code} · v{table.version} · {FEE_OBJECT_TYPE_LABELS[table.objectType]} ·{' '}
+              {FEE_ORDER_TYPE_LABELS[table.orderType]}
+              {table.settings.isFallback ? ' (fallback)' : ''}
             </p>
           </div>
         </div>
@@ -283,10 +286,6 @@ const RescueFeeDetail: React.FC = () => {
             <div className="font-semibold">{table.applyFor}</div>
           </div>
           <div>
-            <div className="text-xs text-gray-500 mb-1">Ưu tiên</div>
-            <div className="font-semibold">{table.priority}</div>
-          </div>
-          <div>
             <div className="text-xs text-gray-500 mb-1">Trạng thái</div>
             <StatusBadge status={table.status} />
           </div>
@@ -304,11 +303,11 @@ const RescueFeeDetail: React.FC = () => {
           </div>
           <div>
             <div className="text-xs text-gray-500 mb-1">Doanh nghiệp</div>
-            <div className="font-semibold">{table.scope.enterpriseCode || '—'}</div>
+            <div className="font-semibold">{table.scope.corporateCustomerId || '—'}</div>
           </div>
           <div>
             <div className="text-xs text-gray-500 mb-1">NCC</div>
-            <div className="font-semibold">{table.scope.supplierName || table.scope.supplierId || '—'}</div>
+            <div className="font-semibold">{table.scope.partnerName || table.scope.partnerId || '—'}</div>
           </div>
           <div>
             <div className="text-xs text-gray-500 mb-1">Hệ số khách lẻ</div>

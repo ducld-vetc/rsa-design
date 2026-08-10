@@ -29,16 +29,16 @@ export const IMPORT_SURCHARGE_CODES: Record<string, string> = {
   HOLIDAY: 'Lễ/Tết',
 };
 
-const VALID_TARGETS = new Set<FeeTarget>(['CUSTOMER', 'SUPPLIER']);
+const VALID_TARGETS = new Set<FeeTarget>(['CUSTOMER', 'PARTNER']);
 const VALID_OBJECT_TYPES = new Set<FeeObjectType>([
-  'SUPPLIER_INTERNAL',
-  'SUPPLIER_EXTERNAL',
+  'PARTNER_INTERNAL',
+  'PARTNER_EXTERNAL',
   'CUSTOMER_INDIVIDUAL',
   'CUSTOMER_BUSINESS',
 ]);
 const VALID_ORDER_TYPES = new Set<FeeOrderType>(['PACKAGE', 'SINGLE', 'PACKAGE_SINGLE']);
 const OBJECT_TYPES_BY_TARGET: Record<FeeTarget, Set<string>> = {
-  SUPPLIER: new Set(['SUPPLIER_INTERNAL', 'SUPPLIER_EXTERNAL']),
+  PARTNER: new Set(['PARTNER_INTERNAL', 'PARTNER_EXTERNAL']),
   CUSTOMER: new Set(['CUSTOMER_INDIVIDUAL', 'CUSTOMER_BUSINESS']),
 };
 const VALID_BOUND_OPERATORS = new Set([
@@ -98,7 +98,7 @@ const validateThongTin = (
     pushIssue(issues, {
       sheet: 'ThongTin',
       field: 'target',
-      message: 'Giá trị không hợp lệ (CUSTOMER | SUPPLIER)',
+      message: 'Giá trị không hợp lệ (CUSTOMER | PARTNER)',
     });
   }
 
@@ -108,7 +108,7 @@ const validateThongTin = (
     if (!VALID_OBJECT_TYPES.has(objectType as FeeObjectType)) {
       pushIssue(issues, {
         sheet: 'ThongTin',
-        field: 'scope.objectType',
+        field: 'objectType',
         message: 'Giá trị không hợp lệ',
       });
     } else if (targetRaw && VALID_TARGETS.has(targetRaw as FeeTarget)) {
@@ -116,7 +116,7 @@ const validateThongTin = (
       if (!allowed.has(objectType)) {
         pushIssue(issues, {
           sheet: 'ThongTin',
-          field: 'scope.objectType',
+          field: 'objectType',
           message: `Không khớp target=${targetRaw}`,
         });
       }
@@ -127,7 +127,7 @@ const validateThongTin = (
   if (orderType && !VALID_ORDER_TYPES.has(orderType as FeeOrderType)) {
     pushIssue(issues, {
       sheet: 'ThongTin',
-      field: 'scope.orderType',
+      field: 'orderType',
       message: 'Giá trị không hợp lệ (PACKAGE | SINGLE | PACKAGE_SINGLE)',
     });
   }

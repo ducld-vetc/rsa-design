@@ -1,9 +1,23 @@
-# Thiết kế lại DB phí cứu hộ (độc lập KH / NCC)
+# Thiết kế lại DB phí cứu hộ (độc lập KH / Partner)
 
 > Tài liệu thiết kế schema — căn cứ luồng cũ trên Postgres Dev (`rsa-dev` / `dev-rsa`) và mô hình chức năng mới trong `rsa-design` (`rescueFeeMockData.ts`, form cấu hình bảng phí).  
 > **Phạm vi:** tài liệu BA/DBA review. Không thay migration production trong bước này.  
 > **Ngày quan sát Dev:** 2026-08-03.  
+> **Cập nhật thuật ngữ/schema:** 2026-08-07 — `enterprise`→`corporate_customer`, `supplier`→`partner`; `fee_table` dùng `object_type`+`order_type` (bỏ `kind`); `fee_table_version` bỏ `priority`/`status`; `fee_criterion_mapping_field` (`table_mapping`/`field_mapping`).  
 > **BRD nghiệp vụ cấu hình + tính phí đơn:** [BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md](./BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md)
+
+### Thuật ngữ (map cũ → mới)
+
+
+| Cũ (docs/code trước đây) | Mới |
+| ------------------------ | --- |
+| `enterprise` / `enterprise_code` | `corporate_customer` / `corporate_customer_id` |
+| `supplier` / `supplier_id` / `target=SUPPLIER` | `partner` / `partner_id` / `target=PARTNER` |
+| `fee_table.kind` | `fee_table.object_type` + `fee_table.order_type` |
+| `fee_table_version.priority`, `.status` | **Bỏ** — dùng `fee_table.status` + `current_version` |
+| `fee_criterion_field_map.source_path` | `fee_criterion_mapping_field.table_mapping` |
+| `fee_criterion_field_map.transform` | `fee_criterion_mapping_field.field_mapping` |
+| Runtime `supplier_amount` / `customer_enterprise_amount` | `partner_amount` / `customer_corporate_amount` |
 
 ---
 
@@ -12,7 +26,7 @@
 
 | Mục tiêu            | Mô tả                                                                       |
 | ------------------- | --------------------------------------------------------------------------- |
-| Độc lập KH / NCC    | Hai nhánh cấu hình & tính phí riêng (`target = CUSTOMER | SUPPLIER`)        |
+| Độc lập KH / Partner    | Hai nhánh cấu hình & tính phí riêng (`target = CUSTOMER | PARTNER`)        |
 | Linh động tiêu chí  | Thêm tiêu chí tính phí không cần `ALTER TABLE`                              |
 | Bảng phí đa dịch vụ | Một bảng phí chứa nhiều dòng giá / nhiều dịch vụ + version                  |
 | Snapshot trên đơn   | Biết bảng/version đã áp + số tiền đã chốt; không phụ thuộc cấu hình sau này |
@@ -118,7 +132,7 @@ flowchart LR
 | --------- | --------------------------------------------------------------------------------------- |
 | **Cũ**    | Phân biệt nhờ `partner_id` / `corporate_customer_id` / logic app; không có `target`.    |
 | **Ví dụ** | Policy partner A vừa ảnh hưởng giá NCC vừa bị suy ra giá KH → khó audit nguồn phí KH.   |
-| **Mới**   | `target = CUSTOMER | SUPPLIER` + `kind`. Engine chọn **2 bảng độc lập** rồi tính riêng. |
+| **Mới**   | `target = CUSTOMER | PARTNER` + `object_type` + `order_type` (không dùng `kind`). Engine chọn **2 bảng độc lập** rồi tính riêng. |
 
 
 ### V3 — Tiêu chí hard-code cột trên tier
@@ -148,7 +162,7 @@ flowchart LR
 | --------- | --------------------------------------------------------------------------------------------------- |
 | **Cũ**    | `pricing_formula` text; `inherit_mode` string; Dev có bản ghi `inherit_mode` lẫn payload injection. |
 | **Ví dụ** | Không validate công thức; inherit khó giải thích khi audit.                                         |
-| **Mới**   | Không lưu formula tự do. Inherit = version/copy bảng hoặc `SUPPLIER_EXTERNAL_FALLBACK`.             |
+| **Mới**   | Không lưu formula tự do. Inherit = version/copy bảng hoặc Partner EXTERNAL + `is_fallback`.             |
 
 
 ### V6 — Trên đơn: NCC / KH / DN chưa tách sạch theo dòng
@@ -167,7 +181,7 @@ flowchart LR
 |         |                                                                                      |
 | ------- | ------------------------------------------------------------------------------------ |
 | **Cũ**  | `MARKUP` rải rác trên charge, không phải loại bảng cấu hình.                         |
-| **Mới** | `kind = CUSTOMER_RETAIL` + `retail_markup_factor` → không bắt buộc ma trận dòng giá. |
+| **Mới** | `object_type = CUSTOMER_INDIVIDUAL` + `retail_markup_factor` (và/hoặc mode markup) → không bắt buộc ma trận dòng giá. |
 
 
 ---
@@ -180,8 +194,8 @@ flowchart LR
 flowchart TB
   subgraph catalog [Catalog]
     CritDef[fee_criterion_def]
-    CritMap[fee_criterion_field_map]
-    SvcCat[fee_service_catalog]
+    CritMap[fee_criterion_mapping_field]
+    Svc[service]
     Incidental[incidental_fee_def]
   end
   subgraph config [Cau_hinh_bang_phi]
@@ -195,9 +209,9 @@ flowchart TB
     SRC[fee_surcharge_condition]
   end
   subgraph runtime [Tren_don]
-    Snap[rescue_order_fee_snapshot]
-    Line[rescue_order_fee_line]
-    Adj[rescue_order_fee_adjustment]
+    Snap[ro_fee_snapshot]
+    Line[ro_fee_line]
+    Adj[ro_fee_adj]
   end
   CritDef --> CritMap
   CritDef --> PLC
@@ -212,7 +226,7 @@ flowchart TB
   FTV --> Snap
   Snap --> Line
   Line --> Adj
-  SvcCat --> PL
+  Svc --> PL
 ```
 
 
@@ -227,17 +241,17 @@ flowchart TB
 | Bảng                      | Mục đích                                                                                                                                                                                                                   |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `fee_criterion_def`       | Danh mục tiêu chí tính phí (thời tiết, km, loại xe…). Khai báo `key` + kiểu giá trị để dùng trong điều kiện dòng giá / phụ phí mà không hard-code cột.                                                                     |
-| `fee_criterion_field_map` | Map mỗi `criterion_key` → nguồn dữ liệu thực tế trên đơn/xe/dòng dịch vụ (`order.weather`, `line.distanceKm`…). Giúp engine build context khi match điều kiện; thêm tiêu chí mới chủ yếu = thêm map, không ALTER bảng giá. |
-| `fee_service_catalog`     | Danh mục đầu dịch vụ / dịch vụ con (ONSITE, kéo xe, cẩu…). Có thể map từ `service` cũ qua `legacy_service_id`.                                                                                                             |
+| `fee_criterion_mapping_field` | Map mỗi `criterion_key` → bảng nguồn (`table_mapping`) + field/hàm map (`field_mapping`). Giúp engine build context khi match điều kiện; thêm tiêu chí mới chủ yếu = thêm map, không ALTER bảng giá. |
+| `service`                 | Master dịch vụ hiện hữu (`service_id`, `service_code`, **`category`** phân loại ONSITE/TOWING/CRANE…). `fee_price_line` FK thẳng vào đây — **không** tạo `fee_service_catalog` trùng. |
 | `incidental_fee_def`      | Danh mục phí phát sinh / “Dịch vụ khác” (gợi ý giá) khi thêm trên đơn, tách khỏi ma trận bảng phí chuẩn.                                                                                                                   |
 
 
-**Cấu hình bảng phí — độc lập KH / NCC**
+**Cấu hình bảng phí — độc lập KH / Partner (NCC)**
 
 
 | Bảng                       | Mục đích                                                                                                                             |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `fee_table`                | “Vỏ” bảng phí: mã, tên, `target` (CUSTOMER/SUPPLIER), `kind` (Public, Retail, DN, NCC nội bộ/ngoài/fallback), trạng thái hiện hành.  |
+| `fee_table`                | “Vỏ” bảng phí: mã, tên, `target` (`CUSTOMER`/`PARTNER`), `object_type`, `order_type`, trạng thái hiện hành. **Không** dùng `kind`.  |
 | `fee_table_version`        | Phiên bản nội dung bảng phí theo thời gian. Version ACTIVE coi là bất biến; sửa cấu hình = tạo version mới để đơn cũ vẫn audit được. |
 | `fee_table_scope`          | Phạm vi áp dụng của một version: doanh nghiệp, NCC, khu vực, loại dịch vụ/xe. Null = không giới hạn chiều đó.                        |
 | `fee_table_settings`       | Tham số tính của version: hệ số KH lẻ, làm tròn, nhân hệ số vs lấy max, cờ fallback, giá đã bao gồm VAT hay chưa. |
@@ -254,9 +268,9 @@ flowchart TB
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rescue_order_v2`             | Đơn cứu hộ hiện hữu (tham chiếu). Không thuộc schema phí mới; điểm neo snapshot.                                                                                                 |
 | `rescue_order_service`        | Dịch vụ thực tế trên đơn (vận hành). Giữ nguyên; dòng phí mới gắn qua FK.                                                                                                        |
-| `rescue_order_fee_snapshot`   | Header lần tính/chốt phí: bảng KH + NCC đã chọn (id/code/**version**), mode (Public/markup/DN…), context đầu vào, thời điểm tính. Trả lời “đơn này lấy phí từ đâu”.              |
-| `rescue_order_fee_line`       | Nguồn sự thật số tiền per dịch vụ: NCC, KH, **KHCN**, **KHDN**, hệ số, source, cờ thủ công, breakdown, optional `matched_*_line_id`. Đổi bảng phí sau không làm lệch số đã chốt. |
-| `rescue_order_fee_adjustment` | Lịch sử chỉnh tay / phân bổ lại tổng / tính lại — audit before/after.                                                                                                            |
+| `ro_fee_snapshot`             | Header lần tính/chốt phí: `customer_fee_table_id`/`version` + `partner_fee_table_id`/`version`, `customer_fee_mode`, `context_json`, `calculated_at`. |
+| `ro_fee_line`                 | Số tiền đã chốt per dịch vụ: amount / total / VAT, `*_fixed_part` × `*_coefficient`, `customer_line_id`/`partner_line_id` (JSONB id `fee_price_line`), `is_manual` / `is_custom`. |
+| `ro_fee_adj`                  | Audit chỉnh phí: `action` + `before_json` / `after_json`.                                                                                            |
 
 
 @startuml
@@ -272,22 +286,20 @@ entity fee_criterion_def {
   * updated_at : timestamptz
 }
 
-entity fee_criterion_field_map {
+entity fee_criterion_mapping_field {
   * id : bigint <<PK>>
   * criterion_key : varchar <<FK>>
-  * source_path : varchar // "order.weather line.distanceKm"
-  * transform : varchar // "nullable"
+  * table_mapping : varchar // "order | line | vehicle"
+  * field_mapping : varchar // "weather | distanceKm | UI_WEATHER_TO_LABEL"
   * scope : varchar // "ORDER LINE VEHICLE"
   * status : varchar
 }
 
-entity fee_service_catalog {
-  * id : bigint <<PK>>
-  * code : varchar <<UK>>
-  * name : varchar
-  * service_type : varchar // "ONSITE TOWING CRANE"
-  * parent_id : bigint <<FK>> // "nullable"
-  * legacy_service_id : bigint // map service.service_id
+entity service {
+  * service_id : bigint <<PK>>
+  * service_code : varchar <<UK>>
+  * service_name : varchar
+  * category : varchar // "phan loai dich vu — thay fee_service_catalog"
   * status : varchar
 }
 
@@ -304,10 +316,11 @@ entity fee_table {
   * id : bigint <<PK>>
   * code : varchar <<UK>>
   * name : varchar
-  * target : varchar // "CUSTOMER SUPPLIER"
-  * kind : varchar // "PUBLIC RETAIL BUSINESS INTERNAL EXTERNAL FALLBACK"
+  * target : varchar // "CUSTOMER PARTNER"
+  * object_type : varchar // "PARTNER_INTERNAL PARTNER_EXTERNAL CUSTOMER_INDIVIDUAL CUSTOMER_BUSINESS"
+  * order_type : varchar // "PACKAGE SINGLE PACKAGE_SINGLE"
   * current_version : int
-  * status : varchar // "DRAFT ACTIVE EXPIRED INACTIVE"
+  * status : varchar // "ACTIVE EXPIRED INACTIVE"
 }
 
 entity fee_table_version {
@@ -316,17 +329,15 @@ entity fee_table_version {
   * version : int <<UK>> // unique with fee_table_id
   * valid_from : date
   * valid_to : date
-  * priority : int
-  * status : varchar // "immutable when ACTIVE"
   * note : text
   * activated_at : timestamptz
 }
 
 entity fee_table_scope {
   * fee_table_version_id : bigint <<PK,FK>>
-  * enterprise_code : varchar // "nullable KH"
-  * supplier_id : varchar // "nullable NCC"
-  * supplier_name : varchar
+  * corporate_customer_id : varchar // "nullable KH DN"
+  * partner_id : varchar // "nullable Partner/NCC"
+  * partner_name : varchar
   * areas_json : jsonb
   * service_types_json : jsonb
   * vehicle_types_json : jsonb
@@ -334,18 +345,18 @@ entity fee_table_scope {
 
 entity fee_table_settings {
   * fee_table_version_id : bigint <<PK,FK>>
-  * retail_markup_factor : numeric // "CUSTOMER_RETAIL"
+  * retail_markup_factor : numeric // "CUSTOMER_INDIVIDUAL markup-only"
   * round_mode : varchar // "NEAREST_1000 NEAREST_100 NONE"
   * stack_surcharges : boolean // "true=STACK false=MAX"
-  * is_fallback : boolean
+  * is_fallback : boolean // "Partner fallback khi không có bảng riêng"
   * includes_vat : boolean // "true=gia da bao gom VAT"
 }
 
 entity fee_price_line {
   * id : bigint <<PK>>
   * fee_table_version_id : bigint <<FK>>
-  * service_catalog_id : bigint <<FK>>
-  * service_name : varchar
+  * service_id : bigint <<FK>> // service.service_id
+  * service_name : varchar // denormalize optional
   * base_price : numeric
   * pricing_mode : varchar // "FIXED PER_UNIT"
   * unit : varchar // "km nullable"
@@ -397,58 +408,53 @@ entity rescue_order_service {
   * additional_sv_name : varchar
 }
 
-entity rescue_order_fee_snapshot {
+entity ro_fee_snapshot {
   * id : bigint <<PK>>
   * rescue_order_v2_id : bigint <<FK>>
-  * supplier_table_id : bigint <<FK>>
-  * supplier_table_code : varchar
-  * supplier_version : int
-  * customer_table_id : bigint <<FK>>
-  * customer_table_code : varchar
-  * customer_version : int
-  * customer_fee_mode : varchar // "PACKAGE_PUBLIC RETAIL_MARKUP BUSINESS"
-  * retail_markup_factor : numeric
-  * input_context_json : jsonb
+  * customer_fee_table_id : bigint <<FK>>
+  * customer_fee_table_version : int
+  * partner_fee_table_id : bigint <<FK>>
+  * partner_fee_table_version : int
+  * customer_fee_mode : varchar // "PACKAGE_PUBLIC RETAIL RETAIL_MARKUP CORPORATE"
+  * context_json : jsonb
   * calculated_at : timestamptz
 }
 
-entity rescue_order_fee_line {
+entity ro_fee_line {
   * id : bigint <<PK>>
   * snapshot_id : bigint <<FK>>
-  * rescue_order_service_id : bigint <<FK>>
-  * service_name : varchar
-  * supplier_amount : numeric
+  * rescue_order_v2_id : bigint <<FK>>
+  * service_id : bigint <<FK>> // rescue_order_service
+  * partner_amount : numeric
   * customer_amount : numeric
-  * customer_individual_amount : numeric // "KHCN"
-  * customer_enterprise_amount : numeric // "KHDN"
-  * fixed_price : numeric
+  * vat : numeric
+  * partner_total_amount : numeric
+  * customer_total_amount : numeric
+  * customer_fixed_part : numeric
   * customer_coefficient : numeric
-  * supplier_coefficient : numeric
-  * customer_source : varchar
-  * supplier_source : varchar
-  * is_customer_manual : boolean
-  * is_supplier_manual : boolean
-  * matched_supplier_line_id : bigint <<FK>>
-  * matched_customer_line_id : bigint <<FK>>
-  * breakdown_json : jsonb
-  * sort_order : int
+  * partner_fixed_part : numeric
+  * partner_coefficient : numeric
+  * customer_line_id : jsonb // "array fee_price_line.id — vd [10,11]"
+  * partner_line_id : jsonb // "array fee_price_line.id"
+  * is_manual : boolean
+  * is_custom : boolean
 }
 
-entity rescue_order_fee_adjustment {
+entity ro_fee_adj {
   * id : bigint <<PK>>
-  * fee_line_id : bigint <<FK>> // "nullable"
   * snapshot_id : bigint <<FK>>
-  * adjustment_type : varchar // "MANUAL_EDIT REDISTRIBUTE RECALC"
+  * fee_line_id : bigint <<FK>> // "nullable"
+  * action : varchar // "AUTO_EDIT MANUAL_EDIT RECALC ..."
   * before_json : jsonb
   * after_json : jsonb
-  * note : text
+  * created_by : varchar
   * created_at : timestamptz
 }
 
 
 ' ================== Relationships ==================
 
-fee_criterion_def     ||--o{ fee_criterion_field_map        : maps_to_source
+fee_criterion_def     ||--o{ fee_criterion_mapping_field        : maps_to
 fee_criterion_def     ||--o{ fee_price_line_condition       : used_in
 fee_criterion_def     ||--o{ fee_surcharge_condition        : used_in
 
@@ -458,20 +464,22 @@ fee_table_version     ||--|| fee_table_settings             : settings_1_1
 fee_table_version     ||--o{ fee_price_line                 : price_lines
 fee_table_version     ||--o{ fee_surcharge_rule             : surcharges
 
-fee_service_catalog   ||--o{ fee_service_catalog            : parent_child
-fee_service_catalog   ||--o{ fee_price_line                 : priced_as
+service               ||--o{ fee_price_line                 : priced_as
+service               ||--o{ rescue_order_service            : used_on_order
 
 fee_price_line        ||--o{ fee_price_line_condition       : AND_conditions
 fee_surcharge_rule    ||--o{ fee_surcharge_condition        : AND_conditions
 
-fee_table_version     ||--o{ rescue_order_fee_snapshot      : applied_as_supplier_or_customer
-rescue_order_v2       ||--o| rescue_order_fee_snapshot      : has_fee_snapshot
-rescue_order_fee_snapshot ||--o{ rescue_order_fee_line      : lines
-rescue_order_service  ||--o| rescue_order_fee_line          : fee_for_service
-rescue_order_fee_line ||--o{ rescue_order_fee_adjustment    : audit
-rescue_order_fee_snapshot ||--o{ rescue_order_fee_adjustment: order_level_adj
+fee_table             ||--o{ ro_fee_snapshot                : customer_or_partner_table
+rescue_order_v2       ||--o| ro_fee_snapshot                : has_fee_snapshot
+ro_fee_snapshot       ||--o{ ro_fee_line                    : lines
+rescue_order_service  ||--o| ro_fee_line                    : fee_for_service
+ro_fee_line           ||--o{ ro_fee_adj                     : audit
+ro_fee_snapshot       ||--o{ ro_fee_adj                     : order_level_adj
 
 @enduml
+
+> ERD độc lập: [diagrams/fee-schema-erd.puml](./diagrams/fee-schema-erd.puml) · nhóm bảng: [diagrams/fee-schema-groups.puml](./diagrams/fee-schema-groups.puml)
 
 
 
@@ -485,19 +493,19 @@ rescue_order_fee_snapshot ||--o{ rescue_order_fee_adjustment: order_level_adj
 | `fee_table_version`    | `fee_price_line`                  | 1:N         | Ma trận giá (nhiều dịch vụ / tổ hợp tiêu chí)   |
 | `fee_price_line`       | `fee_price_line_condition`        | 1:N         | Điều kiện AND trên cùng dòng                    |
 | `fee_table_version`    | `fee_surcharge_rule`              | 1:N         | Phụ phí FIXED / COEFFICIENT                     |
-| `fee_criterion_def`    | `fee_criterion_field_map`         | 1:N         | Map `key` → field trên đơn/xe/dòng              |
+| `fee_criterion_def`    | `fee_criterion_mapping_field`         | 1:N         | Map `key` → field trên đơn/xe/dòng              |
 | `fee_criterion_def`    | conditions                        | 1:N         | Dùng chung cho price line & surcharge           |
-| `rescue_order_v2`      | `rescue_order_fee_snapshot`       | 1:0..1      | Header: bảng/version/mode lúc tính              |
-| `snapshot`             | `rescue_order_fee_line`           | 1:N         | Số tiền đã chốt per dịch vụ                     |
-| `rescue_order_service` | `rescue_order_fee_line`           | 1:0..1      | Gắn dịch vụ vận hành ↔ dòng phí                 |
-| `fee_price_line`       | `matched_*_line_id` trên fee_line | 0..1        | Trace dòng ma trận đã khớp (optional)           |
+| `rescue_order_v2`      | `ro_fee_snapshot`                  | 1:0..1      | Header: bảng/version/mode lúc tính              |
+| `ro_fee_snapshot`      | `ro_fee_line`                      | 1:N         | Số tiền đã chốt per dịch vụ                     |
+| `rescue_order_service` | `ro_fee_line`                      | 1:0..1      | Gắn dịch vụ vận hành ↔ dòng phí (`service_id`)  |
+| `fee_price_line`       | `ro_fee_line.customer_line_id` / `partner_line_id` | 0..N | JSONB array id dòng ma trận đã khớp             |
 
 
 ### Nguyên tắc snapshot trên đơn (không dump cả bảng)
 
-1. **Header** (`rescue_order_fee_snapshot`): bảng KH/NCC đã chọn (id, code, **version**), mode, context input, `calculated_at`.
-2. **Dòng tiền** (`rescue_order_fee_line`): số đã tính/chốt (NCC, KH, KHCN, KHDN, hệ số, breakdown, manual).
-3. **Master version bất biến**: sửa bảng phí = version mới; đơn cũ giữ version cũ → mở lại cấu hình lúc tính mà không copy full bảng vào mỗi đơn.
+1. **Header** (`ro_fee_snapshot`): `customer_fee_table_id` + `customer_fee_table_version`, `partner_fee_table_id` + `partner_fee_table_version`, `customer_fee_mode`, `context_json`, `calculated_at`.
+2. **Dòng tiền** (`ro_fee_line`): amount / total / VAT; `*_fixed_part` × `*_coefficient`; trace `customer_line_id` / `partner_line_id` (= JSONB array `fee_price_line.id`); cờ `is_manual` / `is_custom`.
+3. **Master version bất biến**: sửa bảng phí = version mới; đơn cũ giữ version số trên snapshot → không copy full bảng vào mỗi đơn.
 
 ---
 
@@ -520,34 +528,32 @@ rescue_order_fee_snapshot ||--o{ rescue_order_fee_adjustment: order_level_adj
 | `created_by` / `updated_by` | VARCHAR            |                                                         |
 
 
-#### `fee_criterion_field_map`
+#### `fee_criterion_mapping_field`
 
 
-| Cột             | Kiểu                     | Mô tả                                                                    |
-| --------------- | ------------------------ | ------------------------------------------------------------------------ |
-| `id`            | BIGSERIAL PK             |                                                                          |
-| `criterion_key` | VARCHAR(64) FK → def.key |                                                                          |
-| `source_path`   | VARCHAR(255)             | Đường dẫn dữ liệu: `order.weather`, `line.distanceKm`, `vehicle.payload` |
-| `transform`     | VARCHAR(64) NULL         | Ví dụ: `UI_WEATHER_TO_LABEL`, `BOOL_OR_ROUTE_TO_YES_NO`           |
-| `transform_params_json` | JSONB NULL         | Tham số transform (vd. map nhãn UI). Không dùng để gom nhóm G chỗ/tải — PTI cấu hình `seat_number` / `load_capacity` thẳng trên `fee_price_line_condition`. |
-| `scope`         | VARCHAR(16)              | `ORDER` | `LINE` | `VEHICLE`                                             |
-| `status`        | VARCHAR(16)              |                                                                          |
+| Cột                     | Kiểu                     | Mô tả                                                                 |
+| ----------------------- | ------------------------ | --------------------------------------------------------------------- |
+| `id`                    | BIGSERIAL PK             |                                                                       |
+| `criterion_key`         | VARCHAR(64) FK → def.key |                                                                       |
+| `table_mapping`         | VARCHAR(64)              | Bảng/entity nguồn: `order`, `line`, `vehicle`                         |
+| `field_mapping`         | VARCHAR(128)             | Cột hoặc hàm map: `weather`, `distanceKm`, `UI_WEATHER_TO_LABEL`, …   |
+| `field_mapping_params_json` | JSONB NULL           | Tham số map (vd. map nhãn UI). Không dùng gom nhóm G chỗ/tải.         |
+| `scope`                 | VARCHAR(16)              | `ORDER` | `LINE` | `VEHICLE`                                         |
+| `status`                | VARCHAR(16)              |                                                                       |
 
 
 > Chi tiết ví dụ: mục **§8**. Demo PTI (pass/cargo AND): `fee-table-pti-enterprise-seed-demo.md`.
 
-#### `fee_service_catalog`
+#### `service` (master hiện hữu — không tạo bảng phí riêng)
 
+Dùng bảng `service` sẵn có. Loại dịch vụ lấy từ **`category`** (không cần `fee_service_catalog`).
 
-| Cột                 | Kiểu               | Mô tả                                |
-| ------------------- | ------------------ | ------------------------------------ |
-| `id`                | BIGSERIAL PK       |                                      |
-| `code`              | VARCHAR(64) UNIQUE |                                      |
-| `name`              | VARCHAR(255)       | Tên dịch vụ (đầu dịch vụ / chi tiết) |
-| `service_type`      | VARCHAR(32)        | `ONSITE` | `TOWING` | `CRANE` | …    |
-| `parent_id`         | BIGINT NULL        | Nhóm cha (vd. Kéo xe → con)          |
-| `legacy_service_id` | BIGINT NULL        | Map từ `service.service_id`          |
-| `status`            | VARCHAR(16)        |                                      |
+| Cột (tham chiếu) | Kiểu | Vai trò với phí |
+| ---------------- | ---- | ---------------- |
+| `service_id` | PK | FK từ `fee_price_line.service_id`, đơn cứu hộ |
+| `service_code` | UNIQUE | Import Excel / droplist (`ONSITE_BATTERY`, …) |
+| `service_name` | | Tên hiển thị |
+| `category` | | Phân loại (ONSITE / TOWING / CRANE / …) |
 
 
 #### `incidental_fee_def`
@@ -573,25 +579,28 @@ rescue_order_fee_snapshot ||--o{ rescue_order_fee_adjustment: order_level_adj
 | `id`                        | BIGSERIAL PK       |                                             |
 | `code`                      | VARCHAR(64) UNIQUE |                                             |
 | `name`                      | VARCHAR(255)       |                                             |
-| `target`                    | VARCHAR(16)        | `CUSTOMER` | `SUPPLIER`                     |
-| `kind`                      | VARCHAR(64)        | Xem enum bên dưới                           |
+| `target`                    | VARCHAR(16)        | `CUSTOMER` | `PARTNER`                      |
+| `object_type`               | VARCHAR(64)        | Xem enum bên dưới                           |
+| `order_type`                | VARCHAR(32)        | `PACKAGE` | `SINGLE` | `PACKAGE_SINGLE`     |
 | `current_version`           | INT                | Bản đang ACTIVE (denormalize)               |
 | `status`                    | VARCHAR(16)        | `ACTIVE` | `EXPIRED` | `INACTIVE` (không dùng DRAFT — cấu hình tạm trên FE đến khi Lưu) |
 | `updated_at` / `updated_by` |                    |                                             |
 
 
-`**kind`:**
+`**object_type`:**
 
 
-| Kind                         | Ý nghĩa                      |
-| ---------------------------- | ---------------------------- |
-| `CUSTOMER_PUBLIC`            | KH Public (gói)              |
-| `CUSTOMER_RETAIL`            | KH lẻ — chủ yếu hệ số markup |
-| `CUSTOMER_BUSINESS`          | KH doanh nghiệp              |
-| `SUPPLIER_INTERNAL`          | NCC nội bộ                   |
-| `SUPPLIER_EXTERNAL`          | NCC ngoài (riêng)            |
-| `SUPPLIER_EXTERNAL_FALLBACK` | NCC ngoài fallback           |
+| object_type            | Ý nghĩa                         |
+| ---------------------- | ------------------------------- |
+| `CUSTOMER_INDIVIDUAL`  | KH cá nhân (lẻ / public / markup theo settings + order_type) |
+| `CUSTOMER_BUSINESS`    | KH doanh nghiệp (corporate)     |
+| `PARTNER_INTERNAL`     | Partner/NCC nội bộ              |
+| `PARTNER_EXTERNAL`     | Partner/NCC ngoài (riêng hoặc fallback qua `settings.is_fallback`) |
 
+
+`**order_type`:** `PACKAGE` | `SINGLE` | `PACKAGE_SINGLE` — loại đơn áp dụng bảng.
+
+> **Không còn cột `kind`.** Phân loại cũ (`CUSTOMER_PUBLIC`, `CUSTOMER_RETAIL`, `SUPPLIER_*`, …) map sang cặp `(object_type, order_type)` + `settings.is_fallback` / `retail_markup_factor`.
 
 #### `fee_table_version`
 
@@ -602,11 +611,11 @@ rescue_order_fee_snapshot ||--o{ rescue_order_fee_adjustment: order_level_adj
 | `fee_table_id`                  | BIGINT FK    |                                                            |
 | `version`                       | INT          | Tăng dần; UNIQUE(`fee_table_id`,`version`)                 |
 | `valid_from` / `valid_to`       | DATE         |                                                            |
-| `priority`                      | INT          | Độ ưu tiên khi nhiều bảng match                            |
-| `status`                        | VARCHAR(16)  | Version ACTIVE thì **immutable** nội dung lines/surcharges |
 | `note`                          | TEXT         |                                                            |
 | `activated_at` / `activated_by` |              |                                                            |
 
+
+> **Đã bỏ `priority` và `status` trên version.** Trạng thái ACTIVE/EXPIRED nằm ở `fee_table.status`; version đang dùng = `fee_table.current_version`. Nội dung version đã activate coi là bất biến. Tie-break chọn bảng: specificity → `version` cao hơn (BR-10 / BR-ORD-11).
 
 #### `fee_table_scope`
 
@@ -614,15 +623,15 @@ rescue_order_fee_snapshot ||--o{ rescue_order_fee_adjustment: order_level_adj
 | Cột                    | Kiểu                | Mô tả                    |
 | ---------------------- | ------------------- | ------------------------ |
 | `fee_table_version_id` | BIGINT PK/FK        | 1-1 với version          |
-| `enterprise_code`      | VARCHAR NULL        |                          |
-| `supplier_id`          | VARCHAR/BIGINT NULL |                          |
-| `supplier_name`        | VARCHAR NULL        |                          |
+| `corporate_customer_id`| VARCHAR NULL        | KH DN (corporate)        |
+| `partner_id`           | VARCHAR/BIGINT NULL | Partner / NCC            |
+| `partner_name`         | VARCHAR NULL        |                          |
 | `areas_json`           | JSONB               |                          |
 | `service_types_json`   | JSONB               | Lọc loại dịch vụ áp dụng |
 | `vehicle_types_json`   | JSONB               |                          |
 
 
-Rule UX: `target=CUSTOMER` → không dùng `supplier_*`; `target=SUPPLIER` → không dùng `enterprise_code` (trừ khi nghiệp vụ mở rộng sau).
+Rule UX: `target=CUSTOMER` → không dùng `partner_*`; `target=PARTNER` → không dùng `corporate_customer_id` (trừ khi nghiệp vụ mở rộng sau).
 
 #### `fee_table_settings`
 
@@ -630,7 +639,7 @@ Rule UX: `target=CUSTOMER` → không dùng `supplier_*`; `target=SUPPLIER` → 
 | Cột                    | Kiểu          | Mô tả                                             |
 | ---------------------- | ------------- | ------------------------------------------------- |
 | `fee_table_version_id` | BIGINT PK/FK  |                                                   |
-| `retail_markup_factor` | NUMERIC(10,4) | Chỉ meaningful với `CUSTOMER_RETAIL`              |
+| `retail_markup_factor` | NUMERIC(10,4) | Meaningful với `CUSTOMER_INDIVIDUAL` + mode markup |
 | `round_mode`           | VARCHAR(32)   | `NEAREST_1000` | `NEAREST_100` | `NONE`           |
 | `stack_surcharges`     | BOOLEAN       | `true` = nhân hệ số; `false` = lấy hệ số cao nhất |
 | `is_fallback`          | BOOLEAN       | Đánh dấu bảng fallback NCC                        |
@@ -644,7 +653,7 @@ Rule UX: `target=CUSTOMER` → không dùng `supplier_*`; `target=SUPPLIER` → 
 | ------------------------- | ---------------- | --------------------------- |
 | `id`                      | BIGSERIAL PK     |                             |
 | `fee_table_version_id`    | BIGINT FK        |                             |
-| `service_catalog_id`      | BIGINT FK        |                             |
+| `service_id`              | BIGINT FK        | FK `service.service_id`     |
 | `service_name`            | VARCHAR          | Denormalize tên lúc publish |
 | `base_price`              | NUMERIC(18,2)    |                             |
 | `pricing_mode`            | VARCHAR(16)      | `FIXED` | `PER_UNIT`        |
@@ -655,7 +664,7 @@ Rule UX: `target=CUSTOMER` → không dùng `supplier_*`; `target=SUPPLIER` → 
 | `sort_order`              | INT              |                             |
 
 
-Với `CUSTOMER_RETAIL` + chỉ markup: **không bắt buộc** có `fee_price_line`.
+Với `CUSTOMER_INDIVIDUAL` + chỉ markup: **không bắt buộc** có `fee_price_line`.
 
 #### `fee_price_line_condition`
 
@@ -703,76 +712,72 @@ Với `CUSTOMER_RETAIL` + chỉ markup: **không bắt buộc** có `fee_price_l
 
 ### 5.3. Runtime trên đơn
 
-#### `rescue_order_fee_snapshot`
+> Tên rút gọn: `ro_fee_*`. Map cũ: `rescue_order_fee_snapshot` → `ro_fee_snapshot`, `rescue_order_fee_line` → `ro_fee_line`, `rescue_order_fee_adjustment` → `ro_fee_adj`.
+
+#### `ro_fee_snapshot`
 
 
-| Cột                    | Kiểu         | Mô tả                                                          |
-| ---------------------- | ------------ | -------------------------------------------------------------- |
-| `id`                   | BIGSERIAL PK |                                                                |
-| `rescue_order_v2_id`   | BIGINT FK    |                                                                |
-| `supplier_table_id`    | BIGINT NULL  |                                                                |
-| `supplier_table_code`  | VARCHAR      |                                                                |
-| `supplier_version`     | INT          |                                                                |
-| `customer_table_id`    | BIGINT NULL  |                                                                |
-| `customer_table_code`  | VARCHAR NULL |                                                                |
-| `customer_version`     | INT NULL     |                                                                |
-| `customer_fee_mode`    | VARCHAR      | `PACKAGE_PUBLIC` | `RETAIL` | `RETAIL_MARKUP` | `BUSINESS` | … |
-| `retail_markup_factor` | NUMERIC NULL |                                                                |
-| `input_context_json`   | JSONB        | Weather, km, enterprise, … lúc tính                            |
-| `calculated_at`        | TIMESTAMPTZ  |                                                                |
-| `calculated_by`        | VARCHAR      |                                                                |
+| Cột                          | Kiểu         | Mô tả                                                                 |
+| ---------------------------- | ------------ | --------------------------------------------------------------------- |
+| `id`                         | BIGSERIAL PK |                                                                       |
+| `rescue_order_v2_id`         | BIGINT FK    |                                                                       |
+| `customer_fee_table_id`      | BIGINT NULL  | FK `fee_table` (nhánh KH)                                             |
+| `customer_fee_table_version` | INT NULL     | Số version bảng KH lúc tính                                           |
+| `partner_fee_table_id`       | BIGINT NULL  | FK `fee_table` (nhánh Partner/NCC)                                    |
+| `partner_fee_table_version`  | INT NULL     | Số version bảng Partner lúc tính                                      |
+| `customer_fee_mode`          | VARCHAR      | `PACKAGE_PUBLIC` \| `RETAIL` \| `RETAIL_MARKUP` \| `CORPORATE` \| … |
+| `context_json`               | JSONB        | Context lúc tính: corporate_customer, xe, km, giờ, …                  |
+| `calculated_at`              | TIMESTAMPTZ  |                                                                       |
 
 
-#### `rescue_order_fee_line`
+#### `ro_fee_line`
 
 
-| Cột                          | Kiểu         | Mô tả                                     |
-| ---------------------------- | ------------ | ----------------------------------------- |
-| `id`                         | BIGSERIAL PK |                                           |
-| `snapshot_id`                | BIGINT FK    |                                           |
-| `rescue_order_service_id`    | BIGINT FK    | Liên kết dịch vụ thực hiện                |
-| `service_name`               | VARCHAR      |                                           |
-| `supplier_amount`            | NUMERIC      | Giá NCC sau hệ số                         |
-| `customer_amount`            | NUMERIC      | Tổng phí KH (KHCN+KHDN)                   |
-| `customer_individual_amount` | NUMERIC      | **Phí KHCN**                              |
-| `customer_enterprise_amount` | NUMERIC      | **Phí KHDN** (bảo lãnh)                   |
-| `fixed_price`                | NUMERIC      | Giá cố định trước hệ số (nếu có)          |
-| `customer_coefficient`       | NUMERIC      |                                           |
-| `supplier_coefficient`       | NUMERIC      |                                           |
-| `customer_source`            | VARCHAR      | `VETC` | `NCC` | `Thủ công` | …           |
-| `supplier_source`            | VARCHAR      |                                           |
-| `is_customer_manual`         | BOOLEAN      |                                           |
-| `is_supplier_manual`         | BOOLEAN      |                                           |
-| `matched_supplier_line_id`   | BIGINT NULL  | `fee_price_line.id`                       |
-| `matched_customer_line_id`   | BIGINT NULL  |                                           |
-| `breakdown_json`             | JSONB        | Surcharge items, công thức hệ số đọc được |
-| `sort_order`                 | INT          |                                           |
+| Cột                     | Kiểu         | Mô tả                                                                 |
+| ----------------------- | ------------ | --------------------------------------------------------------------- |
+| `id`                    | BIGSERIAL PK |                                                                       |
+| `snapshot_id`           | BIGINT FK    | `ro_fee_snapshot`                                                     |
+| `rescue_order_v2_id`    | BIGINT FK    | Denormalize theo đơn                                                  |
+| `service_id`            | BIGINT FK    | Dịch vụ trên đơn (`rescue_order_service`)                             |
+| `partner_amount`        | NUMERIC NULL | Phí Partner trước VAT / sau hệ số (tùy chốt VAT)                      |
+| `customer_amount`       | NUMERIC      | Phí KH trước VAT / sau hệ số                                          |
+| `vat`                   | NUMERIC      | Thuế / phần VAT (cần chốt: số tiền hay %)                             |
+| `partner_total_amount`  | NUMERIC NULL | Tổng Partner (sau VAT nếu áp)                                         |
+| `customer_total_amount` | NUMERIC      | Tổng KH (sau VAT nếu áp)                                              |
+| `customer_fixed_part`   | NUMERIC      | Base KH trước hệ số (vd. 700000)                                      |
+| `customer_coefficient`  | NUMERIC      | Hệ số KH (vd. 1.2) → ≈ `fixed_part × coefficient`                     |
+| `partner_fixed_part`    | NUMERIC NULL | Base Partner trước hệ số                                              |
+| `partner_coefficient`   | NUMERIC NULL | Hệ số Partner                                                         |
+| `customer_line_id`      | JSONB NULL   | Array `fee_price_line.id` đã khớp phía KH — vd. `[10,11]`             |
+| `partner_line_id`       | JSONB NULL   | Array `fee_price_line.id` đã khớp phía Partner                        |
+| `is_manual`             | BOOLEAN      | Phí chỉnh tay / sticky                                                |
+| `is_custom`             | BOOLEAN      | Đánh dấu dòng phí tùy biến (ngoài ma trận chuẩn)                      |
 
 
-#### `rescue_order_fee_adjustment`
+#### `ro_fee_adj`
 
 
-| Cột                          | Kiểu           | Mô tả                                               |
-| ---------------------------- | -------------- | --------------------------------------------------- |
-| `id`                         | BIGSERIAL PK   |                                                     |
-| `fee_line_id`                | BIGINT FK NULL | Null nếu điều chỉnh cấp tổng đơn                    |
-| `snapshot_id`                | BIGINT FK      |                                                     |
-| `adjustment_type`            | VARCHAR        | `MANUAL_EDIT` | `REDISTRIBUTE_TOTAL` | `RECALC` | … |
-| `before_json` / `after_json` | JSONB          |                                                     |
-| `note`                       | TEXT           |                                                     |
-| `created_at` / `created_by`  |                |                                                     |
+| Cột                          | Kiểu           | Mô tả                                            |
+| ---------------------------- | -------------- | ------------------------------------------------ |
+| `id`                         | BIGSERIAL PK   |                                                  |
+| `snapshot_id`                | BIGINT FK      |                                                  |
+| `fee_line_id`                | BIGINT FK NULL | Null nếu điều chỉnh cấp tổng đơn                 |
+| `action`                     | VARCHAR        | `AUTO_EDIT` \| `MANUAL_EDIT` \| `RECALC` \| …  |
+| `before_json` / `after_json` | JSONB          | Trạng thái trước/sau                             |
+| `created_by`                 | VARCHAR        |                                                  |
+| `created_at`                 | TIMESTAMPTZ    |                                                  |
 
 
-`rescue_order_service` giữ danh sách dịch vụ vận hành; **nguồn sự thật số tiền** là `rescue_order_fee_line` (dual-write giai chuyển).
+`rescue_order_service` giữ danh sách dịch vụ vận hành; **nguồn sự thật số tiền** là `ro_fee_line`.
 
 ---
 
-## 6. Ví dụ dữ liệu theo `kind`
+## 6. Ví dụ dữ liệu theo `object_type` / `order_type`
 
-### 6.1. `SUPPLIER_INTERNAL` — `SUP-INT-2026`
+### 6.1. `PARTNER_INTERNAL` — `SUP-INT-2026`
 
 ```text
-fee_table: code=SUP-INT-2026, target=SUPPLIER, kind=SUPPLIER_INTERNAL
+fee_table: code=SUP-INT-2026, target=PARTNER, object_type=PARTNER_INTERNAL, order_type=PACKAGE_SINGLE
 version 3: stack_surcharges=true
 
 fee_price_line:
@@ -784,36 +789,36 @@ fee_surcharge_rule:
     condition: weather = Mưa
 ```
 
-### 6.2. `CUSTOMER_PUBLIC` — `CUS-PUB-2026`
+### 6.2. Public / gói (`CUSTOMER_INDIVIDUAL` + `PACKAGE`) — `CUS-PUB-2026`
 
 ```text
-fee_table: target=CUSTOMER, kind=CUSTOMER_PUBLIC
+fee_table: target=CUSTOMER, object_type=CUSTOMER_INDIVIDUAL, order_type=PACKAGE
 Cùng dịch vụ nhưng base_price = 800000; surcharge riêng (có thể khác hệ số NCC).
-Đơn gói: supplier_amount ← SUP-INT; customer_amount ← CUS-PUB (độc lập).
+Đơn gói: partner_amount ← SUP-INT; customer_amount ← CUS-PUB (độc lập).
 ```
 
 ### 6.3. `CUSTOMER_BUSINESS` — `CUS-DN-ACME`
 
 ```text
-scope.enterprise_code = ACME
-Lines giá DN riêng; trên đơn tách customer_enterprise_amount theo % bảo lãnh,
+scope.corporate_customer_id = ACME
+Lines giá DN riêng; trên đơn tách customer_corporate_amount theo % bảo lãnh,
 customer_individual_amount = phần còn lại.
 ```
 
-### 6.4. `CUSTOMER_RETAIL` — chỉ hệ số
+### 6.4. KH lẻ markup-only (`CUSTOMER_INDIVIDUAL`) — chỉ hệ số
 
 ```text
-kind=CUSTOMER_RETAIL
+object_type=CUSTOMER_INDIVIDUAL + retail_markup_factor (markup-only)
 settings.retail_markup_factor = 1.5
 Không bắt buộc fee_price_line / fee_surcharge_rule
 customer_amount = (giá Public hoặc base NCC tùy policy sản phẩm) × 1.5
 snapshot.customer_fee_mode = RETAIL_MARKUP
 ```
 
-### 6.5. `SUPPLIER_EXTERNAL` + `SUPPLIER_EXTERNAL_FALLBACK`
+### 6.5. `PARTNER_EXTERNAL` + fallback (`is_fallback`)
 
 ```text
-Ưu tiên bảng external theo supplier_id;
+Ưu tiên bảng EXTERNAL theo partner_id;
 không match → fallback is_fallback=true.
 ```
 
@@ -823,17 +828,17 @@ không match → fallback is_fallback=true.
 
 Thực hiện ở application layer (không nhồi SQL phức tạp):
 
-1. Lọc `target` + `kind` phù hợp context đơn.
-2. Match `scope` (enterprise / supplier) + `valid_from/to`.
-3. Ưu tiên specificity (có enterprise/supplier > null) → `priority` → `version`.
-4. **NCC:** internal → external riêng → **fallback**.
-5. **KH:** business table → public → retail table hoặc **markup**.
+1. Lọc `target` + `object_type` + `order_type` phù hợp context đơn.
+2. Match `scope` (`corporate_customer_id` / `partner_id`) + `valid_from/to`.
+3. Ưu tiên specificity (có corporate/partner trên scope > null) → `version` (cao hơn thắng). **Không** có `priority` trên version.
+4. **Partner:** INTERNAL → EXTERNAL riêng → **fallback** (`is_fallback`).
+5. **KH:** BUSINESS → individual/public → markup theo settings.
 
-Tham chiếu hành vi mock: `resolveSupplierTable` / `resolveCustomerTable` trong `rsa-design/data/rescueFeeMockData.ts`.
+Tham chiếu hành vi mock: `resolvePartnerTable` / `resolveCustomerTable` trong `rsa-design/data/rescueFeeMockData.ts`.
 
 ---
 
-## 8. Tiêu chí linh động — `fee_criterion_def` + `fee_criterion_field_map`
+## 8. Tiêu chí linh động — `fee_criterion_def` + `fee_criterion_mapping_field`
 
 ### 8.1. Vì sao cần field map?
 
@@ -843,16 +848,17 @@ Field map cho biết lấy giá trị từ đâu trên đơn/xe/dòng dịch v�
 ### 8.2. Ví dụ seed map
 
 
-| criterion_key | source_path           | transform              | scope   |
-| ------------- | --------------------- | ---------------------- | ------- |
-| `weather`     | `order.weather`       | `UI_WEATHER_TO_LABEL`  | ORDER   |
-| `severity`    | `order.severity`      | `UI_SEVERITY_TO_LABEL` | ORDER   |
-| `distanceKm`  | `line.distanceKm`     | null                   | LINE    |
-| `vehicleType` | `vehicle.vehicleType` | null                   | VEHICLE |
-| `payload`     | `vehicle.payloadTons` | null                   | VEHICLE |
-| `seats`       | `vehicle.seats`       | null                   | VEHICLE |
-| `timeWindow`  | `order.requestTime`   | null                   | ORDER   |
-| `holiday`     | `order.asOfDate`      | `DATE_IN_HOLIDAY_LIST` | ORDER   |
+| criterion_key | table_mapping | field_mapping            | scope   |
+| ------------- | ------------- | ------------------------ | ------- |
+| `weather`     | `order`       | `weather` / `UI_WEATHER_TO_LABEL` | ORDER   |
+| `severity`    | `order`       | `severity` / `UI_SEVERITY_TO_LABEL` | ORDER   |
+| `distanceKm`  | `line`        | `distanceKm`             | LINE    |
+| `vehicleType` | `vehicle`     | `vehicleType`            | VEHICLE |
+| `payload`     | `vehicle`     | `payloadTons`            | VEHICLE |
+| `seats`       | `vehicle`     | `seats`                  | VEHICLE |
+| `timeWindow`  | `order`       | `requestTime`            | ORDER   |
+| `holiday`     | `order`       | `asOfDate` / `DATE_IN_HOLIDAY_LIST` | ORDER   |
+
 
 
 ### 8.3. Ví dụ thêm tiêu chí **không ALTER**
@@ -861,8 +867,8 @@ Field map cho biết lấy giá trị từ đâu trên đơn/xe/dòng dịch v�
 
 1. Insert `fee_criterion_def`:
   - `key=batteryType`, `value_type=LIST`, `values_json=["Axit","Lithium"]`
-2. Insert `fee_criterion_field_map`:
-  - `source_path=vehicle.batteryType`, `scope=VEHICLE`
+2. Insert `fee_criterion_mapping_field`:
+  - `table_mapping=vehicle`, `field_mapping=batteryType`, `scope=VEHICLE`
 3. Đảm bảo API đơn / form xe đã có field (hoặc custom attribute) tương ứng.
 4. Trên bảng phí: surcharge hoặc price line condition `batteryType = Lithium`.
 5. Engine: duyệt map → build context → `valueMatchesCondition` — **không** sửa bảng `fee_price_line` schema.
@@ -888,11 +894,11 @@ Nếu thiếu bước 2–3: điều kiện **không bao giờ match** (`actual 
 | `price_policy_multiplier` + global_list               | `fee_surcharge_rule` + `fee_surcharge_condition`                     | List value → condition value                                      |
 | `multiplier_aggregation_mode`                         | `fee_table_settings.stack_surcharges`                                | HIGHEST→false; PRODUCT→true                                       |
 | `price_policy_cap`                                    | `min_price`/`max_price` trên line hoặc `cap_amount` surcharge        |                                                                   |
-| `partner_id` trên policy                              | `target=SUPPLIER` + `scope.supplier_id`                              |                                                                   |
-| `corporate_customer_id`                               | `target=CUSTOMER`, `kind=CUSTOMER_BUSINESS`, `scope.enterprise_code` |                                                                   |
+| `partner_id` trên policy                              | `target=PARTNER` + `scope.partner_id`                                |                                                                   |
+| `corporate_customer_id`                               | `target=CUSTOMER`, `object_type=CUSTOMER_BUSINESS`, `scope.corporate_customer_id` |                                                                   |
 | `pricing_formula` / `inherit_mode`                    | Không migrate nội dung; dùng version/fallback                        |                                                                   |
-| `customer_price_source=MARKUP`                        | `CUSTOMER_RETAIL` + markup settings                                  |                                                                   |
-| `rescue_order_service.supplier_fee`                   | `rescue_order_fee_line.supplier_amount`                              | Dual-write                                                        |
+| `customer_price_source=MARKUP`                        | `object_type=CUSTOMER_INDIVIDUAL` + markup settings                  |                                                                   |
+| `rescue_order_service.supplier_fee` (legacy)          | `ro_fee_line.partner_amount`                                     | Dual-write                                                        |
 | `rescue_order_service_charge*`                        | `customer_*` trên fee_line + snapshot                                | Giữ bảng cũ đọc báo cáo giai đoạn 1                               |
 | `global_list` tiêu chí phí                            | Seed `fee_criterion_def`                                             | Không bắt buộc thay toàn bộ global_list hệ thống                  |
 | `fee_item`                                            | `incidental_fee_def` / catalog dịch vụ phát sinh                     |                                                                   |
@@ -925,14 +931,15 @@ FOR each price_policy_distance_tier t:
 
 ## 11. Index gợi ý
 
-- `fee_table (target, kind, status)`
+- `fee_table (target, object_type, order_type, status)`
 - `fee_table_version (fee_table_id, version)` UNIQUE
-- `fee_table_version (status, valid_from, valid_to)`
-- `fee_price_line (fee_table_version_id, service_catalog_id)`
+- `fee_table_version (fee_table_id, version, valid_from, valid_to)`
+- `fee_price_line (fee_table_version_id, service_id)`
 - `fee_price_line_condition (fee_price_line_id, criterion_key)`
-- `fee_criterion_field_map (criterion_key)`
-- `rescue_order_fee_snapshot (rescue_order_v2_id)`
-- `rescue_order_fee_line (snapshot_id)`, `(rescue_order_service_id)`
+- `fee_criterion_mapping_field (criterion_key)`
+- `ro_fee_snapshot (rescue_order_v2_id)`
+- `ro_fee_line (snapshot_id)`, `(rescue_order_v2_id)`, `(service_id)`
+- `ro_fee_adj (snapshot_id)`, `(fee_line_id)`
 
 ---
 
@@ -942,7 +949,7 @@ FOR each price_policy_distance_tier t:
 | Tài nguyên                                         | Vai trò                                                           |
 | -------------------------------------------------- | ----------------------------------------------------------------- |
 | `rsa-design/data/rescueFeeMockData.ts`             | Model & engine mock (`PriceTable`, `FeeSnapshot`, resolve KH/NCC) |
-| `rsa-design/pages/RescueFeeForm.tsx`               | UX cấu hình bảng phí (target, kind, criteria, retail markup)      |
+| `rsa-design/pages/RescueFeeForm.tsx`               | UX cấu hình bảng phí (target, object_type, order_type, criteria, retail markup)      |
 | `rsa-design/pages/RescueFeeCriteriaManagement.tsx` | Catalog tiêu chí / phí phát sinh (UI)                             |
 | Postgres `rsa-dev` / `dev-rsa`                     | Nguồn quan sát luồng cũ                                           |
 
@@ -951,7 +958,7 @@ FOR each price_policy_distance_tier t:
 
 ## 13. Checklist review BA/DBA
 
-- [ ] Đồng ý tách `target` + `kind` và 2 bảng trên mỗi đơn  
+- [ ] Đồng ý tách `target` + `object_type` + `order_type` và 2 bảng trên mỗi đơn  
 - [ ] Đồng ý condition dạng hàng (không hard-code cột tier)  
 - [ ] Đồng ý snapshot = header + dòng tiền + version bất biến (không dump full bảng)  
 - [ ] Đồng ý field map cho tiêu chí mới  

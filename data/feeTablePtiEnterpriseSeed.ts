@@ -18,26 +18,24 @@ export type SeedCriterionDef = {
 export type SeedFieldMap = {
   id: string;
   criterion_key: string;
-  source_path: string;
-  transform: string | null;
-  transform_params_json: unknown | null;
+  table_mapping: 'order' | 'line' | 'vehicle';
+  field_mapping: string;
   scope: 'ORDER' | 'LINE' | 'VEHICLE';
   status: 'ACTIVE';
 };
 
-export type SeedServiceCatalog = {
-  id: number;
-  code: string;
-  name: string;
-  service_type: 'ONSITE' | 'TOWING' | 'CRANE';
-  parent_id: number | null;
-  status: 'ACTIVE';
+/** Tham chiếu master `service` (không seed fee_service_catalog). Id demo = service_id. */
+export type SeedServiceRef = {
+  service_id: number;
+  service_code: string;
+  service_name: string;
+  category: 'ONSITE' | 'TOWING' | 'CRANE';
 };
 
 export type SeedPriceLine = {
   id: string;
   fee_table_version_id: string;
-  service_catalog_id: number;
+  service_id: number;
   service_name: string;
   base_price: number;
   pricing_mode: 'FIXED' | 'PER_UNIT';
@@ -186,136 +184,122 @@ export const feeCriterionFieldMapPti: SeedFieldMap[] = [
   {
     id: 'fmap-vtype',
     criterion_key: 'vehicleType',
-    source_path: 'vehicle.vehicleType',
-    transform: null,
-    transform_params_json: null,
+    table_mapping: 'vehicle',
+    field_mapping: 'vehicleType',
     scope: 'VEHICLE',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-seat',
     criterion_key: 'seat_number',
-    source_path: 'vehicle.seat_number',
-    transform: null,
-    transform_params_json: null,
+    table_mapping: 'vehicle',
+    field_mapping: 'seat_number',
     scope: 'VEHICLE',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-load',
     criterion_key: 'load_capacity',
-    source_path: 'vehicle.load_capacity',
-    transform: null,
-    transform_params_json: null,
+    table_mapping: 'vehicle',
+    field_mapping: 'load_capacity',
     scope: 'VEHICLE',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-rescue-veh',
     criterion_key: 'rescueVehicleType',
-    source_path: 'order.rescueVehicleType',
-    transform: null,
-    transform_params_json: null,
+    table_mapping: 'order',
+    field_mapping: 'rescueVehicleType',
     scope: 'ORDER',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-km',
     criterion_key: 'distanceKm',
-    source_path: 'line.distanceKm',
-    transform: null,
-    transform_params_json: null,
+    table_mapping: 'line',
+    field_mapping: 'distanceKm',
     scope: 'LINE',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-road-distance',
     criterion_key: 'roadDistance',
-    source_path: 'line.roadDistance',
-    transform: null,
-    transform_params_json: null,
+    table_mapping: 'line',
+    field_mapping: 'roadDistance',
     scope: 'LINE',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-crane-posture',
     criterion_key: 'cranePosture',
-    source_path: 'line.cranePosture',
-    transform: null,
-    transform_params_json: null,
+    table_mapping: 'line',
+    field_mapping: 'cranePosture',
     scope: 'LINE',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-terrain',
     criterion_key: 'areaTerrain',
-    source_path: 'order.areaTerrain',
-    transform: null,
-    transform_params_json: null,
+    table_mapping: 'order',
+    field_mapping: 'areaTerrain',
     scope: 'ORDER',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-hw',
     criterion_key: 'isHighway',
-    source_path: 'order.highwayRoute',
-    transform: 'BOOL_OR_ROUTE_TO_YES_NO',
-    transform_params_json: null,
+    table_mapping: 'order',
+    field_mapping: 'BOOL_OR_ROUTE_TO_YES_NO',
     scope: 'ORDER',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-time',
     criterion_key: 'timeWindow',
-    source_path: 'order.requestTime',
-    transform: null,
-    transform_params_json: null,
+    table_mapping: 'order',
+    field_mapping: 'requestTime',
     scope: 'ORDER',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-weather',
     criterion_key: 'weather',
-    source_path: 'order.weather',
-    transform: 'UI_WEATHER_TO_LABEL',
-    transform_params_json: null,
+    table_mapping: 'order',
+    field_mapping: 'UI_WEATHER_TO_LABEL',
     scope: 'ORDER',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-loc',
     criterion_key: 'locationType',
-    source_path: 'order.locationType',
-    transform: null,
-    transform_params_json: null,
+    table_mapping: 'order',
+    field_mapping: 'locationType',
     scope: 'ORDER',
     status: 'ACTIVE',
   },
   {
     id: 'fmap-eq',
     criterion_key: 'extraEquipment',
-    source_path: 'line.extraEquipment',
-    transform: null,
-    transform_params_json: null,
+    table_mapping: 'line',
+    field_mapping: 'extraEquipment',
     scope: 'LINE',
     status: 'ACTIVE',
   },
 ];
 
-export const feeServiceCatalogPti: SeedServiceCatalog[] = [
-  { id: 101, code: 'ONSITE_JUMP', name: 'Kích bình', service_type: 'ONSITE', parent_id: null, status: 'ACTIVE' },
-  { id: 102, code: 'ONSITE_PATCH', name: 'Vá lốp tại chỗ', service_type: 'ONSITE', parent_id: null, status: 'ACTIVE' },
-  { id: 103, code: 'ONSITE_SPARE', name: 'Thay lốp dự phòng', service_type: 'ONSITE', parent_id: null, status: 'ACTIVE' },
+/** Placeholder map → `service` thật trong DB (CATEGORY phân loại). */
+export const feeServiceRefPti: SeedServiceRef[] = [
+  { service_id: 101, service_code: 'ONSITE_JUMP', service_name: 'Kích bình', category: 'ONSITE' },
+  { service_id: 102, service_code: 'ONSITE_PATCH', service_name: 'Vá lốp tại chỗ', category: 'ONSITE' },
+  { service_id: 103, service_code: 'ONSITE_SPARE', service_name: 'Thay lốp dự phòng', category: 'ONSITE' },
   {
-    id: 104,
-    code: 'ONSITE_FUEL',
-    name: 'Cung cấp nhiên liệu (xăng, dầu, nước làm mát)',
-    service_type: 'ONSITE',
-    parent_id: null,
-    status: 'ACTIVE',
+    service_id: 104,
+    service_code: 'ONSITE_FUEL',
+    service_name: 'Cung cấp nhiên liệu (xăng, dầu, nước làm mát)',
+    category: 'ONSITE',
   },
-  { id: 201, code: 'TOW_GENERIC', name: 'Kéo xe', service_type: 'TOWING', parent_id: null, status: 'ACTIVE' },
-  { id: 301, code: 'CRANE_GENERIC', name: 'Cẩu xe', service_type: 'CRANE', parent_id: null, status: 'ACTIVE' },
+  { service_id: 201, service_code: 'TOW_GENERIC', service_name: 'Kéo xe', category: 'TOWING' },
+  { service_id: 301, service_code: 'CRANE_GENERIC', service_name: 'Cẩu xe', category: 'CRANE' },
 ];
 
 export const feeTablePti = {
@@ -323,7 +307,8 @@ export const feeTablePti = {
   code: 'CUS-DN-PTI-2026',
   name: 'Bảng phí KH DN — PTI (VETC × PTI)',
   target: 'CUSTOMER' as const,
-  kind: 'CUSTOMER_BUSINESS' as const,
+  object_type: 'CUSTOMER_BUSINESS' as const,
+  order_type: 'PACKAGE_SINGLE' as const,
   current_version: 1,
   status: 'ACTIVE' as const,
 };
@@ -334,17 +319,15 @@ export const feeTableVersionPti = {
   version: 1,
   valid_from: '2026-01-01',
   valid_to: '2026-12-31',
-  priority: 200,
-  status: 'ACTIVE' as const,
   note: 'Seed từ khung giá VETC × PTI — pass/cargo AND, không nhóm G',
   activated_at: '2026-01-01T00:00:00+07:00',
 };
 
 export const feeTableScopePti = {
   fee_table_version_id: PTI_FEE_TABLE_VERSION_ID,
-  enterprise_code: 'PTI',
-  supplier_id: null as string | null,
-  supplier_name: null as string | null,
+  corporate_customer_id: 'PTI',
+  partner_id: null as string | null,
+  partner_name: null as string | null,
   areas_json: null as null,
   service_types_json: ['ONSITE', 'TOWING', 'CRANE'] as string[],
   vehicle_types_json: null as null,
@@ -474,7 +457,7 @@ function buildCraneLines(): SeedPriceLine[] {
       lines.push({
         id: `fpl-pti-crane-${tier.slug}-pass-${col.idSlugPass}`,
         fee_table_version_id: PTI_FEE_TABLE_VERSION_ID,
-        service_catalog_id: 301,
+        service_id: 301,
         service_name: 'Cẩu xe',
         base_price: price,
         pricing_mode: 'FIXED',
@@ -492,7 +475,7 @@ function buildCraneLines(): SeedPriceLine[] {
       lines.push({
         id: `fpl-pti-crane-${tier.slug}-cargo-${col.idSlugCargo}`,
         fee_table_version_id: PTI_FEE_TABLE_VERSION_ID,
-        service_catalog_id: 301,
+        service_id: 301,
         service_name: 'Cẩu xe',
         base_price: price,
         pricing_mode: 'FIXED',
@@ -519,10 +502,10 @@ function buildOnsiteLines(): SeedPriceLine[] {
     [103, 'Thay lốp dự phòng', 400_000],
     [104, 'Cung cấp nhiên liệu (xăng, dầu, nước làm mát)', 300_000],
   ];
-  return rows.map(([service_catalog_id, service_name, base_price], i) => ({
+  return rows.map(([service_id, service_name, base_price], i) => ({
     id: `fpl-pti-onsite-${i + 1}`,
     fee_table_version_id: PTI_FEE_TABLE_VERSION_ID,
-    service_catalog_id,
+    service_id,
     service_name,
     base_price,
     pricing_mode: 'FIXED' as const,
@@ -560,7 +543,7 @@ function buildTowLines(): SeedPriceLine[] {
     lines.push({
       id: `fpl-pti-tow-${kind}-${slug}-le10`,
       fee_table_version_id: PTI_FEE_TABLE_VERSION_ID,
-      service_catalog_id: 201,
+      service_id: 201,
       service_name: 'Kéo xe',
       base_price: base,
       pricing_mode: 'FIXED',
@@ -577,7 +560,7 @@ function buildTowLines(): SeedPriceLine[] {
     lines.push({
       id: `fpl-pti-tow-${kind}-${slug}-from11`,
       fee_table_version_id: PTI_FEE_TABLE_VERSION_ID,
-      service_catalog_id: 201,
+      service_id: 201,
       service_name: 'Kéo xe',
       base_price: perKm,
       pricing_mode: 'PER_UNIT',
@@ -723,16 +706,16 @@ export const feeSurchargeRulePti: SeedSurcharge[] = [
 export const rescueOrderFeeSnapshotPtiDemo = {
   id: 'rofs-demo-001',
   rescue_order_v2_id: 900001,
-  supplier_table_id: null as string | null,
-  supplier_table_code: null as string | null,
-  supplier_version: null as number | null,
+  partner_table_id: null as string | null,
+  partner_table_code: null as string | null,
+  partner_version: null as number | null,
   customer_table_id: feeTablePti.id,
   customer_table_code: feeTablePti.code,
   customer_version: 1,
   customer_fee_mode: 'BUSINESS' as const,
   retail_markup_factor: null as number | null,
   input_context_json: {
-    enterpriseCode: 'PTI',
+    corporateCustomerId: 'PTI',
     vehicleType: VT_PASS,
     seat_number: 5,
     distanceKm: 15,
@@ -754,19 +737,19 @@ export const rescueOrderFeeLinePtiDemo = {
   snapshot_id: rescueOrderFeeSnapshotPtiDemo.id,
   rescue_order_service_id: 800001,
   service_name: 'Kéo xe',
-  supplier_amount: 0,
+  partner_amount: 0,
   customer_amount: 840_000,
   customer_individual_amount: 840_000,
-  customer_enterprise_amount: 0,
+  customer_business_amount: 0,
   fixed_price: 700_000,
   customer_coefficient: 1.2,
-  supplier_coefficient: 1,
+  partner_coefficient: 1,
   customer_source: 'VETC',
-  supplier_source: '—',
+  partner_source: '—',
   is_customer_manual: false,
-  is_supplier_manual: false,
+  is_partner_manual: false,
   matched_customer_line_id: 'fpl-pti-tow-pass-2-12-le10+from11',
-  matched_supplier_line_id: null as string | null,
+  matched_partner_line_id: null as string | null,
   breakdown_json: {
     formula: 'FIXED 600000 + PER_UNIT 20000*(15-10) = 700000; ×1.2 (đêm) = 840000',
     matched_lines: ['fpl-pti-tow-pass-2-12-le10', 'fpl-pti-tow-pass-2-12-from11'],
@@ -778,11 +761,11 @@ export const rescueOrderFeeLinePtiDemo = {
 export const ptiSeedStats = {
   criterion_defs: feeCriterionDefPti.length,
   field_maps: feeCriterionFieldMapPti.length,
-  services: feeServiceCatalogPti.length,
+  service_refs: feeServiceRefPti.length,
   price_lines: feePriceLinePti.length,
-  price_lines_onsite: feePriceLinePti.filter((l) => l.service_catalog_id < 200).length,
-  price_lines_tow: feePriceLinePti.filter((l) => l.service_catalog_id === 201).length,
-  price_lines_crane: feePriceLinePti.filter((l) => l.service_catalog_id === 301).length,
+  price_lines_onsite: feePriceLinePti.filter((l) => l.service_id < 200).length,
+  price_lines_tow: feePriceLinePti.filter((l) => l.service_id === 201).length,
+  price_lines_crane: feePriceLinePti.filter((l) => l.service_id === 301).length,
   surcharge_rules: feeSurchargeRulePti.length,
   condition_rows: feePriceLinePti.reduce((n, l) => n + l.conditions.length, 0),
 };

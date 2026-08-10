@@ -3,8 +3,8 @@ skinparam packageStyle rectangle
 
 package "Catalog" {
   rectangle fee_criterion_def as CritDef
-  rectangle fee_criterion_field_map as CritMap
-  rectangle fee_service_catalog as SvcCat
+  rectangle fee_criterion_mapping_field as CritMap
+  rectangle service as Svc
   rectangle incidental_fee_def as Incidental
 }
 
@@ -20,9 +20,9 @@ package "Cau_hinh_bang_phi" {
 }
 
 package "Tren_don" {
-  rectangle rescue_order_fee_snapshot as Snap
-  rectangle rescue_order_fee_line as Line
-  rectangle rescue_order_fee_adjustment as Adj
+  rectangle ro_fee_snapshot as Snap
+  rectangle ro_fee_line as Line
+  rectangle ro_fee_adj as Adj
 }
 
 CritDef --> CritMap
@@ -35,8 +35,8 @@ FTV --> PL
 FTV --> SR
 PL --> PLC
 SR --> SRC
-FTV --> Snap
+FT --> Snap
 Snap --> Line
 Line --> Adj
-SvcCat --> PL
+Svc --> PL
 @enduml

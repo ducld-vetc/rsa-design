@@ -239,25 +239,26 @@ const findActiveConflict = (
   if (form.status !== 'ACTIVE') return null;
   const others = existing.filter((table) => table.id !== form.id && table.status === 'ACTIVE');
 
-  const enterpriseCode = form.scope.enterpriseCode?.trim();
-  if (enterpriseCode) {
-    const conflict = others.find((table) => table.scope.enterpriseCode === enterpriseCode);
+  const corporateCustomerId = form.scope.corporateCustomerId?.trim();
+  if (corporateCustomerId) {
+    const conflict = others.find((table) => table.scope.corporateCustomerId === corporateCustomerId);
     if (conflict) return conflict;
   }
 
-  const supplierId = form.scope.supplierId?.trim();
-  if (supplierId) {
-    const conflict = others.find((table) => table.scope.supplierId === supplierId);
+  const partnerId = form.scope.partnerId?.trim();
+  if (partnerId) {
+    const conflict = others.find((table) => table.scope.partnerId === partnerId);
     if (conflict) return conflict;
   }
 
-  if (!enterpriseCode && !supplierId) {
+  if (!corporateCustomerId && !partnerId) {
     const conflict = others.find(
       (table) =>
-        !table.scope.enterpriseCode &&
-        !table.scope.supplierId &&
+        !table.scope.corporateCustomerId &&
+        !table.scope.partnerId &&
         table.target === form.target &&
-        table.kind === form.kind
+        table.objectType === form.objectType &&
+        table.orderType === form.orderType
     );
     if (conflict) return conflict;
   }
@@ -333,43 +334,47 @@ export const validatePriceTableForSave = (
     };
   }
 
-  if (form.kind === 'CUSTOMER_BUSINESS' && !form.scope.enterpriseCode?.trim()) {
+  if (form.objectType === 'CUSTOMER_BUSINESS' && !form.scope.corporateCustomerId?.trim()) {
     return {
       message: 'Bảng CUSTOMER_BUSINESS bắt buộc chọn doanh nghiệp áp dụng',
       tab: 'general',
     };
   }
 
-  if (form.kind === 'SUPPLIER_EXTERNAL' && !form.scope.supplierId?.trim()) {
+  if (
+    form.objectType === 'PARTNER_EXTERNAL' &&
+    !form.settings.isFallback &&
+    !form.scope.partnerId?.trim()
+  ) {
     return {
-      message: 'Bảng SUPPLIER_EXTERNAL bắt buộc chọn NCC áp dụng',
+      message: 'Bảng PARTNER_EXTERNAL bắt buộc chọn NCC áp dụng',
       tab: 'general',
     };
   }
 
   const conflict = findActiveConflict(form, existing);
   if (conflict) {
-    if (form.scope.enterpriseCode?.trim()) {
+    if (form.scope.corporateCustomerId?.trim()) {
       return {
         tab: 'general',
-        message: `Đã có bảng phí ACTIVE cho doanh nghiệp ${form.scope.enterpriseCode} (mã ${conflict.code})`,
+        message: `Đã có bảng phí ACTIVE cho doanh nghiệp ${form.scope.corporateCustomerId} (mã ${conflict.code})`,
       };
     }
-    if (form.scope.supplierId?.trim()) {
+    if (form.scope.partnerId?.trim()) {
       return {
         tab: 'general',
-        message: `Đã có bảng phí ACTIVE cho NCC ${form.scope.supplierId} (mã ${conflict.code})`,
+        message: `Đã có bảng phí ACTIVE cho NCC ${form.scope.partnerId} (mã ${conflict.code})`,
       };
     }
     return {
       tab: 'general',
-      message: `Đã có bảng phí ACTIVE cùng target/kind (mã ${conflict.code})`,
+      message: `Đã có bảng phí ACTIVE cùng target/objectType/orderType (mã ${conflict.code})`,
     };
   }
 
   const markupOnly = usesRetailMarkupOnlyPricing(form);
 
-  if (form.kind !== 'CUSTOMER_RETAIL' && Number(form.settings.retailMarkupFactor) > 0) {
+  if (!usesRetailMarkupOnlyPricing(form) && Number(form.settings.retailMarkupFactor) > 0) {
     return {
       tab: 'general',
       message:

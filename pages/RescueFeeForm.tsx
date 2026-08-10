@@ -25,11 +25,11 @@ import {
   FEE_SERVICE_CATALOG,
   FEE_SURCHARGE_CATALOG,
   SURCHARGE_CRITERIA_CATALOG,
-  FEE_KIND_LABELS,
+  FEE_OBJECT_TYPE_LABELS,
   FEE_STATUS_LABELS,
   FEE_TARGET_LABELS,
-  FEE_ENTERPRISE_OPTIONS,
-  FEE_SUPPLIER_OPTIONS,
+  FEE_CORPORATE_CUSTOMER_OPTIONS,
+  FEE_PARTNER_OPTIONS,
   emptyPriceTable,
   rescueFeeTables,
   upsertPriceTable,
@@ -43,7 +43,7 @@ import {
   type FeeRuleCondition,
   type FeeObjectType,
   type FeeOrderType,
-  type FeeTableKind,
+  
   type FeeTableStatus,
   type FeeTarget,
   type PriceTable,
@@ -90,7 +90,7 @@ const TABLE_IMPORT_DEMO_CASES: Array<{
   { id: 'json_not_object', label: 'File · JSON không phải object' },
   { id: 'missing_sheet', label: 'File · Thiếu sheet Excel (mô phỏng)' },
   { id: 'empty_payload', label: 'File · Không có dòng DichVu/PhuPhi' },
-  { id: 'bad_object_type', label: 'ThongTin · scope.objectType sai' },
+  { id: 'bad_object_type', label: 'ThongTin · objectType sai' },
   { id: 'bad_service_code', label: 'DichVu · serviceCode không thuộc catalog' },
   { id: 'from_gte_to', label: 'DichVu · from ≥ to' },
   { id: 'bad_surcharge_code', label: 'PhuPhi · surchargeCode không suy tiêu chí' },
@@ -101,11 +101,9 @@ const TABLE_IMPORT_DEMO_CASES: Array<{
 const buildTableImportDemoBase = (): Record<string, unknown> => ({
   code: 'SUP-EXT-PARTNER',
   name: 'Bảng phí đối tác mẫu',
-  target: 'SUPPLIER',
-  scope: {
-    objectType: 'SUPPLIER_EXTERNAL',
-    orderType: 'PACKAGE_SINGLE',
-  },
+  target: 'PARTNER',
+  objectType: 'PARTNER_EXTERNAL',
+  orderType: 'PACKAGE_SINGLE',
   settings: {
     retailMarkupFactor: 0,
     roundMode: 'NEAREST_1000',
@@ -412,10 +410,10 @@ const OBJECT_TYPE_OPTIONS_BY_TARGET: Record<
   FeeTarget,
   Array<{ value: FeeObjectType; label: string }>
 > = {
-  SUPPLIER: [
-    { value: 'SUPPLIER_INTERNAL', label: 'Nội bộ (partner_type = INTERNAL)' },
+  PARTNER: [
+    { value: 'PARTNER_INTERNAL', label: 'Nội bộ (partner_type = INTERNAL)' },
     {
-      value: 'SUPPLIER_EXTERNAL',
+      value: 'PARTNER_EXTERNAL',
       label: "Bên ngoài (partner_type in ['THIRD_PARTY','QUICK_SERVICE'])",
     },
   ],
@@ -436,21 +434,7 @@ const ORDER_TYPE_OPTIONS: Array<{ value: FeeOrderType; label: string }> = [
   { value: 'PACKAGE_SINGLE', label: 'Đơn gói đơn lẻ' },
 ];
 const defaultObjectTypeByTarget = (target: FeeTarget): FeeObjectType =>
-  target === 'SUPPLIER' ? 'SUPPLIER_INTERNAL' : 'CUSTOMER_INDIVIDUAL';
-const inferKindFromTargetAndObjectType = (
-  target: FeeTarget,
-  objectType: string | undefined,
-  fallback: FeeTableKind
-): FeeTableKind => {
-  if (target === 'SUPPLIER') {
-    if (objectType === 'SUPPLIER_INTERNAL') return 'SUPPLIER_INTERNAL';
-    if (objectType === 'SUPPLIER_EXTERNAL') return 'SUPPLIER_EXTERNAL';
-    return syncKindWithTarget(target, fallback);
-  }
-  if (objectType === 'CUSTOMER_BUSINESS') return 'CUSTOMER_BUSINESS';
-  if (objectType === 'CUSTOMER_INDIVIDUAL') return 'CUSTOMER_RETAIL';
-  return syncKindWithTarget(target, fallback);
-};
+  target === 'PARTNER' ? 'PARTNER_INTERNAL' : 'CUSTOMER_INDIVIDUAL';
 const defaultSurchargeOperatorByCriterion = (criterionKey: string): FeeRuleCondition['operator'] =>
   isTimeSurchargeCriterion(criterionKey) ? 'BETWEEN' : '=';
 
@@ -865,10 +849,8 @@ const RescueFeeForm: React.FC = () => {
         name: 'Bảng phí mới',
         applyFor: '',
         status: 'ACTIVE',
-        scope: {
-          objectType: 'SUPPLIER_INTERNAL',
-          orderType: 'PACKAGE',
-        },
+        objectType: 'PARTNER_INTERNAL',
+        orderType: 'PACKAGE_SINGLE',
       })
     );
   }, [id, clonedTable]);
@@ -904,26 +886,6 @@ const RescueFeeForm: React.FC = () => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const syncKindWithTarget = (target: FeeTarget, kind: FeeTableKind): FeeTableKind => {
-    if (target === 'CUSTOMER') {
-      if (
-        kind === 'CUSTOMER_PUBLIC' ||
-        kind === 'CUSTOMER_RETAIL' ||
-        kind === 'CUSTOMER_BUSINESS'
-      ) {
-        return kind;
-      }
-      return 'CUSTOMER_PUBLIC';
-    }
-    if (
-      kind === 'SUPPLIER_INTERNAL' ||
-      kind === 'SUPPLIER_EXTERNAL' ||
-      kind === 'SUPPLIER_EXTERNAL_FALLBACK'
-    ) {
-      return kind;
-    }
-    return 'SUPPLIER_INTERNAL';
-  };
 
   const handleSave = () => {
     const payload: PriceTable = {
@@ -1473,8 +1435,9 @@ const RescueFeeForm: React.FC = () => {
   const buildPartnerTableSample = () => ({
     code: form.code || 'SUP-EXT-PARTNER',
     name: form.name || 'Bảng phí đối tác',
-    target: 'SUPPLIER',
-    kind: 'SUPPLIER_EXTERNAL',
+    target: 'PARTNER',
+    objectType: form.objectType || 'PARTNER_EXTERNAL',
+    orderType: form.orderType || 'PACKAGE_SINGLE',
     applyFor: form.applyFor || 'NCC đối tác',
     status: form.status || 'ACTIVE',
     settings: {
@@ -1846,7 +1809,7 @@ const RescueFeeForm: React.FC = () => {
     } else if (caseId === 'multi_errors') {
       payload = {
         ...base,
-        target: 'SUPPLIER',
+        target: 'PARTNER',
         scope: { objectType: 'CUSTOMER_BUSINESS', orderType: 'WRONG' },
         services: [
           {
@@ -1933,12 +1896,6 @@ const RescueFeeForm: React.FC = () => {
         : syncCriteriaFromRules(importedRules);
 
     const target = (payload.target as FeeTarget | undefined) ?? form.target;
-    const importedObjectType = String(
-      (payload.scope as Record<string, unknown> | undefined)?.objectType ??
-        payload.objectType ??
-        ''
-    );
-    const kind = inferKindFromTargetAndObjectType(target, importedObjectType, form.kind);
 
     setForm((prev) => ({
       ...prev,
@@ -1946,24 +1903,14 @@ const RescueFeeForm: React.FC = () => {
       name: String(payload.name ?? prev.name),
       applyFor: String(payload.applyFor ?? prev.applyFor),
       target,
-      kind,
+      objectType:
+        (String(payload.objectType ?? prev.objectType ?? defaultObjectTypeByTarget(target)) ||
+          defaultObjectTypeByTarget(target)) as FeeObjectType,
+      orderType:
+        (String(payload.orderType ?? prev.orderType ?? 'PACKAGE') || 'PACKAGE') as FeeOrderType,
       scope: {
         ...prev.scope,
         ...(payload.scope as Record<string, unknown> | undefined),
-        objectType:
-          String(
-            (payload.scope as Record<string, unknown> | undefined)?.objectType ??
-              payload.objectType ??
-              prev.scope.objectType ??
-              defaultObjectTypeByTarget(target)
-          ) || defaultObjectTypeByTarget(target),
-        orderType:
-          String(
-            (payload.scope as Record<string, unknown> | undefined)?.orderType ??
-              payload.orderType ??
-              prev.scope.orderType ??
-              'PACKAGE'
-          ) || 'PACKAGE',
       },
       status: (payload.status as FeeTableStatus | undefined) ?? prev.status,
       settings: {
@@ -2060,9 +2007,9 @@ const RescueFeeForm: React.FC = () => {
       ['field', 'value'],
       ['code', form.code || 'SUP-EXT-PARTNER'],
       ['name', form.name || 'Bảng phí đối tác mẫu'],
-      ['target', form.target || 'SUPPLIER'],
-      ['scope.objectType', form.scope.objectType ?? defaultObjectTypeByTarget(form.target)],
-      ['scope.orderType', form.scope.orderType ?? 'PACKAGE'],
+      ['target', form.target || 'PARTNER'],
+      ['objectType', form.objectType ?? defaultObjectTypeByTarget(form.target)],
+      ['orderType', form.orderType ?? 'PACKAGE'],
       ['retailMarkupFactor', form.settings.retailMarkupFactor],
       ['roundMode', form.settings.roundMode],
       ['stackSurcharges', form.settings.stackSurcharges ? 'true' : 'false'],
@@ -2261,16 +2208,9 @@ const RescueFeeForm: React.FC = () => {
     return {
       code: info.code,
       name: info.name,
-      target: info.target || 'SUPPLIER',
-      scope: {
-        objectType: info['scope.objectType'] || info.objectType,
-        orderType: info['scope.orderType'] || info.orderType,
-      },
-      kind: inferKindFromTargetAndObjectType(
-        (info.target as FeeTarget | undefined) || 'SUPPLIER',
-        String(info['scope.objectType'] ?? info.objectType ?? ''),
-        form.kind
-      ),
+      target: info.target || 'PARTNER',
+      objectType: info['objectType'] || info.objectType,
+      orderType: info['orderType'] || info.orderType,
       status: info.status || 'ACTIVE',
       settings: {
         retailMarkupFactor: Number(info.retailMarkupFactor) || form.settings.retailMarkupFactor,
@@ -2667,9 +2607,6 @@ const RescueFeeForm: React.FC = () => {
     });
   };
 
-  const kindOptions = (Object.keys(FEE_KIND_LABELS) as FeeTableKind[]).filter((k) =>
-    form.target === 'CUSTOMER' ? k.startsWith('CUSTOMER_') : k.startsWith('SUPPLIER_')
-  );
   const usesMarkupOnly = usesRetailMarkupOnlyPricing(form);
   const skipsPriceMatrixTabs = usesMarkupOnly;
   const visibleTabs = skipsPriceMatrixTabs
@@ -2684,7 +2621,8 @@ const RescueFeeForm: React.FC = () => {
         }
         return {
           ...prev,
-          kind: 'CUSTOMER_RETAIL',
+          objectType: 'CUSTOMER_INDIVIDUAL',
+          orderType: 'SINGLE',
           serviceRules: [],
           surchargeRules: [],
           priceCriteria: [],
@@ -3034,7 +2972,7 @@ const RescueFeeForm: React.FC = () => {
                   />
                   <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] text-blue-800">
                     Object gồm <code>code</code>, <code>name</code>, <code>target</code> (
-                    {FEE_TARGET_LABELS.SUPPLIER}), <code>services[]</code>, <code>surcharges[]</code>,{' '}
+                    {FEE_TARGET_LABELS.PARTNER}), <code>services[]</code>, <code>surcharges[]</code>,{' '}
                     <code>priceCriteria[]</code>. Import sẽ thay thế dòng giá/phụ phí tương ứng.
                     {tableImportDemoCase && tableImportDemoCase !== 'ok' && (
                       <span className="mt-1 block font-semibold text-amber-800">
@@ -3180,20 +3118,19 @@ const RescueFeeForm: React.FC = () => {
                     value={form.target}
                     options={[
                       { value: 'CUSTOMER', label: 'Khách hàng' },
-                      { value: 'SUPPLIER', label: 'Nhà cung cấp' },
+                      { value: 'PARTNER', label: 'Nhà cung cấp' },
                     ]}
                     onChange={(value) => {
                       const target = value as FeeTarget;
                       setForm((prev) => ({
                         ...prev,
                         target,
-                        kind: syncKindWithTarget(target, prev.kind),
+                        objectType: defaultObjectTypeByTarget(target),
                         scope: {
                           ...prev.scope,
-                          objectType: defaultObjectTypeByTarget(target),
                           ...(target === 'CUSTOMER'
-                            ? { supplierId: undefined, supplierName: undefined }
-                            : { enterpriseCode: undefined }),
+                            ? { partnerId: undefined, partnerName: undefined }
+                            : { corporateCustomerId: undefined }),
                         },
                         settings: {
                           ...prev.settings,
@@ -3207,62 +3144,24 @@ const RescueFeeForm: React.FC = () => {
                 <div>
                   <label className={labelClass}>Loại đối tượng</label>
                   <AppSelect
-                    value={form.scope.objectType ?? defaultObjectTypeByTarget(form.target)}
+                    value={form.objectType ?? defaultObjectTypeByTarget(form.target)}
                     options={OBJECT_TYPE_OPTIONS_BY_TARGET[form.target]}
                     onChange={(value) =>
-                      update('scope', {
-                        ...form.scope,
-                        objectType:
-                          (value as FeeObjectType | '') || defaultObjectTypeByTarget(form.target),
-                      })
+                      update(
+                        'objectType',
+                        (value as FeeObjectType | '') || defaultObjectTypeByTarget(form.target)
+                      )
                     }
                   />
                 </div>
                 <div>
                   <label className={labelClass}>Loại đơn</label>
                   <AppSelect
-                    value={form.scope.orderType ?? 'PACKAGE'}
+                    value={form.orderType ?? 'PACKAGE'}
                     options={ORDER_TYPE_OPTIONS}
                     onChange={(value) =>
-                      update('scope', {
-                        ...form.scope,
-                        orderType: (value as FeeOrderType | '') || 'PACKAGE',
-                      })
+                      update('orderType', (value as FeeOrderType | '') || 'PACKAGE')
                     }
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Loại bảng</label>
-                  <AppSelect
-                    value={form.kind}
-                    options={kindOptions.map((kind) => ({
-                      value: kind,
-                      label: FEE_KIND_LABELS[kind],
-                    }))}
-                    onChange={(value) => {
-                      const kind = value as FeeTableKind;
-                      setForm((prev) => ({
-                        ...prev,
-                        kind,
-                        settings: {
-                          ...prev.settings,
-                          retailMarkupFactor:
-                            kind === 'CUSTOMER_RETAIL' && usesRetailMarkupOnlyPricing(prev)
-                              ? prev.settings.retailMarkupFactor
-                              : 0,
-                        },
-                        ...(kind !== 'CUSTOMER_RETAIL' && usesRetailMarkupOnlyPricing(prev)
-                          ? {
-                              serviceRules: [],
-                              surchargeRules: [],
-                              priceCriteria: [],
-                            }
-                          : {}),
-                      }));
-                      if (kind === 'CUSTOMER_RETAIL' && activeTab !== 'general') {
-                        setActiveTab('general');
-                      }
-                    }}
                   />
                 </div>
                 <div>
@@ -3313,20 +3212,20 @@ const RescueFeeForm: React.FC = () => {
                 <div>
                   <label className={labelClass}>Doanh nghiệp</label>
                   <AppSelect
-                    value={form.scope.enterpriseCode ?? ''}
+                    value={form.scope.corporateCustomerId ?? ''}
                     placeholder="Chọn doanh nghiệp"
-                    disabled={form.target === 'SUPPLIER'}
+                    disabled={form.target === 'PARTNER'}
                     options={[
-                      ...FEE_ENTERPRISE_OPTIONS.map((item) => ({
+                      ...FEE_CORPORATE_CUSTOMER_OPTIONS.map((item) => ({
                         value: item.code,
                         label: `${item.code} — ${item.name}`,
                       })),
-                      ...(form.scope.enterpriseCode &&
-                      !FEE_ENTERPRISE_OPTIONS.some((item) => item.code === form.scope.enterpriseCode)
+                      ...(form.scope.corporateCustomerId &&
+                      !FEE_CORPORATE_CUSTOMER_OPTIONS.some((item) => item.code === form.scope.corporateCustomerId)
                         ? [
                             {
-                              value: form.scope.enterpriseCode,
-                              label: form.scope.enterpriseCode,
+                              value: form.scope.corporateCustomerId,
+                              label: form.scope.corporateCustomerId,
                             },
                           ]
                         : []),
@@ -3334,11 +3233,11 @@ const RescueFeeForm: React.FC = () => {
                     onChange={(value) =>
                       update('scope', {
                         ...form.scope,
-                        enterpriseCode: value || undefined,
+                        corporateCustomerId: value || undefined,
                       })
                     }
                   />
-                  {form.target === 'SUPPLIER' && (
+                  {form.target === 'PARTNER' && (
                     <p className="mt-1 text-[10px] text-gray-400">
                       Chỉ áp dụng khi Đối tượng tính = Khách hàng.
                     </p>
@@ -3347,32 +3246,32 @@ const RescueFeeForm: React.FC = () => {
                 <div>
                   <label className={labelClass}>Nhà cung cấp</label>
                   <AppSelect
-                    value={form.scope.supplierId ?? ''}
+                    value={form.scope.partnerId ?? ''}
                     placeholder="Chọn nhà cung cấp"
                     disabled={form.target === 'CUSTOMER'}
                     options={[
-                      ...FEE_SUPPLIER_OPTIONS.map((item) => ({
+                      ...FEE_PARTNER_OPTIONS.map((item) => ({
                         value: item.id,
                         label: `${item.id} — ${item.name}`,
                       })),
-                      ...(form.scope.supplierId &&
-                      !FEE_SUPPLIER_OPTIONS.some((item) => item.id === form.scope.supplierId)
+                      ...(form.scope.partnerId &&
+                      !FEE_PARTNER_OPTIONS.some((item) => item.id === form.scope.partnerId)
                         ? [
                             {
-                              value: form.scope.supplierId,
-                              label: `${form.scope.supplierId}${
-                                form.scope.supplierName ? ` — ${form.scope.supplierName}` : ''
+                              value: form.scope.partnerId,
+                              label: `${form.scope.partnerId}${
+                                form.scope.partnerName ? ` — ${form.scope.partnerName}` : ''
                               }`,
                             },
                           ]
                         : []),
                     ]}
                     onChange={(value) => {
-                      const selected = FEE_SUPPLIER_OPTIONS.find((item) => item.id === value);
+                      const selected = FEE_PARTNER_OPTIONS.find((item) => item.id === value);
                       update('scope', {
                         ...form.scope,
-                        supplierId: value || undefined,
-                        supplierName: selected?.name ?? (value ? form.scope.supplierName : undefined),
+                        partnerId: value || undefined,
+                        partnerName: selected?.name ?? (value ? form.scope.partnerName : undefined),
                       });
                     }}
                   />
@@ -3386,7 +3285,7 @@ const RescueFeeForm: React.FC = () => {
                   <label className={labelClass}>Tên NCC</label>
                   <input
                     className={`${inputClass} bg-gray-50`}
-                    value={form.scope.supplierName ?? ''}
+                    value={form.scope.partnerName ?? ''}
                     readOnly
                     placeholder="Tự điền khi chọn NCC"
                   />
@@ -3515,7 +3414,7 @@ const RescueFeeForm: React.FC = () => {
                   <span className="font-bold">{form.settings.retailMarkupFactor}</span>.
                 </div>
               )}
-              {!skipsPriceMatrixTabs && form.kind === 'CUSTOMER_RETAIL' && (
+              {!skipsPriceMatrixTabs && usesRetailMarkupOnlyPricing(form) && (
                 <div className="border-t border-blue-100 bg-blue-50 px-4 py-3 text-[11px] leading-relaxed text-blue-900">
                   <span className="font-bold">Chế độ bảng phí đầy đủ:</span> cấu hình ma trận dòng
                   giá / phụ phí bên dưới. Không dùng hệ số giá khách lẻ trên bảng này.

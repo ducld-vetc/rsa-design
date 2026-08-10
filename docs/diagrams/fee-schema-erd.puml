@@ -1,5 +1,217 @@
 @startuml
-fee_criterion_def ||--o{ fee_criterion_field_map : maps_to_source
+' ERD phí cứu hộ — catalog tiêu chí + cấu hình + runtime trên đơn
+' Dịch vụ: dùng master `service` (category) — không fee_service_catalog
+' Thuật ngữ: corporate_customer / partner; fee_table = object_type + order_type (không kind)
+' fee_table_version: không priority/status
+' fee_criterion_mapping_field: table_mapping + field_mapping
+' Runtime rút gọn: ro_fee_snapshot / ro_fee_line / ro_fee_adj
+
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+' ================== Catalog ==================
+
+entity fee_criterion_def {
+  * id : bigint <<PK>>
+  * key : varchar <<UK>>
+  --
+  * label : varchar
+  * value_type : varchar
+  * values_json : jsonb
+  * status : varchar
+  * updated_at : timestamptz
+}
+
+entity fee_criterion_mapping_field {
+  * id : bigint <<PK>>
+  * criterion_key : varchar <<FK>>
+  --
+  * table_mapping : varchar
+  * field_mapping : varchar
+  * scope : varchar
+  * status : varchar
+}
+
+entity service {
+  * service_id : bigint <<PK>>
+  --
+  * service_code : varchar <<UK>>
+  * service_name : varchar
+  * category : varchar
+  * status : varchar
+}
+
+entity incidental_fee_def {
+  * id : bigint <<PK>>
+  * code : varchar <<UK>>
+  --
+  * name : varchar
+  * suggested_price : numeric
+  * is_catch_all : boolean
+  * status : varchar
+}
+
+' ================== Cấu hình bảng phí ==================
+
+entity fee_table {
+  * id : bigint <<PK>>
+  * code : varchar <<UK>>
+  --
+  * name : varchar
+  * target : varchar
+  * object_type : varchar
+  * order_type : varchar
+  * current_version : int
+  * status : varchar
+}
+
+entity fee_table_version {
+  * id : bigint <<PK>>
+  * fee_table_id : bigint <<FK>>
+  * version : int
+  --
+  * valid_from : date
+  * valid_to : date
+  * note : text
+  * activated_at : timestamptz
+}
+
+entity fee_table_scope {
+  * fee_table_version_id : bigint <<PK,FK>>
+  --
+  * corporate_customer_id : varchar
+  * partner_id : varchar
+  * partner_name : varchar
+  * areas_json : jsonb
+  * service_types_json : jsonb
+  * vehicle_types_json : jsonb
+}
+
+entity fee_table_settings {
+  * fee_table_version_id : bigint <<PK,FK>>
+  --
+  * retail_markup_factor : numeric
+  * round_mode : varchar
+  * stack_surcharges : boolean
+  * is_fallback : boolean
+  * includes_vat : boolean
+}
+
+entity fee_price_line {
+  * id : bigint <<PK>>
+  * fee_table_version_id : bigint <<FK>>
+  * service_id : bigint <<FK>>
+  --
+  * service_name : varchar
+  * base_price : numeric
+  * pricing_mode : varchar
+  * unit : varchar
+  * included_qty : numeric
+  * price_per_extra : numeric
+  * min_price : numeric
+  * max_price : numeric
+  * sort_order : int
+}
+
+entity fee_price_line_condition {
+  * id : bigint <<PK>>
+  * fee_price_line_id : bigint <<FK>>
+  * criterion_key : varchar <<FK>>
+  --
+  * operator : varchar
+  * value_json : jsonb
+}
+
+entity fee_surcharge_rule {
+  * id : bigint <<PK>>
+  * fee_table_version_id : bigint <<FK>>
+  --
+  * name : varchar
+  * type : varchar
+  * value : numeric
+  * stackable : boolean
+  * exclusive_group : varchar
+  * cap_amount : numeric
+  * holiday_dates_json : jsonb
+  * sort_order : int
+}
+
+entity fee_surcharge_condition {
+  * id : bigint <<PK>>
+  * fee_surcharge_rule_id : bigint <<FK>>
+  * criterion_key : varchar <<FK>>
+  --
+  * operator : varchar
+  * value_json : jsonb
+}
+
+' ================== Đơn (tham chiếu) ==================
+
+entity rescue_order_v2 {
+  * rescue_order_v2_id : bigint <<PK>>
+  --
+  * order_code : varchar
+}
+
+entity rescue_order_service {
+  * rescue_order_service_id : bigint <<PK>>
+  * rescue_order_v2_id : bigint <<FK>>
+  --
+  * service_id : bigint <<FK>>
+  * additional_sv_name : varchar
+}
+
+' ================== Runtime phí trên đơn (tên rút gọn) ==================
+
+entity ro_fee_snapshot {
+  * id : bigint <<PK>>
+  * rescue_order_v2_id : bigint <<FK>>
+  --
+  * customer_fee_table_id : bigint <<FK>>
+  * customer_fee_table_version : int
+  * partner_fee_table_id : bigint <<FK>>
+  * partner_fee_table_version : int
+  * customer_fee_mode : varchar
+  * context_json : jsonb
+  * calculated_at : timestamptz
+}
+
+entity ro_fee_line {
+  * id : bigint <<PK>>
+  * snapshot_id : bigint <<FK>>
+  * rescue_order_v2_id : bigint <<FK>>
+  * service_id : bigint <<FK>>
+  --
+  * partner_amount : numeric
+  * customer_amount : numeric
+  * vat : numeric
+  * partner_total_amount : numeric
+  * customer_total_amount : numeric
+  * customer_fixed_part : numeric
+  * customer_coefficient : numeric
+  * partner_fixed_part : numeric
+  * partner_coefficient : numeric
+  * customer_line_id : jsonb
+  * partner_line_id : jsonb
+  * is_manual : boolean
+  * is_custom : boolean
+}
+
+entity ro_fee_adj {
+  * id : bigint <<PK>>
+  * snapshot_id : bigint <<FK>>
+  * fee_line_id : bigint <<FK>>
+  --
+  * action : varchar
+  * before_json : jsonb
+  * after_json : jsonb
+  * created_by : varchar
+  * created_at : timestamptz
+}
+
+' ================== Relationships ==================
+
+fee_criterion_def ||--o{ fee_criterion_mapping_field : maps_to
 fee_criterion_def ||--o{ fee_price_line_condition : used_in
 fee_criterion_def ||--o{ fee_surcharge_condition : used_in
 
@@ -9,16 +221,34 @@ fee_table_version ||--|| fee_table_settings : settings_1_1
 fee_table_version ||--o{ fee_price_line : price_lines
 fee_table_version ||--o{ fee_surcharge_rule : surcharges
 
-fee_service_catalog ||--o{ fee_service_catalog : parent_child
-fee_service_catalog ||--o{ fee_price_line : priced_as
+service ||--o{ fee_price_line : priced_as
+service ||--o{ rescue_order_service : used_on_order
 
-fee_price_line ||--o{ fee_price_line_condition : and_conditions
-fee_surcharge_rule ||--o{ fee_surcharge_condition : and_conditions
+fee_price_line ||--o{ fee_price_line_condition : AND_conditions
+fee_surcharge_rule ||--o{ fee_surcharge_condition : AND_conditions
 
-fee_table_version ||--o{ rescue_order_fee_snapshot : applied_as_supplier_or_customer
-rescue_order_v2 ||--o| rescue_order_fee_snapshot : has_fee_snapshot
-rescue_order_fee_snapshot ||--o{ rescue_order_fee_line : lines
-rescue_order_service ||--o| rescue_order_fee_line : fee_for_service
-rescue_order_fee_line ||--o{ rescue_order_fee_adjustment : audit
-rescue_order_fee_snapshot ||--o{ rescue_order_fee_adjustment : order_level_adj
+fee_table ||--o{ ro_fee_snapshot : customer_or_partner_table
+rescue_order_v2 ||--o| ro_fee_snapshot : has_fee_snapshot
+ro_fee_snapshot ||--o{ ro_fee_line : lines
+rescue_order_service ||--o| ro_fee_line : fee_for_service
+ro_fee_line ||--o{ ro_fee_adj : audit
+ro_fee_snapshot ||--o{ ro_fee_adj : order_level_adj
+
+note right of ro_fee_line
+  customer_line_id / partner_line_id = JSONB array
+  fee_price_line.id đã khớp (1 hoặc N bậc)
+  vd. [10, 11]
+end note
+
+note right of fee_table
+  object_type + order_type
+  (không còn cột kind)
+end note
+
+note right of fee_table_version
+  không priority / status
+  ACTIVE = fee_table.status
+  + current_version
+end note
+
 @enduml

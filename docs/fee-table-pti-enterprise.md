@@ -6,8 +6,8 @@
 > **UI xem/lọc ma trận (analysis BA):** [analysis-rescue-fee-matrix-ui.md](./analysis-rescue-fee-matrix-ui.md)  
 > **BRD tổng quan cấu hình + tính phí trên đơn:** [BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md](./BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md)  
 > **Mock portal:** `CUS-DN-PTI-2026` trong `rescueFeeMockData.ts`  
-> **Loại bảng:** `target = CUSTOMER`, `kind = CUSTOMER_BUSINESS`  
-> **Scope:** `enterprise_code = PTI`  
+> **Loại bảng:** `target = CUSTOMER`, `object_type = CUSTOMER_BUSINESS`, `order_type = PACKAGE_SINGLE`  
+> **Scope:** `corporate_customer_id = PTI`  
 > Giá trong bảng = **chưa VAT** (trừ ghi chú riêng). VAT áp khi xuất thu trên đơn.
 
 ---
@@ -19,12 +19,12 @@
 | `code` | `CUS-DN-PTI-2026` |
 | `name` | Bảng phí KH DN — PTI (VETC × PTI) |
 | `target` | `CUSTOMER` |
-| `kind` | `CUSTOMER_BUSINESS` |
+| `object_type` | `CUSTOMER_BUSINESS` |
+| `order_type` | `PACKAGE_SINGLE` |
 | `status` | `ACTIVE` (đề xuất) |
 | `version` | `1` |
 | `valid_from` / `valid_to` | Theo hợp đồng PTI |
-| `priority` | Cao hơn Public (specificity enterprise) |
-| `scope.enterprise_code` | `PTI` |
+| `scope.corporate_customer_id` | `PTI` |
 | `settings.round_mode` | `NEAREST_1000` (đề xuất) |
 | `settings.stack_surcharges` | `true` (nhân các hệ số phụ phí — theo công thức “1,5 × giá phí”) |
 | `settings.retail_markup_factor` | *(không dùng — không phải KH lẻ)* |
@@ -200,7 +200,7 @@ Cột = bậc chỗ/tải. Hàng = khoảng `roadDistance` (+ tư thế).
 
 | Bước | Kết quả |
 |------|---------|
-| Chọn bảng | `CUS-DN-PTI-2026` (`CUSTOMER_BUSINESS` + enterprise PTI) |
+| Chọn bảng | `CUS-DN-PTI-2026` (`CUSTOMER_BUSINESS` + corporate_customer PTI) |
 | Match line | FIXED gần nhất ≤10 (600k) + PER_UNIT ×5 (100k) |
 | Base trước phụ phí | 700.000 |
 | Surcharge đêm ×1,2 | 840.000 |

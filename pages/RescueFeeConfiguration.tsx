@@ -12,13 +12,14 @@ import {
 } from 'lucide-react';
 import {
   rescueFeeTables,
-  FEE_KIND_LABELS,
+  FEE_OBJECT_TYPE_LABELS,
+  FEE_ORDER_TYPE_LABELS,
   FEE_STATUS_LABELS,
   FEE_TARGET_LABELS,
-  FEE_ENTERPRISE_OPTIONS,
-  FEE_SUPPLIER_OPTIONS,
+  FEE_CORPORATE_CUSTOMER_OPTIONS,
+  FEE_PARTNER_OPTIONS,
   clonePriceTable,
-  type FeeTableKind,
+  type FeeObjectType,
   type FeeTableStatus,
   type FeeTarget,
   type PriceTable,
@@ -47,23 +48,32 @@ const StatusBadge: React.FC<{ status: FeeTableStatus }> = ({ status }) => {
   );
 };
 
+const formatTableTypeLabel = (table: PriceTable): string => {
+  const objectLabel = FEE_OBJECT_TYPE_LABELS[table.objectType];
+  const orderLabel = FEE_ORDER_TYPE_LABELS[table.orderType];
+  if (table.settings.isFallback) {
+    return `${objectLabel} (fallback) · ${orderLabel}`;
+  }
+  return `${objectLabel} · ${orderLabel}`;
+};
+
 const RescueFeeConfiguration: React.FC = () => {
   const navigate = useNavigate();
   const [tables, setTables] = useState<PriceTable[]>(rescueFeeTables);
 
   const [targetDraft, setTargetDraft] = useState<'all' | FeeTarget>('all');
-  const [kindDraft, setKindDraft] = useState<'all' | FeeTableKind>('all');
+  const [objectTypeDraft, setObjectTypeDraft] = useState<'all' | FeeObjectType>('all');
   const [statusDraft, setStatusDraft] = useState<'all' | FeeTableStatus>('all');
   const [keywordDraft, setKeywordDraft] = useState('');
-  const [enterpriseDraft, setEnterpriseDraft] = useState('all');
-  const [supplierDraft, setSupplierDraft] = useState('all');
+  const [corporateCustomerDraft, setCorporateCustomerDraft] = useState('all');
+  const [partnerDraft, setPartnerDraft] = useState('all');
 
   const [target, setTarget] = useState<'all' | FeeTarget>('all');
-  const [kind, setKind] = useState<'all' | FeeTableKind>('all');
+  const [objectType, setObjectType] = useState<'all' | FeeObjectType>('all');
   const [status, setStatus] = useState<'all' | FeeTableStatus>('all');
   const [keyword, setKeyword] = useState('');
-  const [enterprise, setEnterprise] = useState('all');
-  const [supplier, setSupplier] = useState('all');
+  const [corporateCustomer, setCorporateCustomer] = useState('all');
+  const [partner, setPartner] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(10);
 
@@ -71,20 +81,20 @@ const RescueFeeConfiguration: React.FC = () => {
     'w-full border rounded px-3 py-1.5 text-sm outline-none focus:border-vetc-green placeholder:text-gray-400';
   const labelClass = 'block text-xs font-semibold text-gray-600 mb-1';
 
-  const enterpriseFilterOptions = useMemo(() => {
-    const map = new Map(FEE_ENTERPRISE_OPTIONS.map((item) => [item.code, item.name]));
+  const corporateCustomerFilterOptions = useMemo(() => {
+    const map = new Map(FEE_CORPORATE_CUSTOMER_OPTIONS.map((item) => [item.code, item.name]));
     tables.forEach((table) => {
-      const code = table.scope.enterpriseCode;
+      const code = table.scope.corporateCustomerId;
       if (code && !map.has(code)) map.set(code, code);
     });
     return Array.from(map.entries()).map(([code, name]) => ({ code, name }));
   }, [tables]);
 
-  const supplierFilterOptions = useMemo(() => {
-    const map = new Map(FEE_SUPPLIER_OPTIONS.map((item) => [item.id, item.name]));
+  const partnerFilterOptions = useMemo(() => {
+    const map = new Map(FEE_PARTNER_OPTIONS.map((item) => [item.id, item.name]));
     tables.forEach((table) => {
-      const id = table.scope.supplierId;
-      if (id && !map.has(id)) map.set(id, table.scope.supplierName ?? id);
+      const id = table.scope.partnerId;
+      if (id && !map.has(id)) map.set(id, table.scope.partnerName ?? id);
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [tables]);
@@ -92,10 +102,10 @@ const RescueFeeConfiguration: React.FC = () => {
   const filtered = useMemo(() => {
     return tables.filter((t) => {
       if (target !== 'all' && t.target !== target) return false;
-      if (kind !== 'all' && t.kind !== kind) return false;
+      if (objectType !== 'all' && t.objectType !== objectType) return false;
       if (status !== 'all' && t.status !== status) return false;
-      if (enterprise !== 'all' && t.scope.enterpriseCode !== enterprise) return false;
-      if (supplier !== 'all' && t.scope.supplierId !== supplier) return false;
+      if (corporateCustomer !== 'all' && t.scope.corporateCustomerId !== corporateCustomer) return false;
+      if (partner !== 'all' && t.scope.partnerId !== partner) return false;
       if (keyword) {
         const q = keyword.toLowerCase();
         if (
@@ -108,14 +118,14 @@ const RescueFeeConfiguration: React.FC = () => {
       }
       return true;
     });
-  }, [tables, target, kind, status, keyword, enterprise, supplier]);
+  }, [tables, target, objectType, status, keyword, corporateCustomer, partner]);
 
   const totalItems = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [target, kind, status, keyword, enterprise, supplier, pageSize]);
+  }, [target, objectType, status, keyword, corporateCustomer, partner, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -128,26 +138,26 @@ const RescueFeeConfiguration: React.FC = () => {
 
   const handleSearch = () => {
     setTarget(targetDraft);
-    setKind(kindDraft);
+    setObjectType(objectTypeDraft);
     setStatus(statusDraft);
     setKeyword(keywordDraft.trim());
-    setEnterprise(enterpriseDraft);
-    setSupplier(supplierDraft);
+    setCorporateCustomer(corporateCustomerDraft);
+    setPartner(partnerDraft);
   };
 
   const handleClear = () => {
     setTargetDraft('all');
-    setKindDraft('all');
+    setObjectTypeDraft('all');
     setStatusDraft('all');
     setKeywordDraft('');
-    setEnterpriseDraft('all');
-    setSupplierDraft('all');
+    setCorporateCustomerDraft('all');
+    setPartnerDraft('all');
     setTarget('all');
-    setKind('all');
+    setObjectType('all');
     setStatus('all');
     setKeyword('');
-    setEnterprise('all');
-    setSupplier('all');
+    setCorporateCustomer('all');
+    setPartner('all');
   };
 
   const handleDuplicate = (id: string) => {
@@ -174,20 +184,20 @@ const RescueFeeConfiguration: React.FC = () => {
               >
                 <option value="all">Tất cả</option>
                 <option value="CUSTOMER">Khách hàng</option>
-                <option value="SUPPLIER">Nhà cung cấp</option>
+                <option value="PARTNER">Nhà cung cấp</option>
               </select>
             </div>
             <div className="min-w-0">
-              <label className={labelClass}>Loại bảng</label>
+              <label className={labelClass}>Loại đối tượng</label>
               <select
-                value={kindDraft}
-                onChange={(e) => setKindDraft(e.target.value as 'all' | FeeTableKind)}
+                value={objectTypeDraft}
+                onChange={(e) => setObjectTypeDraft(e.target.value as 'all' | FeeObjectType)}
                 className={`${inputClass} bg-white`}
               >
                 <option value="all">Tất cả</option>
-                {(Object.keys(FEE_KIND_LABELS) as FeeTableKind[]).map((k) => (
+                {(Object.keys(FEE_OBJECT_TYPE_LABELS) as FeeObjectType[]).map((k) => (
                   <option key={k} value={k}>
-                    {FEE_KIND_LABELS[k]}
+                    {FEE_OBJECT_TYPE_LABELS[k]}
                   </option>
                 ))}
               </select>
@@ -219,12 +229,12 @@ const RescueFeeConfiguration: React.FC = () => {
             <div className="min-w-0">
               <label className={labelClass}>Doanh nghiệp</label>
               <select
-                value={enterpriseDraft}
-                onChange={(e) => setEnterpriseDraft(e.target.value)}
+                value={corporateCustomerDraft}
+                onChange={(e) => setCorporateCustomerDraft(e.target.value)}
                 className={`${inputClass} bg-white`}
               >
                 <option value="all">Tất cả</option>
-                {enterpriseFilterOptions.map((item) => (
+                {corporateCustomerFilterOptions.map((item) => (
                   <option key={item.code} value={item.code}>
                     {item.code} — {item.name}
                   </option>
@@ -234,12 +244,12 @@ const RescueFeeConfiguration: React.FC = () => {
             <div className="min-w-0">
               <label className={labelClass}>Nhà cung cấp</label>
               <select
-                value={supplierDraft}
-                onChange={(e) => setSupplierDraft(e.target.value)}
+                value={partnerDraft}
+                onChange={(e) => setPartnerDraft(e.target.value)}
                 className={`${inputClass} bg-white`}
               >
                 <option value="all">Tất cả</option>
-                {supplierFilterOptions.map((item) => (
+                {partnerFilterOptions.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.id} — {item.name}
                   </option>
@@ -299,7 +309,6 @@ const RescueFeeConfiguration: React.FC = () => {
                 <th className="px-3 py-3 text-left font-bold">Đối tượng</th>
                 <th className="px-3 py-3 text-left font-bold">Loại bảng</th>
                 <th className="px-3 py-3 text-left font-bold">Áp dụng</th>
-                <th className="px-3 py-3 text-center font-bold">Ưu tiên</th>
                 <th className="px-3 py-3 text-center font-bold">Phiên bản</th>
                 <th className="px-3 py-3 text-center font-bold">Trạng thái</th>
                 <th className="px-3 py-3 text-left font-bold">Hiệu lực</th>
@@ -308,7 +317,7 @@ const RescueFeeConfiguration: React.FC = () => {
             <tbody>
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
                     Không có bảng phí phù hợp
                   </td>
                 </tr>
@@ -346,9 +355,8 @@ const RescueFeeConfiguration: React.FC = () => {
                     <td className="px-3 py-3 font-semibold text-gray-800">{table.code}</td>
                     <td className="px-3 py-3 text-gray-700">{table.name}</td>
                     <td className="px-3 py-3 text-gray-700">{FEE_TARGET_LABELS[table.target]}</td>
-                    <td className="px-3 py-3 text-gray-700">{FEE_KIND_LABELS[table.kind]}</td>
+                    <td className="px-3 py-3 text-gray-700">{formatTableTypeLabel(table)}</td>
                     <td className="px-3 py-3 text-gray-700">{table.applyFor}</td>
-                    <td className="px-3 py-3 text-center text-gray-700">{table.priority}</td>
                     <td className="px-3 py-3 text-center text-gray-700">v{table.version}</td>
                     <td className="px-3 py-3 text-center">
                       <StatusBadge status={table.status} />
