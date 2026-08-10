@@ -1,12 +1,12 @@
 export type PaymentRequestStatus = 'not_created' | 'created' | 'pending' | 'approved' | 'rejected';
-export type InvoiceStatus = 'no_invoice' | 'has_invoice';
+export type AttachmentStatus = 'no_files' | 'complete' | 'has_invoice' | 'has_transfer';
 export type OrderType = 'single' | 'package';
 
 export interface PaymentRequestListItem {
   id: string;
   orderId: string;
   orderType: OrderType;
-  invoiceStatus: InvoiceStatus;
+  attachmentStatus: AttachmentStatus;
   status: PaymentRequestStatus;
   rejectionReason?: string;
   rescueUnit: { name: string; phone: string };
@@ -96,7 +96,13 @@ const generateListItems = (): PaymentRequestListItem[] => {
     const owner = OWNERS[i % OWNERS.length];
     const station = STATIONS[i % STATIONS.length];
     const provider = PROVIDERS[i % PROVIDERS.length];
-    const hasInvoice = i % 3 !== 0;
+    const attachmentStatuses: AttachmentStatus[] = [
+      'no_files',
+      'has_invoice',
+      'has_transfer',
+      'complete',
+    ];
+    const attachmentStatus = attachmentStatuses[i % attachmentStatuses.length];
     const isCreated = i % 5 === 0;
     const isRejected = i % 11 === 0;
 
@@ -104,7 +110,7 @@ const generateListItems = (): PaymentRequestListItem[] => {
       id: String(i),
       orderId: `RS1260702${String(i).padStart(4, '0')}`,
       orderType: i % 4 === 0 ? 'package' : 'single',
-      invoiceStatus: hasInvoice ? 'has_invoice' : 'no_invoice',
+      attachmentStatus,
       status: isRejected ? 'rejected' : isCreated ? 'created' : 'not_created',
       rejectionReason: isRejected ? 'Thiếu hóa đơn hợp lệ' : undefined,
       rescueUnit: { name: provider, phone: '0988777999' },
@@ -136,9 +142,17 @@ export const PAYMENT_REQUEST_STATUS_CONFIG: Record<
   rejected: { label: 'Từ chối', className: 'bg-red-50 text-red-600 border-red-200' },
 };
 
-export const INVOICE_STATUS_CONFIG: Record<InvoiceStatus, { label: string; className: string }> = {
-  no_invoice: { label: 'Chưa có hóa đơn', className: 'bg-red-50 text-red-600 border-red-200' },
+export const ATTACHMENT_STATUS_CONFIG: Record<
+  AttachmentStatus,
+  { label: string; className: string }
+> = {
+  no_files: { label: 'Chưa có file', className: 'bg-red-50 text-red-600 border-red-200' },
+  complete: { label: 'Đã đủ file', className: 'bg-green-50 text-green-700 border-green-200' },
   has_invoice: { label: 'Đã có hóa đơn', className: 'bg-blue-50 text-blue-600 border-blue-200' },
+  has_transfer: {
+    label: 'Đã có hình ảnh CK',
+    className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  },
 };
 
 export const ORDER_TYPE_CONFIG: Record<OrderType, { label: string; className: string }> = {

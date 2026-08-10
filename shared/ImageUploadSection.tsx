@@ -5,10 +5,18 @@ import { Camera, Upload, X, ImageIcon, Maximize2, ZoomIn } from 'lucide-react';
 interface ImageUploadSectionProps {
   readOnly?: boolean;
   onlyScene?: boolean;
+  /** Ảnh hiện trường (controlled) — dùng khi fill từ tra cứu xe */
+  sceneImages?: string[];
 }
 
-const ImageUploadSection: React.FC<ImageUploadSectionProps> = ({ readOnly = false, onlyScene = false }) => {
+const ImageUploadSection: React.FC<ImageUploadSectionProps> = ({
+  readOnly = false,
+  onlyScene = false,
+  sceneImages,
+}) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const defaultScene = ['https://picsum.photos/id/1071/800/600'];
+  const sceneList = sceneImages && sceneImages.length > 0 ? sceneImages.slice(0, 4) : defaultScene;
 
   const ImageGroup = ({ 
     title,
@@ -92,9 +100,7 @@ const ImageUploadSection: React.FC<ImageUploadSectionProps> = ({ readOnly = fals
           color="bg-orange-500" 
           shadow="shadow-orange-200" 
           max={4} 
-          images={[
-            "https://picsum.photos/id/1071/800/600"
-          ]}
+          images={sceneList}
         />
         {/* Preview Modal */}
         {previewUrl && (
@@ -127,7 +133,7 @@ const ImageUploadSection: React.FC<ImageUploadSectionProps> = ({ readOnly = fals
         color="bg-orange-500" 
         shadow="shadow-orange-200" 
         max={4} 
-        images={["https://picsum.photos/id/1071/800/600"]}
+        images={sceneList}
       />
       <ImageGroup 
         title="Quá trình xử lý"

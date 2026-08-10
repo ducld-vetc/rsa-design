@@ -2,11 +2,31 @@ import React, { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Search, X, Car, User, Image as ImageIcon, FileText } from 'lucide-react';
 
+export type VehicleStationPass = {
+  id: string;
+  stationName: string;
+  highway: string;
+  direction: string;
+  passedAt: string;
+};
+
 export type VehicleOwnerInfo = {
   name: string;
   phone: string;
   address: string;
   idNumber: string;
+};
+
+export type VehicleRescuePackage = {
+  id: string;
+  name: string;
+  /** Không có | Active | Expired */
+  status: 'active' | 'none' | 'expired';
+  remainingServices?: number;
+  totalServices?: number;
+  validFrom?: string;
+  validTo?: string;
+  coverageKm?: number;
 };
 
 export type VehicleSearchResult = {
@@ -22,9 +42,102 @@ export type VehicleSearchResult = {
   registrationUrl: string;
   registrationLabel: string;
   owner: VehicleOwnerInfo;
+  /** Ảnh xe (fill vào hiện trường khi lấy thông tin) */
+  vehicleImages?: string[];
+  /** Ảnh/giấy tờ đăng ký xe */
+  documentImages?: string[];
+  /** Lịch sử xe qua trạm gần nhất */
+  stationPassHistory?: VehicleStationPass[];
+  /** Các gói cứu hộ gắn với phương tiện (có thể nhiều gói) */
+  rescuePackages?: VehicleRescuePackage[];
 };
 
+const DEFAULT_STATION_HISTORY: VehicleStationPass[] = [
+  {
+    id: 'sp1',
+    stationName: 'Trạm Thu phí Pháp Vân – Cầu Giẽ',
+    highway: 'Cao tốc Pháp Vân – Cầu Giẽ',
+    direction: 'Hà Nội → Ninh Bình',
+    passedAt: '03/07/2026 14:12',
+  },
+  {
+    id: 'sp2',
+    stationName: 'Trạm Thu phí Cao Bồ',
+    highway: 'QL1A',
+    direction: 'Nam → Bắc',
+    passedAt: '02/07/2026 09:45',
+  },
+  {
+    id: 'sp3',
+    stationName: 'Trạm Thu phí Bắc Thăng Long',
+    highway: 'Vành đai 3',
+    direction: 'Đông → Tây',
+    passedAt: '01/07/2026 18:20',
+  },
+];
+
 export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
+  {
+    id: 'v0',
+    plate: '38A58531',
+    brand: 'Toyota',
+    model: 'Corolla Cross',
+    seats: 5,
+    loadTons: '1.4',
+    vehicleType: 'Xe chở người',
+    vin: 'R7C2X9M4A8',
+    imageUrl: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=240&h=160&fit=crop',
+    registrationUrl: '#',
+    registrationLabel: 'DKX_38A58531.pdf',
+    owner: {
+      name: 'TRAN DINH LAN ANH',
+      phone: '0960123123',
+      address: '210 Phố Xã Đàn, Đống Đa, Hà Nội',
+      idNumber: '001088056789',
+    },
+    vehicleImages: [
+      'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=800&h=600&fit=crop',
+      'https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&h=600&fit=crop',
+      'https://picsum.photos/id/1071/800/600',
+    ],
+    documentImages: [
+      'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&h=600&fit=crop',
+      'https://images.unsplash.com/photo-1568667256549-094345960b4e?w=800&h=600&fit=crop',
+    ],
+    stationPassHistory: DEFAULT_STATION_HISTORY,
+    rescuePackages: [
+      {
+        id: 'pkg-v0-1',
+        name: 'Gói cơ bản 10 dịch vụ',
+        status: 'active',
+        remainingServices: 7,
+        totalServices: 10,
+        validFrom: '01/01/2026',
+        validTo: '31/12/2026',
+        coverageKm: 100,
+      },
+      {
+        id: 'pkg-v0-2',
+        name: 'Gói cao cấp 20 dịch vụ',
+        status: 'active',
+        remainingServices: 18,
+        totalServices: 20,
+        validFrom: '01/03/2026',
+        validTo: '28/02/2027',
+        coverageKm: 150,
+      },
+      {
+        id: 'pkg-v0-3',
+        name: 'Gói doanh nghiệp VETC',
+        status: 'expired',
+        remainingServices: 0,
+        totalServices: 15,
+        validFrom: '01/01/2025',
+        validTo: '31/12/2025',
+        coverageKm: 100,
+      },
+    ],
+  },
   {
     id: 'v1',
     plate: '29E366666',
@@ -43,6 +156,36 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
       address: '192 Phố Hào Nam, Đống Đa, Hà Nội',
       idNumber: '001088012345',
     },
+    vehicleImages: [
+      'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=800&h=600&fit=crop',
+      'https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800&h=600&fit=crop',
+    ],
+    documentImages: [
+      'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&h=600&fit=crop',
+    ],
+    stationPassHistory: DEFAULT_STATION_HISTORY,
+    rescuePackages: [
+      {
+        id: 'pkg-v1-1',
+        name: 'Gói cơ bản 10 dịch vụ',
+        status: 'active',
+        remainingServices: 4,
+        totalServices: 10,
+        validFrom: '15/03/2026',
+        validTo: '14/03/2027',
+        coverageKm: 100,
+      },
+      {
+        id: 'pkg-v1-2',
+        name: 'Gói ưu tiên khách hàng',
+        status: 'active',
+        remainingServices: 2,
+        totalServices: 5,
+        validFrom: '01/07/2026',
+        validTo: '30/06/2027',
+        coverageKm: 120,
+      },
+    ],
   },
   {
     id: 'v2',
@@ -62,6 +205,35 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
       address: '45 Láng Hạ, Ba Đình, Hà Nội',
       idNumber: '001079098765',
     },
+    vehicleImages: [
+      'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=800&h=600&fit=crop',
+    ],
+    documentImages: [
+      'https://images.unsplash.com/photo-1568667256549-094345960b4e?w=800&h=600&fit=crop',
+    ],
+    stationPassHistory: DEFAULT_STATION_HISTORY.slice(0, 2),
+    rescuePackages: [
+      {
+        id: 'pkg-v2-1',
+        name: 'Gói cao cấp 20 dịch vụ',
+        status: 'active',
+        remainingServices: 15,
+        totalServices: 20,
+        validFrom: '01/06/2026',
+        validTo: '31/05/2027',
+        coverageKm: 150,
+      },
+      {
+        id: 'pkg-v2-2',
+        name: 'Gói cơ bản 10 dịch vụ',
+        status: 'active',
+        remainingServices: 9,
+        totalServices: 10,
+        validFrom: '01/04/2026',
+        validTo: '31/03/2027',
+        coverageKm: 100,
+      },
+    ],
   },
   {
     id: 'v3',
@@ -81,6 +253,20 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
       address: '12 Nguyễn Văn Linh, Q.7, TP.HCM',
       idNumber: '079185012345',
     },
+    vehicleImages: [
+      'https://images.unsplash.com/photo-1601584115197-04ecc1da5d9a?w=800&h=600&fit=crop',
+    ],
+    documentImages: [
+      'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&h=600&fit=crop',
+    ],
+    stationPassHistory: DEFAULT_STATION_HISTORY.slice(1),
+    rescuePackages: [
+      {
+        id: 'pkg-v3-none',
+        name: 'Không có',
+        status: 'none',
+      },
+    ],
   },
   {
     id: 'v4',
@@ -100,10 +286,35 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
       address: '192 Phố Hào Nam, Đống Đa, Hà Nội',
       idNumber: '001088012345',
     },
+    vehicleImages: [
+      'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=800&h=600&fit=crop',
+    ],
+    documentImages: [
+      'https://images.unsplash.com/photo-1568667256549-094345960b4e?w=800&h=600&fit=crop',
+    ],
+    stationPassHistory: DEFAULT_STATION_HISTORY.slice(0, 1),
+    rescuePackages: [
+      {
+        id: 'pkg-v4-1',
+        name: 'Gói cơ bản 10 dịch vụ',
+        status: 'expired',
+        remainingServices: 0,
+        totalServices: 10,
+        validFrom: '01/01/2025',
+        validTo: '31/12/2025',
+        coverageKm: 100,
+      },
+      {
+        id: 'pkg-v4-none',
+        name: 'Không có',
+        status: 'none',
+      },
+    ],
   },
 ];
 
 const normalizePlate = (value: string) => value.replace(/[\s\-.]/g, '').toUpperCase();
+export const normalizeVehicleQuery = normalizePlate;
 
 type Props = {
   isOpen: boolean;

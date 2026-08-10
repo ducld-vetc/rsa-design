@@ -34,6 +34,8 @@ import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
 import { FloodWarningBadge } from '../shared/OrderAlertBadges';
 import { isPriorityCustomerPhone, normalizePhone } from '../shared/priorityCustomer';
 import {analyzeIncident} from '../data/aiDataMock';
+import VehicleInfoLookupModal from '../shared/VehicleInfoLookupModal';
+import { VehicleRescuePackage, VehicleSearchResult } from '../shared/VehiclePlateSearchModal';
 
 interface CreateRescueOrderProps {
   data: FormData;
@@ -88,6 +90,58 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
   const [towingLat, setTowingLat] = useState('');
   const [towingLng, setTowingLng] = useState('');
   const [estimatedDistance, setEstimatedDistance] = useState('');
+  const [isVehicleLookupOpen, setIsVehicleLookupOpen] = useState(false);
+  const [vehicleLookupMode, setVehicleLookupMode] = useState<'plate' | 'vin' | 'auto'>('auto');
+  const [vehicleLookupQuery, setVehicleLookupQuery] = useState('');
+  const [vehicleType, setVehicleType] = useState('Xe chở người');
+  const [sceneImages, setSceneImages] = useState<string[]>([]);
+
+  const openVehicleLookup = (mode: 'plate' | 'vin') => {
+    const q = mode === 'plate' ? searchPlate : data.customer.vin;
+    setVehicleLookupMode(mode);
+    setVehicleLookupQuery(q);
+    setIsVehicleLookupOpen(true);
+  };
+
+  const handleApplyVehicleInfo = (
+    vehicle: VehicleSearchResult,
+    selectedPackage: VehicleRescuePackage | null
+  ) => {
+    setSearchPlate(vehicle.plate);
+    const packageName = selectedPackage
+      ? selectedPackage.status === 'none' || selectedPackage.name === 'Không có'
+        ? 'Không có'
+        : selectedPackage.name
+      : data.customer.servicePackage;
+    onUpdateCustomer({
+      plate: vehicle.plate,
+      vin: vehicle.vin,
+      vehicleBrand: vehicle.brand,
+      vehicleLine: vehicle.model,
+      payload: vehicle.loadTons,
+      seats: String(vehicle.seats),
+      name: vehicle.owner.name || data.customer.name,
+      phone: vehicle.owner.phone || data.customer.phone,
+      servicePackage: packageName,
+    });
+    if (vehicle.owner.name) {
+      setCustomerContact(vehicle.owner.name);
+      onUpdateAssistance({ rescueName: vehicle.owner.name });
+    }
+    if (vehicle.owner.phone) {
+      setPhoneContact(vehicle.owner.phone);
+      onUpdateAssistance({ rescuePhone: vehicle.owner.phone });
+    }
+    setVehicleType(vehicle.vehicleType);
+    const imagesToFill = [
+      ...(vehicle.vehicleImages ?? (vehicle.imageUrl ? [vehicle.imageUrl] : [])),
+      ...(vehicle.documentImages ?? []),
+    ].slice(0, 4);
+    if (imagesToFill.length > 0) {
+      setSceneImages(imagesToFill);
+    }
+    setIsVehicleLookupOpen(false);
+  };
 
   const ENTERPRISE_OPTIONS = [
     { value: '', label: '-- Chọn doanh nghiệp --' },
@@ -399,16 +453,53 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-x-12 gap-y-4 pt-4 border-t border-gray-100">
                   <div className="flex items-center">
                     <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">Biển số xe <span className="text-red-500">*</span></label>
-                    <div className="relative flex-1">
-                      <input value={searchPlate} onChange={(e) => setSearchPlate(e.target.value)} className="flex-1 border rounded px-3 py-1.5 text-xs font-bold uppercase" />
-                      <button onClick={() => simulateSearch('plate')} className={`absolute right-2 top-1.5 text-gray-400 hover:text-vetc-green ${isSearching ? 'animate-spin' : ''}`}><Search size={14} /></button>
+                    <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                      <div className="relative flex-1 min-w-0">
+                        <input
+                          value={searchPlate}
+                          onChange={(e) => setSearchPlate(e.target.value)}
+                          className="w-full border rounded px-3 py-1.5 pr-8 text-xs font-bold uppercase"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => simulateSearch('plate')}
+                          className={`absolute right-2 top-1.5 text-gray-400 hover:text-vetc-green ${isSearching ? 'animate-spin' : ''}`}
+                          title="Tìm theo BSX (gói / lịch sử)"
+                        >
+                          <Search size={14} />
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        title="Tra cứu thông tin xe theo BSX"
+                        onClick={() => openVehicleLookup('plate')}
+                        className="shrink-0 flex items-center gap-1 bg-white border border-vetc-green text-vetc-green px-2 py-1.5 rounded text-[10px] font-bold hover:bg-green-50 transition-all active:scale-95"
+                      >
+                        <Search size={12} />
+                        Tra cứu
+                      </button>
                     </div>
                   </div>
                   <div className="flex items-center">
                     <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">Số khung (VIN)</label>
-                    <div className="relative flex-1">
-                      <input value={data.customer.vin} onChange={(e) => onUpdateCustomer({ vin: e.target.value })} className="flex-1 border rounded px-3 py-1.5 text-xs font-bold" />
-                      <Hash size={12} className="absolute right-2 top-2 text-gray-300" />
+                    <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                      <div className="relative flex-1 min-w-0">
+                        <input
+                          value={data.customer.vin}
+                          onChange={(e) => onUpdateCustomer({ vin: e.target.value })}
+                          className="w-full border rounded px-3 py-1.5 pr-7 text-xs font-bold"
+                        />
+                        <Hash size={12} className="absolute right-2 top-2 text-gray-300" />
+                      </div>
+                      <button
+                        type="button"
+                        title="Tra cứu thông tin xe theo số khung"
+                        onClick={() => openVehicleLookup('vin')}
+                        className="shrink-0 flex items-center gap-1 bg-white border border-vetc-green text-vetc-green px-2 py-1.5 rounded text-[10px] font-bold hover:bg-green-50 transition-all active:scale-95"
+                      >
+                        <Search size={12} />
+                        Tra cứu
+                      </button>
                     </div>
                   </div>
                   <div className="flex items-center">
@@ -444,7 +535,11 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
                   </div>
                   <div className="flex items-center">
                     <label className="w-40 text-[10px] font-bold text-gray-500 uppercase whitespace-nowrap">Loại xe</label>
-                    <select className="w-48 border rounded px-3 py-1.5 text-xs bg-white outline-none focus:border-vetc-green font-bold text-gray-700">
+                    <select
+                      value={vehicleType}
+                      onChange={(e) => setVehicleType(e.target.value)}
+                      className="w-48 border rounded px-3 py-1.5 text-xs bg-white outline-none focus:border-vetc-green font-bold text-gray-700"
+                    >
                       <option value="Xe chở hàng">Xe chở hàng</option>
                       <option value="Xe chở người">Xe chở người</option>
                     </select>
@@ -681,7 +776,7 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
                     {/* Image */}
                     <div>
                       <label className="text-[10px] font-bold text-gray-500 uppercase block mb-3">Hình ảnh hiện trường</label>
-                      <ImageUploadSection onlyScene={true} />
+                      <ImageUploadSection onlyScene={true} sceneImages={sceneImages} />
                     </div>
 
                     {/* Note for OSA */}
@@ -842,6 +937,15 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
         rescueOrderCode="RS12602020002"
         plate={data.customer.plate}
         address={data.assistance.address}
+      />
+
+      <VehicleInfoLookupModal
+        isOpen={isVehicleLookupOpen}
+        initialQuery={vehicleLookupQuery}
+        searchMode={vehicleLookupMode}
+        applyPackage
+        onClose={() => setIsVehicleLookupOpen(false)}
+        onApply={handleApplyVehicleInfo}
       />
     </div>
   );

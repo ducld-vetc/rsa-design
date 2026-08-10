@@ -83,9 +83,8 @@ import type { OrderDetailsNavState } from '../data/orderListDemoData';
 import ShareLocationWebviewModal from '../shared/ShareLocationWebviewModal';
 import DetailedRatingCard from '../shared/DetailedRatingCard';
 import RatingHistoryModal from '../shared/RatingHistoryModal';
-import VehiclePlateSearchModal, {
-  VehicleSearchResult,
-} from '../shared/VehiclePlateSearchModal';
+import VehicleInfoLookupModal from '../shared/VehicleInfoLookupModal';
+import { VehicleRescuePackage, VehicleSearchResult } from '../shared/VehiclePlateSearchModal';
 import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
 import { OrderWarningBadge, FloodWarningBadge } from '../shared/OrderAlertBadges';
 import { isPriorityCustomerPhone } from '../shared/priorityCustomer';
@@ -1420,6 +1419,38 @@ const GuestOrderDetails: React.FC<{
   const [vehicleSeats, setVehicleSeats] = useState('5');
   const [vehicleType, setVehicleType] = useState('Xe chở hàng');
   const [isVehicleSearchOpen, setIsVehicleSearchOpen] = useState(false);
+  const [vehicleLookupMode, setVehicleLookupMode] = useState<'plate' | 'vin' | 'auto'>('plate');
+  const [vehicleLookupQuery, setVehicleLookupQuery] = useState('');
+  const [sceneImages, setSceneImages] = useState<string[]>([]);
+
+  const openVehicleLookup = (mode: 'plate' | 'vin') => {
+    setVehicleLookupMode(mode);
+    setVehicleLookupQuery(mode === 'plate' ? vehiclePlate : vehicleVin);
+    setIsVehicleSearchOpen(true);
+  };
+
+  const handleApplyVehicleInfo = (
+    vehicle: VehicleSearchResult,
+    _selectedPackage: VehicleRescuePackage | null
+  ) => {
+    setVehiclePlate(vehicle.plate);
+    setVehicleVin(vehicle.vin);
+    setVehicleBrand(vehicle.brand);
+    setVehicleModel(vehicle.model);
+    setVehicleLoadTons(vehicle.loadTons);
+    setVehicleSeats(String(vehicle.seats));
+    setVehicleType(vehicle.vehicleType);
+    if (vehicle.owner.name) setCustomerName(vehicle.owner.name);
+    if (vehicle.owner.phone) setCustomerPhone(vehicle.owner.phone);
+    const imagesToFill = [
+      ...(vehicle.vehicleImages ?? (vehicle.imageUrl ? [vehicle.imageUrl] : [])),
+      ...(vehicle.documentImages ?? []),
+    ].slice(0, 4);
+    if (imagesToFill.length > 0) {
+      setSceneImages(imagesToFill);
+    }
+    setIsVehicleSearchOpen(false);
+  };
   const [mapCoords, setMapCoords] = useState("21.0277350565601, 105.827792697257");
 
   // Cancellation States
@@ -2575,9 +2606,10 @@ const GuestOrderDetails: React.FC<{
                       />
                       <button
                         type="button"
-                        title="Tra cứu thông tin phương tiện theo BSX"
-                        onClick={() => setIsVehicleSearchOpen(true)}
-                        className="shrink-0 flex items-center gap-1 bg-white border border-vetc-green text-vetc-green px-2.5 py-1.5 rounded text-[10px] font-bold hover:bg-green-50 transition-all active:scale-95"
+                        title="Tra cứu thông tin xe theo BSX"
+                        disabled={!isEditing}
+                        onClick={() => openVehicleLookup('plate')}
+                        className="shrink-0 flex items-center gap-1 bg-white border border-vetc-green text-vetc-green px-2.5 py-1.5 rounded text-[10px] font-bold hover:bg-green-50 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
                       >
                         <Search size={14} />
                         <span className="hidden sm:inline">Tra cứu</span>
@@ -2586,11 +2618,24 @@ const GuestOrderDetails: React.FC<{
                   </div>
                   <div>
                     <Label>Số khung (Vin)</Label>
-                    <Input
-                      value={vehicleVin}
-                      onChange={setVehicleVin}
-                      readOnly={!isEditing}
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        value={vehicleVin}
+                        onChange={setVehicleVin}
+                        readOnly={!isEditing}
+                        className="flex-1 min-w-0"
+                      />
+                      <button
+                        type="button"
+                        title="Tra cứu thông tin xe theo số khung"
+                        disabled={!isEditing}
+                        onClick={() => openVehicleLookup('vin')}
+                        className="shrink-0 flex items-center gap-1 bg-white border border-vetc-green text-vetc-green px-2.5 py-1.5 rounded text-[10px] font-bold hover:bg-green-50 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
+                      >
+                        <Search size={14} />
+                        <span className="hidden sm:inline">Tra cứu</span>
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <Label>Hãng xe</Label>
@@ -2663,11 +2708,12 @@ const GuestOrderDetails: React.FC<{
                       <div className={`flex-1 relative`}>
                         <select
                             value={selectedPackage}
-                            disabled={!isEditing}
+                            disabled
+                            title="Gói cứu hộ chỉ được chọn khi Tạo đơn"
                             onChange={(e) => {
                               setSelectedPackage(e.target.value);
                             }}
-                            className={`w-full border rounded pl-3 pr-10 py-1.5 text-xs font-bold outline-none appearance-none focus:border-vetc-green transition-all ${selectedPackage === 'Không có' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'} ${!isEditing ? 'cursor-not-allowed' : ''}`}
+                            className={`w-full border rounded pl-3 pr-10 py-1.5 text-xs font-bold outline-none appearance-none transition-all cursor-not-allowed ${selectedPackage === 'Không có' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}
                         >
                           {PACKAGE_LIST.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                           <option value="Không có">Không có</option>
@@ -3771,7 +3817,7 @@ const GuestOrderDetails: React.FC<{
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
               <SectionHeader title="Hình ảnh sự cố & Quá trình thực hiện" number={5} icon={<Camera size={18} />} />
               <div className="p-6">
-                <ImageUploadSection readOnly={!isEditing} />
+                <ImageUploadSection readOnly={!isEditing} sceneImages={sceneImages} />
               </div>
             </div>
           </div>
@@ -3974,7 +4020,7 @@ const GuestOrderDetails: React.FC<{
           <div id="section-payment-request" className={`scroll-mt-40 ${isVisible('payment-request') ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden text-left">
               <SectionHeader title="Đề nghị thanh toán" number={9} icon={<CreditCard size={18} />} />
-              <div className="p-5">
+              <div className="p-4">
                 <PaymentRequestSection disabled={currentStatus !== 'FINISH-COMPLETED'} />
               </div>
             </div>
@@ -4094,22 +4140,13 @@ const GuestOrderDetails: React.FC<{
             </div>
         )}
 
-        <VehiclePlateSearchModal
+        <VehicleInfoLookupModal
           isOpen={isVehicleSearchOpen}
-          initialPlate={vehiclePlate}
+          initialQuery={vehicleLookupQuery}
+          searchMode={vehicleLookupMode}
+          applyPackage={false}
           onClose={() => setIsVehicleSearchOpen(false)}
-          onSelect={(vehicle: VehicleSearchResult) => {
-            setVehiclePlate(vehicle.plate);
-            setVehicleVin(vehicle.vin);
-            setVehicleBrand(vehicle.brand);
-            setVehicleModel(vehicle.model);
-            setVehicleLoadTons(vehicle.loadTons);
-            setVehicleSeats(String(vehicle.seats));
-            setVehicleType(vehicle.vehicleType);
-            if (vehicle.owner.name) setCustomerName(vehicle.owner.name);
-            if (vehicle.owner.phone) setCustomerPhone(vehicle.owner.phone);
-            setIsVehicleSearchOpen(false);
-          }}
+          onApply={handleApplyVehicleInfo}
         />
 
         <CustomerPaymentModal

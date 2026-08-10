@@ -14,7 +14,7 @@ import {
   MOCK_PAYMENT_REQUEST_LIST,
   PaymentRequestListItem,
   PAYMENT_REQUEST_STATUS_CONFIG,
-  INVOICE_STATUS_CONFIG,
+  ATTACHMENT_STATUS_CONFIG,
   ORDER_TYPE_CONFIG,
 } from '../data/paymentRequestMockData';
 
@@ -57,7 +57,7 @@ const PaymentRequestManagement: React.FC = () => {
   const [orderId, setOrderId] = useState('');
   const [plate, setPlate] = useState('');
   const [phone, setPhone] = useState('');
-  const [invoiceFilter, setInvoiceFilter] = useState('');
+  const [attachmentFilter, setAttachmentFilter] = useState('');
   const [requestStatusFilter, setRequestStatusFilter] = useState('');
   const [paymentRequestStatusFilter, setPaymentRequestStatusFilter] = useState('');
   const [fromDate, setFromDate] = useState(getDefaultFromDate);
@@ -73,7 +73,7 @@ const PaymentRequestManagement: React.FC = () => {
     orderId ||
     plate ||
     phone ||
-    invoiceFilter ||
+    attachmentFilter ||
     requestStatusFilter ||
     paymentRequestStatusFilter ||
     providerTypeFilter ||
@@ -88,9 +88,9 @@ const PaymentRequestManagement: React.FC = () => {
       if (orderId && !record.orderId.toLowerCase().includes(orderId.toLowerCase())) return false;
       if (plate && !record.vehicle.plate.toLowerCase().includes(plate.toLowerCase())) return false;
       if (phone && !record.vehicle.phone.includes(phone) && !(record.phone?.includes(phone))) return false;
-      if (invoiceFilter) {
-        const label = INVOICE_STATUS_CONFIG[record.invoiceStatus].label;
-        if (label !== invoiceFilter) return false;
+      if (attachmentFilter) {
+        const label = ATTACHMENT_STATUS_CONFIG[record.attachmentStatus].label;
+        if (label !== attachmentFilter) return false;
       }
       if (requestStatusFilter) {
         const label = PAYMENT_REQUEST_STATUS_CONFIG[record.status].label;
@@ -115,7 +115,7 @@ const PaymentRequestManagement: React.FC = () => {
     orderId,
     plate,
     phone,
-    invoiceFilter,
+    attachmentFilter,
     requestStatusFilter,
     paymentRequestStatusFilter,
     providerTypeFilter,
@@ -133,7 +133,7 @@ const PaymentRequestManagement: React.FC = () => {
     orderId,
     plate,
     phone,
-    invoiceFilter,
+    attachmentFilter,
     requestStatusFilter,
     paymentRequestStatusFilter,
     providerTypeFilter,
@@ -162,7 +162,7 @@ const PaymentRequestManagement: React.FC = () => {
     setOrderId('');
     setPlate('');
     setPhone('');
-    setInvoiceFilter('');
+    setAttachmentFilter('');
     setRequestStatusFilter('');
     setPaymentRequestStatusFilter('');
     setFromDate(getDefaultFromDate());
@@ -233,11 +233,17 @@ const PaymentRequestManagement: React.FC = () => {
               />
             </div>
             <div className="min-w-0">
-              <label className={labelClass}>Hóa đơn</label>
-              <select value={invoiceFilter} onChange={(e) => setInvoiceFilter(e.target.value)} className={selectClass}>
+              <label className={labelClass}>File đính kèm</label>
+              <select
+                value={attachmentFilter}
+                onChange={(e) => setAttachmentFilter(e.target.value)}
+                className={selectClass}
+              >
                 <option value="">Tất cả</option>
-                <option value="Chưa có hóa đơn">Chưa có hóa đơn</option>
+                <option value="Chưa có file">Chưa có file</option>
+                <option value="Đã đủ file">Đã đủ file</option>
                 <option value="Đã có hóa đơn">Đã có hóa đơn</option>
+                <option value="Đã có hình ảnh CK">Đã có hình ảnh CK</option>
               </select>
             </div>
 
@@ -393,7 +399,7 @@ const PaymentRequestManagement: React.FC = () => {
               {paginatedData.map((record, index) => {
                 const statusConfig = PAYMENT_REQUEST_STATUS_CONFIG[record.status];
                 const orderTypeConfig = ORDER_TYPE_CONFIG[record.orderType];
-                const invoiceConfig = INVOICE_STATUS_CONFIG[record.invoiceStatus];
+                const attachmentConfig = ATTACHMENT_STATUS_CONFIG[record.attachmentStatus];
                 const isOddRow = index % 2 === 1;
                 const rowBgClass = isOddRow ? 'bg-gray-50' : 'bg-white';
                 const stickyCellClass = `${rowBgClass} group-hover:bg-gray-100`;
@@ -438,16 +444,16 @@ const PaymentRequestManagement: React.FC = () => {
                       >
                         {record.orderId}
                       </button>
-                      <div className="flex items-center gap-1.5 mt-1.5">
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black border whitespace-nowrap ${orderTypeConfig.className}`}
                         >
                           {orderTypeConfig.label}
                         </span>
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border whitespace-nowrap ${invoiceConfig.className}`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border whitespace-nowrap ${attachmentConfig.className}`}
                         >
-                          {invoiceConfig.label}
+                          {attachmentConfig.label}
                         </span>
                       </div>
                     </td>
