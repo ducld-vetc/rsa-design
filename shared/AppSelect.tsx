@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import * as Select from '@radix-ui/react-select';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, Plus } from 'lucide-react';
 
 export interface AppSelectOption {
   value: string;
@@ -15,6 +15,8 @@ interface AppSelectProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  createLabel?: string;
+  onCreate?: () => void;
 }
 
 const EMPTY_VALUE = '__APP_SELECT_EMPTY__';
@@ -26,12 +28,19 @@ const AppSelect: React.FC<AppSelectProps> = ({
   placeholder = 'Chọn giá trị',
   disabled = false,
   className = '',
-}) => (
-  <Select.Root
-    value={value ? value : EMPTY_VALUE}
-    onValueChange={(next) => onChange(next === EMPTY_VALUE ? '' : next)}
-    disabled={disabled}
-  >
+  createLabel,
+  onCreate,
+}) => {
+  const isCreatable = Boolean(createLabel && onCreate && !disabled);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Select.Root
+      value={value ? value : EMPTY_VALUE}
+      onValueChange={(next) => onChange(next === EMPTY_VALUE ? '' : next)}
+      disabled={disabled}
+      {...(isCreatable ? { open, onOpenChange: setOpen } : {})}
+    >
     <Select.Trigger
       className={`flex h-[34px] w-full min-w-0 items-center justify-between gap-2 rounded border bg-white px-3 text-sm text-gray-700 outline-none transition-colors data-[placeholder]:text-gray-400 focus:border-vetc-green disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 [&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate [&>span]:text-left ${className}`}
     >
@@ -44,7 +53,7 @@ const AppSelect: React.FC<AppSelectProps> = ({
       <Select.Content
         position="popper"
         sideOffset={4}
-        className="z-[200] max-h-64 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border bg-white shadow-xl"
+        className="z-[200] max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border bg-white shadow-xl"
       >
         <Select.Viewport className="p-1">
           {!value && (
@@ -71,9 +80,26 @@ const AppSelect: React.FC<AppSelectProps> = ({
             </Select.Item>
           ))}
         </Select.Viewport>
+        {isCreatable && (
+          <div className="border-t border-gray-100 bg-gray-50 p-1">
+            <button
+              type="button"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setOpen(false);
+                onCreate?.();
+              }}
+              className="flex w-full items-center justify-center gap-1.5 rounded px-3 py-2 text-xs font-bold text-vetc-green outline-none hover:bg-green-100"
+            >
+              <Plus size={14} />
+              {createLabel}
+            </button>
+          </div>
+        )}
       </Select.Content>
     </Select.Portal>
   </Select.Root>
-);
+  );
+};
 
 export default AppSelect;

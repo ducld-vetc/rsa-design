@@ -2,7 +2,6 @@ import React, {useEffect, useState} from 'react';
 import {
   Building2,
   Calendar,
-  ChevronDown,
   ChevronRight,
   Copy,
   FileQuestion,
@@ -36,6 +35,7 @@ import { isPriorityCustomerPhone, normalizePhone } from '../shared/priorityCusto
 import {analyzeIncident} from '../data/aiDataMock';
 import VehicleInfoLookupModal from '../shared/VehicleInfoLookupModal';
 import { VehicleRescuePackage, VehicleSearchResult } from '../shared/VehiclePlateSearchModal';
+import WorkshopSelect from '../shared/WorkshopSelect';
 
 interface CreateRescueOrderProps {
   data: FormData;
@@ -48,17 +48,6 @@ interface CreateRescueOrderProps {
 }
 
 const MOCK_HISTORY_DATA: OrderHistory[] = DEFAULT_PACKAGE_ORDERS;
-
-const WORKSHOP_STATIONS = [
-  'Carpla Service Thái Bình',
-  'Carpla Service Hà Nội',
-  'Carpla Service Hải Phòng',
-  'Carpla Service Đà Nẵng',
-  'Carpla Service TP. Hồ Chí Minh',
-  'Carpla Service Cần Thơ',
-  'Carpla Service Nha Trang',
-  'Carpla Service Huế',
-];
 
 const Label = ({ children, required = false }: { children?: React.ReactNode, required?: boolean }) => (
     <label className="text-[11px] font-bold text-gray-600 uppercase mb-1 flex items-center">
@@ -617,18 +606,15 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
                 {/* Điểm xưởng */}
                 <div className="flex items-center space-x-2">
                   <label className="w-36 text-[10px] font-bold text-gray-500 uppercase shrink-0">Điểm xưởng</label>
-                  <div className="w-[280px] shrink-0 relative">
-                    <select
-                        value={workshopStation}
-                        onChange={(e) => setWorkshopStation(e.target.value)}
-                        className="w-full border rounded px-2 py-1.5 text-xs font-medium outline-none appearance-none pr-7 transition-all bg-white focus:border-vetc-green hover:border-vetc-green cursor-pointer"
-                    >
-                      <option value="">-- Chọn điểm xưởng --</option>
-                      {WORKSHOP_STATIONS.map((ws) => (
-                          <option key={ws} value={ws}>{ws}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-2 top-2 text-gray-400 pointer-events-none" />
+                  <div className="w-[280px] shrink-0">
+                    <WorkshopSelect
+                      value={workshopStation}
+                      onChange={setWorkshopStation}
+                      defaultAddress={towingDestination || data.assistance.address}
+                      defaultLat={towingLat || data.assistance.lat}
+                      defaultLng={towingLng || data.assistance.lng}
+                      className="h-[31px] px-2 text-xs"
+                    />
                   </div>
                 </div>
 

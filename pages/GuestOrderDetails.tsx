@@ -96,6 +96,8 @@ import Searching from "./Searching";
 import PartnerSelect from '../components/PartnerSelect';
 import PaymentRequestSection from '../shared/PaymentRequestSection';
 import DriverSelect from '../components/DriverSelect';
+import WorkshopSelect from '../shared/WorkshopSelect';
+import { INITIAL_WORKSHOP_STATIONS, WorkshopStation } from '../data/workshopStations';
 import {
   calculateRescueFees,
   getRetailMarkupFactor,
@@ -180,17 +182,6 @@ const PACKAGE_LIST = [
       { stt: 4, name: 'Kéo xe không giới hạn khoảng cách', used: 0, limit: 100 }
     ]
   }
-];
-
-const WORKSHOP_STATIONS = [
-  'Carpla Service Thái Bình',
-  'Carpla Service Hà Nội',
-  'Carpla Service Hải Phòng',
-  'Carpla Service Đà Nẵng',
-  'Carpla Service TP. Hồ Chí Minh',
-  'Carpla Service Cần Thơ',
-  'Carpla Service Nha Trang',
-  'Carpla Service Huế',
 ];
 
 const ADJUSTMENT_OPTIONS = [
@@ -1223,6 +1214,7 @@ const GuestOrderDetails: React.FC<{
   const [towingDestination, setTowingDestination] = useState('Ngõ 119 Hồ Đắc Di, Khu tập thể Nam Đồng, Phường Kim Liên, Quận Đống Đa, Thành phố Hà Nội, 11415, Việt Nam');
   const [towingCoords, setTowingCoords] = useState('21.01088443501316, 105.82813622447911');
   const [workshopStation, setWorkshopStation] = useState('Carpla Service Thái Bình');
+  const [workshopStations, setWorkshopStations] = useState<WorkshopStation[]>(INITIAL_WORKSHOP_STATIONS);
   const [estimatedDistance, setEstimatedDistance] = useState('2.37');
   const [roadsideDistance, setRoadsideDistance] = useState('');
   const [advanceAmount, setAdvanceAmount] = useState('');
@@ -2787,20 +2779,17 @@ const GuestOrderDetails: React.FC<{
                 {/* Điểm xưởng */}
                 <div className="lg:col-span-1">
                   <Label>Điểm xưởng</Label>
-                  <div className="relative">
-                    <select
-                        value={workshopStation}
-                        disabled={!isEditing}
-                        onChange={(e) => setWorkshopStation(e.target.value)}
-                        className={`w-full border rounded px-3 py-1.5 text-xs font-medium outline-none appearance-none pr-8 transition-all ${!isEditing ? 'bg-gray-50 text-gray-500 cursor-not-allowed border-gray-100' : 'bg-white focus:border-vetc-green hover:border-vetc-green cursor-pointer'}`}
-                    >
-                      <option value="">-- Chọn điểm xưởng --</option>
-                      {WORKSHOP_STATIONS.map((ws) => (
-                          <option key={ws} value={ws}>{ws}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-2.5 top-2 text-gray-400 pointer-events-none" />
-                  </div>
+                  <WorkshopSelect
+                    value={workshopStation}
+                    onChange={setWorkshopStation}
+                    disabled={!isEditing}
+                    defaultAddress={towingDestination}
+                    defaultLat={towingCoords.split(',')[0]?.trim() || ''}
+                    defaultLng={towingCoords.split(',')[1]?.trim() || ''}
+                    stations={workshopStations}
+                    onStationsChange={setWorkshopStations}
+                    className="h-[31px] px-3 text-xs"
+                  />
                 </div>
 
                 {/* Điểm kéo về */}
@@ -3130,20 +3119,17 @@ const GuestOrderDetails: React.FC<{
 
                   <div className="min-w-0 max-w-xs">
                     <Label>Điểm xưởng</Label>
-                    <div className="relative">
-                      <select
-                          value={workshopStation}
-                          disabled={!isEditing}
-                          onChange={(e) => setWorkshopStation(e.target.value)}
-                          className={`w-full border rounded px-3 py-1.5 text-xs font-medium outline-none appearance-none pr-8 transition-all ${!isEditing ? 'bg-gray-50 text-gray-500 cursor-not-allowed border-gray-100' : 'bg-white focus:border-vetc-green hover:border-vetc-green cursor-pointer'}`}
-                      >
-                        <option value="">-- Chọn điểm xưởng --</option>
-                        {WORKSHOP_STATIONS.map((ws) => (
-                            <option key={ws} value={ws}>{ws}</option>
-                        ))}
-                      </select>
-                      <ChevronDown size={14} className="absolute right-2.5 top-2 text-gray-400 pointer-events-none" />
-                    </div>
+                    <WorkshopSelect
+                      value={workshopStation}
+                      onChange={setWorkshopStation}
+                      disabled={!isEditing}
+                      defaultAddress={towingDestination}
+                      defaultLat={towingCoords.split(',')[0]?.trim() || ''}
+                      defaultLng={towingCoords.split(',')[1]?.trim() || ''}
+                      stations={workshopStations}
+                      onStationsChange={setWorkshopStations}
+                      className="h-[31px] px-3 text-xs"
+                    />
                   </div>
                   <div className="min-w-0 lg:col-span-2">
                     <Label required>Điểm kéo về (Destination)</Label>
@@ -3874,9 +3860,9 @@ const GuestOrderDetails: React.FC<{
                         onViewHistory={() => setRatingHistoryModal({ isOpen: true, type: config.type })}
                         {...(config.type === 'customer_workshop'
                           ? {
-                              targetOptions: WORKSHOP_STATIONS,
+                              targetOptions: workshopStations.map((s) => s.name),
                               targetSelectLabel: 'Xưởng dịch vụ',
-                              defaultTarget: workshopStation || WORKSHOP_STATIONS[0],
+                              defaultTarget: workshopStation || workshopStations[0]?.name,
                             }
                           : {})}
                       />

@@ -14,7 +14,9 @@ export interface RescueStationPoint {
   id: string;
   name: string;
   address: string;
+  province: string;
   position: LatLngTuple;
+  phone?: string;
 }
 
 export interface IdentifiedLocation {
@@ -91,41 +93,211 @@ export const MAX_STATION_RADIUS_KM = 50;
 export const STATION_SEARCH_RADIUS_KM = DEFAULT_STATION_RADIUS_KM;
 
 export const RESCUE_STATIONS: RescueStationPoint[] = [
+  // --- Hà Nội ---
   {
     id: 'st-1',
     name: 'Trạm cứu hộ Thanh Xuân',
     address: 'Nguyễn Trãi, Thanh Xuân, Hà Nội',
+    province: 'Hà Nội',
+    phone: '02473001234',
     position: [21.001, 105.805],
   },
   {
     id: 'st-2',
     name: 'Garage Thăng Long',
     address: 'Khuất Duy Tiến, Cầu Giấy, Hà Nội',
+    province: 'Hà Nội',
+    phone: '02473005678',
     position: [21.0075, 105.7995],
   },
   {
     id: 'st-3',
     name: 'Cứu hộ 116 Cầu Giấy',
     address: 'Trần Thái Tông, Cầu Giấy, Hà Nội',
+    province: 'Hà Nội',
+    phone: '02473001116',
     position: [21.03, 105.792],
   },
   {
     id: 'st-4',
     name: 'Trạm cứu hộ Hà Đông',
     address: 'Quang Trung, Hà Đông, Hà Nội',
+    province: 'Hà Nội',
+    phone: '02473009876',
     position: [20.955, 105.755],
   },
   {
     id: 'st-5',
     name: 'Carpla Service - CN Hà Nội',
     address: 'Phường Việt Hưng, Long Biên, Hà Nội',
+    province: 'Hà Nội',
+    phone: '02473004567',
     position: [21.0455, 105.8875],
   },
   {
     id: 'st-6',
     name: 'Trạm cứu hộ Long Biên',
     address: 'Ngô Gia Tự, Long Biên, Hà Nội',
+    province: 'Hà Nội',
+    phone: '02473003321',
     position: [21.048, 105.895],
+  },
+  // --- Hải Phòng ---
+  {
+    id: 'st-7',
+    name: 'Trạm cứu hộ Hải Phòng',
+    address: 'Lạch Tray, Ngô Quyền, Hải Phòng',
+    province: 'Hải Phòng',
+    phone: '02257300111',
+    position: [20.852, 106.688],
+  },
+  {
+    id: 'st-8',
+    name: 'Carpla Service Hải Phòng',
+    address: 'Đường Lê Hồng Phong, Hải An, Hải Phòng',
+    province: 'Hải Phòng',
+    phone: '02257300222',
+    position: [20.835, 106.712],
+  },
+  // --- Quảng Ninh ---
+  {
+    id: 'st-9',
+    name: 'Trạm cứu hộ Hạ Long',
+    address: 'Đường Hạ Long, Bãi Cháy, Quảng Ninh',
+    province: 'Quảng Ninh',
+    phone: '02037300111',
+    position: [20.956, 107.075],
+  },
+  // --- Nghệ An ---
+  {
+    id: 'st-10',
+    name: 'Trạm cứu hộ Vinh',
+    address: 'Đường Quang Trung, TP. Vinh, Nghệ An',
+    province: 'Nghệ An',
+    phone: '02387300111',
+    position: [18.679, 105.681],
+  },
+  // --- Đà Nẵng ---
+  {
+    id: 'st-11',
+    name: 'Trạm cứu hộ Đà Nẵng',
+    address: 'Nguyễn Văn Linh, Hải Châu, Đà Nẵng',
+    province: 'Đà Nẵng',
+    phone: '02367300111',
+    position: [16.054, 108.202],
+  },
+  {
+    id: 'st-12',
+    name: 'Carpla Service Đà Nẵng',
+    address: 'Đường 2/9, Hải Châu, Đà Nẵng',
+    province: 'Đà Nẵng',
+    phone: '02367300222',
+    position: [16.068, 108.22],
+  },
+  // --- Thừa Thiên Huế ---
+  {
+    id: 'st-13',
+    name: 'Trạm cứu hộ Huế',
+    address: 'Đường Hùng Vương, TP. Huế',
+    province: 'Thừa Thiên Huế',
+    phone: '02347300111',
+    position: [16.463, 107.59],
+  },
+  // --- Khánh Hòa ---
+  {
+    id: 'st-14',
+    name: 'Trạm cứu hộ Nha Trang',
+    address: 'Đường Trần Phú, Nha Trang, Khánh Hòa',
+    province: 'Khánh Hòa',
+    phone: '02587300111',
+    position: [12.238, 109.196],
+  },
+  // --- Lâm Đồng ---
+  {
+    id: 'st-15',
+    name: 'Trạm cứu hộ Đà Lạt',
+    address: 'Đường 3/2, TP. Đà Lạt, Lâm Đồng',
+    province: 'Lâm Đồng',
+    phone: '02637300111',
+    position: [11.94, 108.458],
+  },
+  // --- Hồ Chí Minh ---
+  {
+    id: 'st-16',
+    name: 'Trạm cứu hộ Quận 1',
+    address: 'Đường Nguyễn Thị Minh Khai, Quận 1, TP.HCM',
+    province: 'Hồ Chí Minh',
+    phone: '02873001111',
+    position: [10.782, 106.695],
+  },
+  {
+    id: 'st-17',
+    name: 'Carpla Service - CN Hồ Chí Minh',
+    address: 'Đường Cộng Hòa, Tân Bình, TP.HCM',
+    province: 'Hồ Chí Minh',
+    phone: '02873002222',
+    position: [10.801, 106.652],
+  },
+  {
+    id: 'st-18',
+    name: 'Garage 24h Thủ Đức',
+    address: 'Xa lộ Hà Nội, Thủ Đức, TP.HCM',
+    province: 'Hồ Chí Minh',
+    phone: '02873003333',
+    position: [10.845, 106.762],
+  },
+  {
+    id: 'st-19',
+    name: 'Cứu hộ 24/7 Bình Tân',
+    address: 'Đường Kinh Dương Vương, Bình Tân, TP.HCM',
+    province: 'Hồ Chí Minh',
+    phone: '02873004444',
+    position: [10.748, 106.612],
+  },
+  // --- Bình Dương ---
+  {
+    id: 'st-20',
+    name: 'Trạm cứu hộ Thủ Dầu Một',
+    address: 'Đại lộ Bình Dương, Thủ Dầu Một',
+    province: 'Bình Dương',
+    phone: '02747300111',
+    position: [10.98, 106.652],
+  },
+  // --- Đồng Nai ---
+  {
+    id: 'st-21',
+    name: 'Trạm cứu hộ Biên Hòa',
+    address: 'Đường Phạm Văn Thuận, Biên Hòa, Đồng Nai',
+    province: 'Đồng Nai',
+    phone: '02517300111',
+    position: [10.957, 106.843],
+  },
+  // --- Cần Thơ ---
+  {
+    id: 'st-22',
+    name: 'Trạm cứu hộ Cần Thơ',
+    address: 'Đường 30/4, Ninh Kiều, Cần Thơ',
+    province: 'Cần Thơ',
+    phone: '02927300111',
+    position: [10.045, 105.788],
+  },
+  // --- Đắk Lắk ---
+  {
+    id: 'st-23',
+    name: 'Trạm cứu hộ Buôn Ma Thuột',
+    address: 'Đường Nguyễn Tất Thành, Buôn Ma Thuột',
+    province: 'Đắk Lắk',
+    phone: '02627300111',
+    position: [12.666, 108.038],
+  },
+  // --- Thanh Hóa ---
+  {
+    id: 'st-24',
+    name: 'Trạm cứu hộ Thanh Hóa',
+    address: 'Đường Lê Lợi, TP. Thanh Hóa',
+    province: 'Thanh Hóa',
+    phone: '02377300111',
+    position: [19.807, 105.776],
   },
 ];
 

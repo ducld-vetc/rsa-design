@@ -8,6 +8,9 @@ interface MapSelectionModalProps {
   onConfirm: (address: string, coords: string) => void;
   initialAddress?: string;
   initialCoords?: string;
+  title?: string;
+  pinLabel?: string;
+  overlayClassName?: string;
 }
 
 const MapSelectionModal: React.FC<MapSelectionModalProps> = ({
@@ -16,6 +19,9 @@ const MapSelectionModal: React.FC<MapSelectionModalProps> = ({
   onConfirm,
   initialAddress = '',
   initialCoords = '',
+  title = 'Chọn vị trí sự cố',
+  pinLabel = 'Vị trí sự cố tại đây',
+  overlayClassName = 'z-50',
 }) => {
   const [address, setAddress] = useState(initialAddress);
   const [coords, setCoords] = useState(initialCoords);
@@ -30,12 +36,12 @@ const MapSelectionModal: React.FC<MapSelectionModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+    <div className={`fixed inset-0 ${overlayClassName} flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300`}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col h-[80vh] animate-in zoom-in-95 duration-300">
         <div className="bg-vetc-green p-4 flex items-center justify-between text-white">
           <div className="flex items-center space-x-3">
             <Navigation size={22} className="animate-pulse" />
-            <h3 className="font-bold text-lg">Chọn vị trí sự cố</h3>
+            <h3 className="font-bold text-lg">{title}</h3>
           </div>
           <button 
             onClick={onClose}
@@ -86,7 +92,7 @@ const MapSelectionModal: React.FC<MapSelectionModalProps> = ({
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div className="relative flex flex-col items-center -translate-y-6">
               <div className="bg-vetc-green text-white px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-lg mb-2 whitespace-nowrap">
-                Vị trí sự cố tại đây
+                {pinLabel}
               </div>
               <MapPin size={48} className="text-vetc-green drop-shadow-2xl fill-vetc-green/20" />
             </div>

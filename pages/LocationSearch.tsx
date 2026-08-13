@@ -24,9 +24,12 @@ import {
   Truck,
   List,
   ChevronDown,
+  ChevronUp,
   ClipboardList,
   GripVertical,
   RotateCcw,
+  EyeOff,
+  Eye,
 } from 'lucide-react';
 import {
   AreaWarning,
@@ -47,6 +50,8 @@ import {
   buildRouteFrom,
   geocodeOrigin,
   nearestStations,
+  RESCUE_STATIONS,
+  RescueStationPoint,
   VIETNAM_BOUNDS,
   LatLngTuple,
   uid,
@@ -157,6 +162,28 @@ const stationOptionIcon = L.divIcon({
   iconSize: [28, 28],
   iconAnchor: [14, 14],
 });
+
+// Trạm toàn quốc (lớp nền) - nhỏ hơn, xanh nhạt
+const nationwideStationIcon = L.divIcon({
+  html: `<div style="width:22px;height:22px;background:#DBEAFE;border:2px solid #2563EB;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 5px rgba(37,99,235,0.25)">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.5"><rect x="1" y="3" width="15" height="13"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+  </div>`,
+  className: '',
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+});
+
+const MapFlyTo: React.FC<{ target: LatLngTuple | null; zoom?: number }> = ({
+  target,
+  zoom = 12,
+}) => {
+  const map = useMap();
+  useEffect(() => {
+    if (!target) return;
+    map.flyTo(target, zoom, { duration: 0.7 });
+  }, [target, zoom, map]);
+  return null;
+};
 
 /** Điều khiển map: fit bounds theo các tuyến/điểm liên quan */
 const MapEffects: React.FC<{
@@ -436,6 +463,10 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
   const [towDestination, setTowDestination] = useState<RouteOrigin | null>(null);
   const [towRoute, setTowRoute] = useState<RouteResult | null>(null);
   const [stationList, setStationList] = useState<StationDistance[]>([]);
+  const [showNationwideStations, setShowNationwideStations] = useState(true);
+  const [nationwideQuery, setNationwideQuery] = useState('');
+  const [flyToStation, setFlyToStation] = useState<LatLngTuple | null>(null);
+  const [highlightedStationId, setHighlightedStationId] = useState<string | null>(null);
 
   // Trạng thái chờ khách nhập trong chat
   const [pending, setPending] = useState<'origin' | 'tow' | null>(null);
@@ -470,6 +501,34 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
     );
     return [...floodMatchWarnings, ...withoutDupFlood];
   }, [warnings, floodMatchWarnings]);
+
+  const filteredNationwideStations = useMemo(() => {
+    const q = nationwideQuery.trim().toLowerCase();
+    if (!q) return RESCUE_STATIONS;
+    return RESCUE_STATIONS.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.address.toLowerCase().includes(q) ||
+        s.province.toLowerCase().includes(q)
+    );
+  }, [nationwideQuery]);
+
+  const nationwideGrouped = useMemo(() => {
+    const groups = new Map<string, RescueStationPoint[]>();
+    filteredNationwideStations.forEach((s) => {
+      const list = groups.get(s.province) ?? [];
+      list.push(s);
+      groups.set(s.province, list);
+    });
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b, 'vi'));
+  }, [filteredNationwideStations]);
+
+  const stationListIds = useMemo(() => new Set(stationList.map((s) => s.id)), [stationList]);
+
+  const focusNationwideStation = (s: RescueStationPoint) => {
+    setFlyToStation(s.position);
+    setHighlightedStationId(s.id);
+  };
 
   const resetJourney = () => {
     setRouteOrigin(null);
@@ -804,6 +863,17 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
       ),
       ...(location ? [bot('Bước tiếp theo anh/chị muốn làm gì?', NEXT_STEP_REPLIES)] : []),
     ]);
+  };
+
+  const handlePickNationwideStation = (s: RescueStationPoint) => {
+    focusNationwideStation(s);
+    const withDist: StationDistance = {
+      ...s,
+      distanceKm: location
+        ? Math.round(haversineKm(location.position, s.position) * 10) / 10
+        : 0,
+    };
+    handlePickStation(withDist);
   };
 
   const askForTow = () => {
@@ -1236,6 +1306,7 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
           focusPlace={focusPlace}
           mapResetToken={mapResetToken}
         />
+        <MapFlyTo target={flyToStation} />
         <ZoomButtons />
 
         {/* Flood zones đang hiệu lực — luôn hiển thị trên map */}
@@ -1282,6 +1353,43 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
             </React.Fragment>
           );
         })}
+
+        {/* Marker trạm toàn quốc (khi đang hiện danh sách) */}
+        {showNationwideStations &&
+          RESCUE_STATIONS.filter((s) => !stationListIds.has(s.id)).map((s) => (
+            <Marker
+              key={`nation-${s.id}`}
+              position={s.position}
+              icon={nationwideStationIcon}
+              eventHandlers={{
+                click: () => {
+                  focusNationwideStation(s);
+                },
+              }}
+            >
+              <Tooltip direction="top" offset={[0, -12]}>
+                <div className="text-[11px]">
+                  <span className="font-bold text-gray-800">{s.name}</span>
+                  <span className="text-gray-500"> · {s.province}</span>
+                </div>
+              </Tooltip>
+              <Popup>
+                <div className="text-xs max-w-[220px] space-y-1">
+                  <p className="font-bold text-gray-800">{s.name}</p>
+                  <p className="text-gray-500">{s.address}</p>
+                  <p className="text-[10px] font-bold text-blue-600 uppercase">{s.province}</p>
+                  {s.phone && <p className="text-gray-600">{s.phone}</p>}
+                  <button
+                    type="button"
+                    onClick={() => handlePickNationwideStation(s)}
+                    className="mt-1.5 w-full bg-[#00A859] text-white rounded px-2 py-1 text-[11px] font-bold hover:bg-green-700 transition-colors"
+                  >
+                    Chọn trạm này
+                  </button>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
 
         {/* Marker các trạm đang liệt kê */}
         {stationList.map((s) => (
@@ -1844,6 +1952,129 @@ const LocationSearch: React.FC<LocationSearchProps> = ({ onCreateOrder }) => {
       >
         {chatOpen ? <X size={22} /> : <BotAvatar size={34} />}
       </button>
+
+      {/* Danh sách trạm cứu hộ toàn quốc */}
+      <div
+        className={`absolute bottom-4 left-3 z-[550] w-[min(360px,calc(100%-88px))] flex flex-col pointer-events-none ${
+          chatOpen ? 'max-h-[min(420px,calc(100%-180px))]' : 'max-h-[min(480px,calc(100%-100px))]'
+        }`}
+      >
+        {showNationwideStations ? (
+          <div className="pointer-events-auto bg-white/95 backdrop-blur rounded-xl shadow-lg border border-gray-200 overflow-hidden flex flex-col max-h-full">
+            <div className="px-3 py-2.5 bg-blue-600 text-white flex items-center gap-2 shrink-0">
+              <Building2 size={15} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-wide leading-tight">
+                  Trạm cứu hộ toàn quốc
+                </p>
+                <p className="text-[10px] text-white/85">
+                  {filteredNationwideStations.length}/{RESCUE_STATIONS.length} trạm
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNationwideStations(false)}
+                className="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
+                title="Ẩn danh sách trạm"
+              >
+                <EyeOff size={15} />
+              </button>
+            </div>
+
+            <div className="px-2.5 py-2 border-b border-gray-100 shrink-0">
+              <div className="relative">
+                <Search
+                  size={13}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                />
+                <input
+                  type="text"
+                  value={nationwideQuery}
+                  onChange={(e) => setNationwideQuery(e.target.value)}
+                  placeholder="Tìm theo tên, tỉnh, địa chỉ..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg py-1.5 pl-8 pr-8 text-xs outline-none focus:border-blue-500"
+                />
+                {nationwideQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setNationwideQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-y-auto custom-scrollbar flex-1 min-h-0 p-2 space-y-2">
+              {nationwideGrouped.length === 0 ? (
+                <p className="text-[11px] text-gray-400 italic px-1 py-3 text-center">
+                  Không tìm thấy trạm phù hợp
+                </p>
+              ) : (
+                nationwideGrouped.map(([province, stations]) => (
+                  <div key={province} className="space-y-1">
+                    <p className="text-[9px] font-black uppercase tracking-wide text-gray-400 px-1 sticky top-0 bg-white/95 py-0.5">
+                      {province} ({stations.length})
+                    </p>
+                    {stations.map((s) => {
+                      const isActive = highlightedStationId === s.id || routeOrigin?.name === s.name;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => focusNationwideStation(s)}
+                          className={`w-full text-left rounded-lg border px-2.5 py-2 transition-all ${
+                            isActive
+                              ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-200'
+                              : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/40'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className="mt-0.5 w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                              <Truck size={12} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-bold text-gray-800 truncate">{s.name}</p>
+                              <p className="text-[10px] text-gray-500 leading-snug line-clamp-2 mt-0.5">
+                                {s.address}
+                              </p>
+                              {s.phone && (
+                                <p className="text-[10px] text-gray-400 mt-0.5">{s.phone}</p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePickNationwideStation(s);
+                              }}
+                              className="shrink-0 text-[9px] font-black uppercase px-2 py-1 rounded-md bg-[#00A859] text-white hover:bg-green-700"
+                            >
+                              Chọn
+                            </button>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowNationwideStations(true)}
+            className="pointer-events-auto self-start flex items-center gap-2 px-3 py-2 rounded-xl bg-white/95 backdrop-blur border border-gray-200 shadow-md text-[11px] font-bold text-blue-700 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+            title="Hiện danh sách trạm cứu hộ"
+          >
+            <Eye size={14} />
+            <span>Hiện danh sách trạm ({RESCUE_STATIONS.length})</span>
+            <ChevronUp size={14} />
+          </button>
+        )}
+      </div>
     </div>
   );
 };
