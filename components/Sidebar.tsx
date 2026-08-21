@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves, Settings2, SlidersHorizontal } from 'lucide-react';
+import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves, Settings2, SlidersHorizontal, Handshake, BarChart3, GitBranch, Car } from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
@@ -14,6 +14,7 @@ interface SidebarProps {
   onNavigateStationCreate: () => void;
   onNavigateStationOrders: () => void;
   onNavigateStationManagement: () => void;
+  onNavigateStationCoverage: () => void;
   onNavigateStaffManagement: () => void;
   onNavigatePricingPolicy: () => void;
   onNavigateBusinessManagement: () => void;
@@ -25,6 +26,7 @@ interface SidebarProps {
   onNavigateFloodZoneManagement: () => void;
   onNavigateRescueFeeConfiguration: () => void;
   onNavigateRescueFeeCriteria: () => void;
+  onNavigatePartner: (path: string) => void;
   currentStep: Step;
 }
 
@@ -39,6 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigateStationCreate,
   onNavigateStationOrders,
   onNavigateStationManagement,
+  onNavigateStationCoverage,
   onNavigateStaffManagement,
   onNavigatePricingPolicy,
   onNavigateBusinessManagement,
@@ -50,6 +53,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigateFloodZoneManagement,
   onNavigateRescueFeeConfiguration,
   onNavigateRescueFeeCriteria,
+  onNavigatePartner,
   currentStep 
 }) => {
   const [openMenus, setOpenMenus] = useState<string[]>([
@@ -61,6 +65,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     'rescue',
     'station',
     'rescueFee',
+    'partner',
+    'partnerVehicle',
+    'partnerReport',
   ]);
 
   if (!isOpen) return null;
@@ -87,6 +94,26 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isRescueFeeActive =
     currentStep === Step.RESCUE_FEE_CONFIGURATION ||
     currentStep === Step.RESCUE_FEE_CRITERIA;
+
+  const isPartnerActive =
+    currentStep === Step.PARTNER_VEHICLES ||
+    currentStep === Step.PARTNER_TOOL_CONFIG ||
+    currentStep === Step.PARTNER_STAFF ||
+    currentStep === Step.PARTNER_REPORTS ||
+    currentStep === Step.PARTNER_ORG;
+
+  const isPartnerVehicleActive =
+    currentStep === Step.PARTNER_VEHICLES || currentStep === Step.PARTNER_TOOL_CONFIG;
+
+  const navPartnerItem = (step: Step, path: string, label: string, Icon: typeof Car) => (
+    <div
+      onClick={() => onNavigatePartner(path)}
+      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === step ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+    >
+      <Icon size={13} className="shrink-0" />
+      <span className="whitespace-nowrap">{label}</span>
+    </div>
+  );
 
   return (
     <aside className="w-72 shrink-0 bg-white border-r flex flex-col transition-all duration-300">
@@ -363,6 +390,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <ClipboardList size={14} />
                 <span>Quản lý đơn cứu hộ</span>
               </div>
+              <div
+                onClick={onNavigateStationCoverage}
+                className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.STATION_COVERAGE ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                <MapPin size={14} />
+                <span>Độ phủ theo tỉnh</span>
+              </div>
               <div 
                 onClick={onNavigateStaffManagement}
                 className={`flex items-center space-x-2 text-sm p-2 rounded cursor-pointer ${currentStep === Step.STAFF_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50 border-r-4 border-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
@@ -370,6 +404,65 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <Users size={14} />
                 <span>Quản lý nhân viên</span>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Đối tác cứu hộ */}
+        <div className="px-4 mb-2">
+          <div
+            onClick={() => toggleMenu('partner')}
+            className={`flex items-center justify-between p-2 rounded cursor-pointer transition-all ${isMenuOpen('partner') && isPartnerActive ? 'bg-vetc-green text-white shadow-md' : isPartnerActive ? 'bg-emerald-50 text-[#00A859]' : 'text-gray-700 hover:bg-gray-100'}`}
+          >
+            <div className="flex items-center space-x-2">
+              <Handshake size={18} />
+              <span className="text-sm font-medium">Đối tác cứu hộ</span>
+            </div>
+            <ChevronDown size={14} className={`transition-transform duration-200 ${isMenuOpen('partner') ? 'rotate-180' : ''}`} />
+          </div>
+          {isMenuOpen('partner') && (
+            <div className="mt-2 space-y-0.5 pl-2">
+              <div>
+                <div
+                  onClick={() => toggleMenu('partnerVehicle')}
+                  className={`flex items-center justify-between gap-1 text-sm px-2 py-1.5 rounded cursor-pointer ${
+                    isPartnerVehicleActive ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Car size={14} className="shrink-0" />
+                    <span className="truncate">Hồ sơ xe cứu hộ</span>
+                  </div>
+                  <ChevronDown size={12} className={`shrink-0 transition-transform ${isMenuOpen('partnerVehicle') ? 'rotate-180' : ''}`} />
+                </div>
+                {isMenuOpen('partnerVehicle') && (
+                  <div className="mt-0.5 ml-3 border-l border-gray-200 pl-2 space-y-0.5">
+                    {navPartnerItem(Step.PARTNER_VEHICLES, '/partner/vehicles', 'Danh sách phương tiện', Car)}
+                    {navPartnerItem(Step.PARTNER_TOOL_CONFIG, '/partner/tool-config', 'Cấu hình công cụ', Settings2)}
+                  </div>
+                )}
+              </div>
+              {navPartnerItem(Step.PARTNER_STAFF, '/partner/staff', 'Quản lý nhân viên', Users)}
+              <div>
+                <div
+                  onClick={() => toggleMenu('partnerReport')}
+                  className={`flex items-center justify-between gap-1 text-sm px-2 py-1.5 rounded cursor-pointer ${
+                    currentStep === Step.PARTNER_REPORTS ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <BarChart3 size={14} className="shrink-0" />
+                    <span className="truncate">Báo cáo</span>
+                  </div>
+                  <ChevronDown size={12} className={`shrink-0 transition-transform ${isMenuOpen('partnerReport') ? 'rotate-180' : ''}`} />
+                </div>
+                {isMenuOpen('partnerReport') && (
+                  <div className="mt-0.5 ml-3 border-l border-gray-200 pl-2 space-y-0.5">
+                    {navPartnerItem(Step.PARTNER_REPORTS, '/partner/reports', 'Tất cả báo cáo', BarChart3)}
+                  </div>
+                )}
+              </div>
+              {navPartnerItem(Step.PARTNER_ORG, '/partner/org', 'Cấu hình tổ chức', GitBranch)}
             </div>
           )}
         </div>

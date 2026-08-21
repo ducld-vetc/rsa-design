@@ -268,31 +268,96 @@ const calculateCustomerTotal = (rows: AdjustmentRow[]) =>
 const calculateProviderTotal = (rows: AdjustmentRow[]) =>
   rows.reduce((sum, row) => sum + parseMoney(row.totalPrice), 0);
 
+type GuaranteeType = 'rate' | 'fixed';
+
+type GuaranteeSplitConfig = {
+  active: boolean;
+  type: GuaranteeType;
+  rate: number;
+  amount: number;
+};
+
+type PendingGuaranteeChange =
+  | { kind: 'rate'; value: string }
+  | { kind: 'amount'; value: string }
+  | { kind: 'type'; value: GuaranteeType };
+
+const GUARANTEE_TYPE_OPTIONS: { value: GuaranteeType; label: string }[] = [
+  { value: 'rate', label: 'Theo tỷ lệ' },
+  { value: 'fixed', label: 'Số tiền bảo lãnh cố định' },
+];
+
 /** Tách tổng phí KH thành Phí KHCN / Phí KHDN theo tỷ lệ bảo lãnh */
-const splitCustomerFee = (total: number, guaranteeActive: boolean, rate: number) => {
-  if (!guaranteeActive || rate <= 0) {
+const splitCustomerFeeByRate = (total: number, rate: number) => {
+  if (rate <= 0) {
     return { khcn: total, khdn: 0 };
   }
   const khdn = Math.round((total * rate) / 100);
   return { khcn: total - khdn, khdn };
 };
 
-const resolveRowKhFees = (
-  row: AdjustmentRow,
-  guaranteeActive: boolean,
-  rate: number
-) => {
-  if (
-    row.isCustomerFeeManual &&
-    row.customerPaidKhcn != null &&
-    row.customerPaidKhdn != null
-  ) {
-    return {
-      khcn: parseMoney(row.customerPaidKhcn),
-      khdn: parseMoney(row.customerPaidKhdn),
-    };
+/** Phân bổ số tiền bảo lãnh cố định theo tỷ trọng phí từng dòng */
+const allocateFixedGuaranteeAmounts = (rowTotals: number[], amount: number): number[] => {
+  const grand = rowTotals.reduce((sum, total) => sum + total, 0);
+  const cap = Math.min(Math.max(0, amount), grand);
+  if (cap <= 0 || grand <= 0) return rowTotals.map(() => 0);
+
+  let remaining = cap;
+  return rowTotals.map((total, index) => {
+    const isLast = index === rowTotals.length - 1;
+    const share = isLast
+      ? Math.min(remaining, total)
+      : Math.min(Math.round((cap * total) / grand), remaining, total);
+    remaining -= share;
+    return share;
+  });
+};
+
+const resolveAllRowKhFees = (
+  rows: AdjustmentRow[],
+  config: GuaranteeSplitConfig
+): Map<number, { khcn: number; khdn: number }> => {
+  const result = new Map<number, { khcn: number; khdn: number }>();
+  const autoRows: AdjustmentRow[] = [];
+
+  for (const row of rows) {
+    if (
+      row.isCustomerFeeManual &&
+      row.customerPaidKhcn != null &&
+      row.customerPaidKhdn != null
+    ) {
+      result.set(row.id, {
+        khcn: parseMoney(row.customerPaidKhcn),
+        khdn: parseMoney(row.customerPaidKhdn),
+      });
+    } else {
+      autoRows.push(row);
+    }
   }
-  return splitCustomerFee(parseMoney(row.customerPaid), guaranteeActive, rate);
+
+  if (!config.active) {
+    for (const row of autoRows) {
+      result.set(row.id, { khcn: parseMoney(row.customerPaid), khdn: 0 });
+    }
+    return result;
+  }
+
+  if (config.type === 'rate') {
+    for (const row of autoRows) {
+      result.set(row.id, splitCustomerFeeByRate(parseMoney(row.customerPaid), config.rate));
+    }
+    return result;
+  }
+
+  const totals = autoRows.map((row) => parseMoney(row.customerPaid));
+  const khdnShares = allocateFixedGuaranteeAmounts(totals, config.amount);
+  autoRows.forEach((row, index) => {
+    result.set(row.id, {
+      khcn: totals[index] - khdnShares[index],
+      khdn: khdnShares[index],
+    });
+  });
+  return result;
 };
 
 const hasManualFeeOverrides = (rows: AdjustmentRow[]) =>
@@ -1229,24 +1294,34 @@ const GuestOrderDetails: React.FC<{
   ];
   const [selectedEnterprise, setSelectedEnterprise] = useState('');
   const [hasGuarantee, setHasGuarantee] = useState<'yes' | 'no'>('no');
+  const [guaranteeType, setGuaranteeType] = useState<GuaranteeType>('rate');
   const [guaranteeNote, setGuaranteeNote] = useState('');
   const [guaranteeRate, setGuaranteeRate] = useState('');
   const [guaranteeRateDraft, setGuaranteeRateDraft] = useState('');
+  const [guaranteeAmount, setGuaranteeAmount] = useState('');
+  const [guaranteeAmountDraft, setGuaranteeAmountDraft] = useState('');
   const [isGuaranteeRateWarningOpen, setIsGuaranteeRateWarningOpen] = useState(false);
-  const [pendingGuaranteeRate, setPendingGuaranteeRate] = useState('');
+  const [pendingGuaranteeChange, setPendingGuaranteeChange] = useState<PendingGuaranteeChange | null>(null);
   const [enterpriseEstimatedCost, setEnterpriseEstimatedCost] = useState('0');
 
   const selectedEnterpriseLabel =
     ENTERPRISE_OPTIONS.find((opt) => opt.value === selectedEnterprise)?.label ?? '';
   const canEditEnterpriseFees = role === 'ADMIN' && isEditing;
 
+  const resetGuaranteeFields = () => {
+    setHasGuarantee('no');
+    setGuaranteeType('rate');
+    setGuaranteeNote('');
+    setGuaranteeRate('');
+    setGuaranteeRateDraft('');
+    setGuaranteeAmount('');
+    setGuaranteeAmountDraft('');
+  };
+
   const handleEnterpriseChange = (value: string) => {
     setSelectedEnterprise(value);
     if (!value) {
-      setHasGuarantee('no');
-      setGuaranteeNote('');
-      setGuaranteeRate('');
-      setGuaranteeRateDraft('');
+      resetGuaranteeFields();
       setEnterpriseEstimatedCost('0');
     }
   };
@@ -1254,9 +1329,23 @@ const GuestOrderDetails: React.FC<{
   const handleGuaranteeChange = (value: 'yes' | 'no') => {
     setHasGuarantee(value);
     if (value === 'no') {
+      setGuaranteeType('rate');
       setGuaranteeRate('');
       setGuaranteeRateDraft('');
+      setGuaranteeAmount('');
+      setGuaranteeAmountDraft('');
     }
+  };
+
+  const handleGuaranteeTypeDraftChange = (value: GuaranteeType) => {
+    if (!isEditing || value === guaranteeType || isGuaranteeRateWarningOpen) return;
+    const hasExistingValue = Boolean(guaranteeRate) || parseMoney(guaranteeAmount) > 0;
+    if (hasExistingValue) {
+      setPendingGuaranteeChange({ kind: 'type', value });
+      setIsGuaranteeRateWarningOpen(true);
+      return;
+    }
+    setGuaranteeType(value);
   };
 
   const normalizeGuaranteeRate = (value: string): string => {
@@ -1290,20 +1379,45 @@ const GuestOrderDetails: React.FC<{
 
     if (normalized === guaranteeRate) return;
 
-    setPendingGuaranteeRate(normalized);
+    setPendingGuaranteeChange({ kind: 'rate', value: normalized });
+    setIsGuaranteeRateWarningOpen(true);
+  };
+
+  const handleGuaranteeAmountDraftChange = (value: string) => {
+    setGuaranteeAmountDraft(formatMoneyInput(value));
+  };
+
+  const handleGuaranteeAmountBlur = () => {
+    if (!isEditing || isGuaranteeRateWarningOpen) return;
+
+    const normalized = formatMoneyInput(guaranteeAmountDraft);
+    setGuaranteeAmountDraft(normalized);
+
+    if (normalized === guaranteeAmount) return;
+
+    setPendingGuaranteeChange({ kind: 'amount', value: normalized });
     setIsGuaranteeRateWarningOpen(true);
   };
 
   const handleConfirmGuaranteeRateChange = () => {
-    setGuaranteeRate(pendingGuaranteeRate);
-    setGuaranteeRateDraft(pendingGuaranteeRate);
-    setPendingGuaranteeRate('');
+    if (!pendingGuaranteeChange) return;
+    if (pendingGuaranteeChange.kind === 'rate') {
+      setGuaranteeRate(pendingGuaranteeChange.value);
+      setGuaranteeRateDraft(pendingGuaranteeChange.value);
+    } else if (pendingGuaranteeChange.kind === 'amount') {
+      setGuaranteeAmount(pendingGuaranteeChange.value);
+      setGuaranteeAmountDraft(pendingGuaranteeChange.value);
+    } else {
+      setGuaranteeType(pendingGuaranteeChange.value);
+    }
+    setPendingGuaranteeChange(null);
     setIsGuaranteeRateWarningOpen(false);
   };
 
   const handleCancelGuaranteeRateChange = () => {
     setGuaranteeRateDraft(guaranteeRate);
-    setPendingGuaranteeRate('');
+    setGuaranteeAmountDraft(guaranteeAmount);
+    setPendingGuaranteeChange(null);
     setIsGuaranteeRateWarningOpen(false);
   };
 
@@ -1615,16 +1729,29 @@ const GuestOrderDetails: React.FC<{
 
   const vatRate = parseFloat(vat) || 0;
   const guaranteeRateNum = parseInt(guaranteeRate, 10) || 0;
-  const isGuaranteeActive = hasGuarantee === 'yes' && guaranteeRateNum > 0 && !!selectedEnterprise;
+  const guaranteeAmountNum = parseMoney(guaranteeAmount);
+  const isGuaranteeActive =
+    hasGuarantee === 'yes' &&
+    !!selectedEnterprise &&
+    (guaranteeType === 'rate' ? guaranteeRateNum > 0 : guaranteeAmountNum > 0);
+  const guaranteeSplitConfig: GuaranteeSplitConfig = {
+    active: isGuaranteeActive,
+    type: guaranteeType,
+    rate: guaranteeRateNum,
+    amount: guaranteeAmountNum,
+  };
+  const rowKhFeeMap = resolveAllRowKhFees(adjustmentRows, guaranteeSplitConfig);
+  const getRowKhFees = (row: AdjustmentRow) =>
+    rowKhFeeMap.get(row.id) ?? { khcn: parseMoney(row.customerPaid), khdn: 0 };
 
   const tableTotals = {
     customerPaid: grossCustomerTotal,
     customerPaidKhcn: adjustmentRows.reduce(
-      (sum, row) => sum + resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum).khcn,
+      (sum, row) => sum + getRowKhFees(row).khcn,
       0
     ),
     customerPaidKhdn: adjustmentRows.reduce(
-      (sum, row) => sum + resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum).khdn,
+      (sum, row) => sum + getRowKhFees(row).khdn,
       0
     ),
     totalPrice: providerTotal,
@@ -1689,9 +1816,9 @@ const GuestOrderDetails: React.FC<{
       distributeTotalAcrossRows(
         prev,
         newKhcnTotal,
-        (row) => resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum).khcn,
+        (row) => getRowKhFees(row).khcn,
         (row, khcnAmount) => {
-          const current = resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum);
+          const current = getRowKhFees(row);
           const khdn = isGuaranteeActive ? current.khdn : 0;
           const total = khcnAmount + khdn;
           return {
@@ -1963,7 +2090,7 @@ const GuestOrderDetails: React.FC<{
     setAdjustmentRows((prev) =>
       prev.map((row) => {
         if (row.id !== id) return row;
-        const current = resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum);
+        const current = getRowKhFees(row);
         const khcn = parseMoney(formatMoneyInput(value));
         const khdn = isGuaranteeActive ? current.khdn : 0;
         const total = khcn + khdn;
@@ -1986,7 +2113,7 @@ const GuestOrderDetails: React.FC<{
     setAdjustmentRows((prev) =>
       prev.map((row) => {
         if (row.id !== id) return row;
-        const current = resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum);
+        const current = getRowKhFees(row);
         const khdn = parseMoney(formatMoneyInput(value));
         const khcn = current.khcn;
         const total = khcn + khdn;
@@ -2020,10 +2147,7 @@ const GuestOrderDetails: React.FC<{
     if (patch.selectedEnterprise != null) {
       setSelectedEnterprise(patch.selectedEnterprise);
       if (!patch.selectedEnterprise) {
-        setHasGuarantee('no');
-        setGuaranteeNote('');
-        setGuaranteeRate('');
-        setGuaranteeRateDraft('');
+        resetGuaranteeFields();
         setEnterpriseEstimatedCost('0');
       }
     }
@@ -2558,26 +2682,58 @@ const GuestOrderDetails: React.FC<{
                         </select>
                       </div>
                       {hasGuarantee === 'yes' && (
-                        <div>
-                          <Label required>Tỷ lệ bảo lãnh</Label>
-                          <div className="relative">
-                            <Input
-                              value={guaranteeRateDraft}
-                              onChange={handleGuaranteeRateDraftChange}
-                              onBlur={handleGuaranteeRateBlur}
-                              placeholder="1 – 100"
-                              readOnly={!isEditing}
-                              className="w-full text-right font-bold pr-8"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 pointer-events-none">%</span>
+                        <>
+                          <div>
+                            <Label required>Hình thức bảo lãnh</Label>
+                            <select
+                              value={guaranteeType}
+                              disabled={!isEditing}
+                              onChange={(e) => handleGuaranteeTypeDraftChange(e.target.value as GuaranteeType)}
+                              className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all ${!isEditing ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
+                            >
+                              {GUARANTEE_TYPE_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
                           </div>
-                        </div>
+                          {guaranteeType === 'rate' ? (
+                            <div>
+                              <Label required>Tỷ lệ bảo lãnh</Label>
+                              <div className="relative">
+                                <Input
+                                  value={guaranteeRateDraft}
+                                  onChange={handleGuaranteeRateDraftChange}
+                                  onBlur={handleGuaranteeRateBlur}
+                                  placeholder="1 – 100"
+                                  readOnly={!isEditing}
+                                  className="w-full text-right font-bold pr-8"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 pointer-events-none">%</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <Label required>Số tiền bảo lãnh</Label>
+                              <div className="relative">
+                                <Input
+                                  value={guaranteeAmountDraft}
+                                  onChange={handleGuaranteeAmountDraftChange}
+                                  onBlur={handleGuaranteeAmountBlur}
+                                  placeholder="Nhập số tiền"
+                                  readOnly={!isEditing}
+                                  className="w-full text-right font-bold pr-8"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 pointer-events-none">đ</span>
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
-                      <div className={hasGuarantee === 'yes' ? '' : 'lg:col-span-2'}>
+                      <div className={hasGuarantee === 'yes' ? 'md:col-span-2 lg:col-span-4' : 'lg:col-span-2'}>
                         <Label>Ghi chú bảo lãnh</Label>
                         <Input
                           value={guaranteeNote}
-                          onChange={(e) => setGuaranteeNote(e.target.value)}
+                          onChange={(val) => setGuaranteeNote(String(val))}
                           placeholder="Nhập nội dung chi tiết bảo lãnh..."
                           readOnly={!isEditing}
                         />
@@ -3457,8 +3613,11 @@ const GuestOrderDetails: React.FC<{
                             {!isGuaranteeActive && (
                               <> Khi chưa bảo lãnh, toàn bộ phí KH nằm ở <span className="font-semibold">Phí KHCN</span>.</>
                             )}
-                            {isGuaranteeActive && (
+                            {isGuaranteeActive && guaranteeType === 'rate' && (
                               <> Khi có bảo lãnh {guaranteeRateNum}%, mặc định tách theo tỷ lệ; sửa tay sẽ giữ số đã nhập.</>
+                            )}
+                            {isGuaranteeActive && guaranteeType === 'fixed' && (
+                              <> Khi có bảo lãnh số tiền cố định {guaranteeAmountNum.toLocaleString('en-US')} đ, mặc định phân bổ Phí KHDN theo số tiền này; sửa tay sẽ giữ số đã nhập.</>
                             )}
                           </li>
                           <li>
@@ -3501,7 +3660,7 @@ const GuestOrderDetails: React.FC<{
                           const partnerCoef = parseFloat(row.partnerCoefficient ?? row.coefficient) || 0;
                           const isMaxCustomer = customerCoef === maxCoefficient && maxCoefficient > 1;
                           const isMaxPartner = partnerCoef === maxCoefficient && maxCoefficient > 1;
-                          const { khcn, khdn } = resolveRowKhFees(row, isGuaranteeActive, guaranteeRateNum);
+                          const { khcn, khdn } = getRowKhFees(row);
                           return (
                               <tr key={row.id} className={`border-b hover:bg-gray-50 transition-colors`}>
                                 <td className="p-2 border text-center font-medium">{idx + 1}</td>
@@ -4177,8 +4336,15 @@ const GuestOrderDetails: React.FC<{
             isOpen={isGuaranteeRateWarningOpen}
             onClose={handleCancelGuaranteeRateChange}
             onConfirm={handleConfirmGuaranteeRateChange}
-            oldRate={guaranteeRate}
-            newRate={pendingGuaranteeRate}
+            kind={pendingGuaranteeChange?.kind ?? 'rate'}
+            oldValue={
+              pendingGuaranteeChange?.kind === 'amount'
+                ? guaranteeAmount
+                : pendingGuaranteeChange?.kind === 'type'
+                  ? guaranteeType
+                  : guaranteeRate
+            }
+            newValue={pendingGuaranteeChange?.value ?? ''}
             enterpriseLabel={selectedEnterpriseLabel}
         />
 

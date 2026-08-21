@@ -37,6 +37,14 @@ import RescueFeeConfiguration from './pages/RescueFeeConfiguration';
 import RescueFeeForm from './pages/RescueFeeForm';
 import RescueFeeDetail from './pages/RescueFeeDetail';
 import RescueFeeCriteriaManagement from './pages/RescueFeeCriteriaManagement';
+import PartnerVehicleList from './pages/PartnerVehicleList';
+import PartnerVehicleDetail from './pages/PartnerVehicleDetail';
+import PartnerToolConfig from './pages/PartnerToolConfig';
+import PartnerStaff from './pages/PartnerStaff';
+import PartnerStaffDetail from './pages/PartnerStaffDetail';
+import PartnerReports from './pages/PartnerReports';
+import PartnerOrgConfig from './pages/PartnerOrgConfig';
+import StationCoverageReport from './pages/station-coverage/StationCoverageReport';
 import { ShiftConfigProvider } from './context/ShiftConfigContext';
 
 const initialData: FormData = {
@@ -99,6 +107,11 @@ const App: React.FC = () => {
 
   // Helper to map URL path to Step enum for Sidebar/Stepper compatibility
   const getStepFromPath = (path: string): Step => {
+    if (path.includes('/partner/vehicles')) return Step.PARTNER_VEHICLES;
+    if (path.includes('/partner/tool-config')) return Step.PARTNER_TOOL_CONFIG;
+    if (path.includes('/partner/staff')) return Step.PARTNER_STAFF;
+    if (path.includes('/partner/reports')) return Step.PARTNER_REPORTS;
+    if (path.includes('/partner/org')) return Step.PARTNER_ORG;
     if (path.includes('/shift-definition-management')) return Step.SHIFT_DEFINITION_MANAGEMENT;
     if (path.includes('/shift-monthly-schedule')) return Step.SHIFT_MONTHLY_SCHEDULE;
     if (path.includes('/flood-zone-management')) return Step.FLOOD_ZONE_MANAGEMENT;
@@ -116,6 +129,7 @@ const App: React.FC = () => {
     if (path.includes('/orders')) return Step.ORDER_MANAGEMENT;
     if (path.includes('/details')) return Step.GUEST_ORDER;
     if (path.includes('/station/create')) return Step.STATION_CREATE;
+    if (path.includes('/station/coverage')) return Step.STATION_COVERAGE;
     if (path.includes('/station/management')) return Step.STATION_MANAGEMENT;
     if (path.includes('/staff-management')) return Step.STAFF_MANAGEMENT;
     if (path.includes('/station/details') || path.includes('/station/orders')) return Step.STATION_ORDERS;
@@ -297,6 +311,7 @@ const App: React.FC = () => {
   const handleNavigateToStationCreate = () => navigate('/station/create');
   const handleNavigateToStationOrders = () => navigate('/station/orders');
   const handleNavigateToStationManagement = () => navigate('/station/management');
+  const handleNavigateToStationCoverage = () => navigate('/station/coverage');
   const handleNavigateToStaffManagement = () => navigate('/staff-management');
   const handleNavigateToPricingPolicy = () => navigate('/pricing-policy');
   const handleNavigateToBusinessManagement = () => navigate('/business-management');
@@ -402,6 +417,7 @@ const App: React.FC = () => {
     Step.SUCCESS,
     Step.STATION_CREATE,
     Step.STATION_MANAGEMENT,
+    Step.STATION_COVERAGE,
     Step.STAFF_MANAGEMENT,
     Step.PRICING_POLICY,
     Step.BUSINESS_MANAGEMENT,
@@ -413,6 +429,11 @@ const App: React.FC = () => {
     Step.FLOOD_ZONE_MANAGEMENT,
     Step.RESCUE_FEE_CONFIGURATION,
     Step.RESCUE_FEE_CRITERIA,
+    Step.PARTNER_VEHICLES,
+    Step.PARTNER_TOOL_CONFIG,
+    Step.PARTNER_STAFF,
+    Step.PARTNER_REPORTS,
+    Step.PARTNER_ORG,
   ];
   
   const isStepperVisible = !hideStepperSteps.includes(currentStep);
@@ -425,6 +446,7 @@ const App: React.FC = () => {
     if (currentStep === Step.GUEST_ORDER) return ['Chăm sóc khách hàng', 'Chi tiết đơn hàng'];
     if (currentStep === Step.STATION_CREATE) return ['Trạm cứu hộ', 'Tạo đơn cứu hộ'];
     if (currentStep === Step.STATION_MANAGEMENT) return ['Trạm cứu hộ', 'Quản lý đơn cứu hộ'];
+    if (currentStep === Step.STATION_COVERAGE) return ['Trạm cứu hộ', 'Độ phủ theo tỉnh'];
     if (currentStep === Step.STATION_ORDERS) return ['Trạm cứu hộ', 'Quản lý đơn'];
     if (currentStep === Step.STAFF_MANAGEMENT) return ['Quản trị hệ thống', 'Quản lý nhân viên'];
     if (currentStep === Step.PRICING_POLICY) return ['Thêm mới chính sách giá VETC'];
@@ -459,6 +481,27 @@ const App: React.FC = () => {
     if (currentStep === Step.RESCUE_FEE_CRITERIA) {
       return ['Quản trị hệ thống', 'Phí cứu hộ', 'Danh mục tiêu chí'];
     }
+    if (currentStep === Step.PARTNER_VEHICLES) {
+      if (location.pathname.endsWith('/partner/vehicles/new')) {
+        return ['Đối tác cứu hộ', 'Hồ sơ xe', 'Danh sách phương tiện', 'Thêm xe'];
+      }
+      if (location.pathname.match(/\/partner\/vehicles\/[^/]+$/)) {
+        return ['Đối tác cứu hộ', 'Hồ sơ xe', 'Danh sách phương tiện', 'Chi tiết xe'];
+      }
+      return ['Đối tác cứu hộ', 'Hồ sơ xe', 'Danh sách phương tiện'];
+    }
+    if (currentStep === Step.PARTNER_TOOL_CONFIG) return ['Đối tác cứu hộ', 'Hồ sơ xe', 'Cấu hình công cụ'];
+    if (currentStep === Step.PARTNER_STAFF) {
+      if (location.pathname.endsWith('/partner/staff/new')) {
+        return ['Đối tác cứu hộ', 'Quản lý nhân viên', 'Thêm nhân viên'];
+      }
+      if (location.pathname.match(/\/partner\/staff\/[^/]+$/)) {
+        return ['Đối tác cứu hộ', 'Quản lý nhân viên', 'Chi tiết nhân viên'];
+      }
+      return ['Đối tác cứu hộ', 'Quản lý nhân viên'];
+    }
+    if (currentStep === Step.PARTNER_REPORTS) return ['Đối tác cứu hộ', 'Báo cáo'];
+    if (currentStep === Step.PARTNER_ORG) return ['Đối tác cứu hộ', 'Cấu hình tổ chức'];
     if (currentStep === Step.PAYMENT_REQUEST_MANAGEMENT) {
       if (location.pathname.includes('/payment-request-management/')) {
         return ['Quản trị hệ thống', 'Quản lý thanh toán', 'Tạo đề nghị thanh toán'];
@@ -483,6 +526,7 @@ const App: React.FC = () => {
         onNavigateStationCreate={handleNavigateToStationCreate}
         onNavigateStationOrders={handleNavigateToStationOrders}
         onNavigateStationManagement={handleNavigateToStationManagement}
+        onNavigateStationCoverage={handleNavigateToStationCoverage}
         onNavigateStaffManagement={handleNavigateToStaffManagement}
         onNavigatePricingPolicy={handleNavigateToPricingPolicy}
         onNavigateBusinessManagement={handleNavigateToBusinessManagement}
@@ -494,6 +538,7 @@ const App: React.FC = () => {
         onNavigateFloodZoneManagement={handleNavigateToFloodZoneManagement}
         onNavigateRescueFeeConfiguration={handleNavigateToRescueFeeConfiguration}
         onNavigateRescueFeeCriteria={handleNavigateToRescueFeeCriteria}
+        onNavigatePartner={(path) => navigate(path)}
         currentStep={currentStep}
       />
 
@@ -618,6 +663,9 @@ const App: React.FC = () => {
                 <Route path="/station/management" element={
                   <StationManagement role={role} />
                 } />
+                <Route path="/station/coverage" element={
+                  <StationCoverageReport />
+                } />
                 <Route path="/staff-management" element={
                   <StaffManagement2 role={role} />
                 } />
@@ -672,6 +720,16 @@ const App: React.FC = () => {
                 <Route path="/rescue-fee-criteria" element={
                   <RescueFeeCriteriaManagement />
                 } />
+                <Route path="/partner/vehicles/new" element={<PartnerVehicleDetail />} />
+                <Route path="/partner/vehicles/:id" element={<PartnerVehicleDetail />} />
+                <Route path="/partner/vehicles" element={<PartnerVehicleList />} />
+                <Route path="/partner/vehicle-tools" element={<Navigate to="/partner/vehicles" replace />} />
+                <Route path="/partner/tool-config" element={<PartnerToolConfig />} />
+                <Route path="/partner/staff/new" element={<PartnerStaffDetail />} />
+                <Route path="/partner/staff/:id" element={<PartnerStaffDetail />} />
+                <Route path="/partner/staff" element={<PartnerStaff />} />
+                <Route path="/partner/reports" element={<PartnerReports />} />
+                <Route path="/partner/org" element={<PartnerOrgConfig />} />
               </Routes>
               </ShiftConfigProvider>
               </div>
