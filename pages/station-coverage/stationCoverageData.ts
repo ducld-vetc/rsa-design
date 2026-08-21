@@ -92,8 +92,8 @@ export const REGION_OPTIONS: { id: RegionId | 'all'; label: string }[] = [
 ];
 
 export const MAP_MODE_OPTIONS: { id: MapDisplayMode; label: string }[] = [
-  { id: 'stations', label: 'Chấm trạm' },
-  { id: 'heatmap', label: 'Heatmap mật độ' },
+  { id: 'stations', label: 'Trạm' },
+  { id: 'heatmap', label: 'Heatmap' },
 ];
 
 export const AREA_TYPE_OPTIONS: { id: AreaType | 'all'; label: string }[] = [
@@ -375,12 +375,12 @@ export function resolveAreaType(value: string | null): AreaType | null {
 export function hasPlottablePosition(lat: number | null, lng: number | null): boolean {
   if (lat == null || lng == null) return false;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-  if (lat < 8.2 || lat > 23.6 || lng < 102 || lng > 110) return false;
-  const latRound = Math.abs(lat - Math.round(lat)) < 1e-6;
-  const lngRound = Math.abs(lng - Math.round(lng)) < 1e-6;
-  if (latRound && lngRound && (Math.round(lat) === 20 || Math.round(lat) === 21) && Math.round(lng) === 105) {
-    return false;
-  }
+  // Trong khung bản đồ Việt Nam (cùng VIETNAM_BOUNDS).
+  if (lat < 8.35 || lat > 23.45 || lng < 102.12 || lng > 109.55) return false;
+  // Tọa độ giả / làm tròn thô (vd. 21,105 · 10,106) — không plot lên map.
+  const latWhole = Math.abs(lat - Math.round(lat)) < 1e-6;
+  const lngWhole = Math.abs(lng - Math.round(lng)) < 1e-6;
+  if (latWhole && lngWhole) return false;
   return true;
 }
 
@@ -426,11 +426,9 @@ const stationCountByProvince = mapStationPoints.reduce((acc, station) => {
 
 const GEO_PROVINCE_IDS = PROVINCE_DEFS.map((item) => item.id);
 
-const rowIds = new Set([...GEO_PROVINCE_IDS, ...stationCountByProvince.keys()]);
-
-export const provinceCoverageRows: ProvinceCoverageRow[] = [...rowIds]
+export const provinceCoverageRows: ProvinceCoverageRow[] = GEO_PROVINCE_IDS
   .map((id) => {
-    const def = PROVINCE_BY_ID.get(id) ?? (id === UNASSIGNED_PROVINCE_ID ? UNASSIGNED_DEF : null);
+    const def = PROVINCE_BY_ID.get(id);
     if (!def) return null;
     const mock = MOCK_ORDERS[id];
     return {
@@ -448,11 +446,7 @@ export const provinceCoverageRows: ProvinceCoverageRow[] = [...rowIds]
     };
   })
   .filter((row): row is ProvinceCoverageRow => row != null)
-  .sort((a, b) => {
-    if (a.id === UNASSIGNED_PROVINCE_ID) return 1;
-    if (b.id === UNASSIGNED_PROVINCE_ID) return -1;
-    return a.name.localeCompare(b.name, 'vi');
-  });
+  .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 
 export const unassignedBucket = {
   stations: stationCountByProvince.get(UNASSIGNED_PROVINCE_ID) ?? 0,

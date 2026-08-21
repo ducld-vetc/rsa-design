@@ -233,25 +233,16 @@ const StationCoverageReport: React.FC = () => {
   const visibleStations = useMemo(() => {
     return filteredStations.filter((station) => {
       if (!station.hasValidPosition) return false;
+      if (station.provinceId === UNASSIGNED_PROVINCE_ID) return false;
       if (!visibleIds.has(station.provinceId)) return false;
       if (focusedId && station.provinceId !== focusedId) return false;
       return true;
     });
   }, [filteredStations, visibleIds, focusedId]);
 
-  const missingCoordCount = useMemo(
-    () =>
-      filteredStations.filter((station) => {
-        if (station.hasValidPosition) return false;
-        if (!visibleIds.has(station.provinceId)) return false;
-        if (focusedId && station.provinceId !== focusedId) return false;
-        return true;
-      }).length,
-    [filteredStations, visibleIds, focusedId],
-  );
-
   const drillStations = useMemo(() => {
     return filteredStations.filter((station) => {
+      if (station.provinceId === UNASSIGNED_PROVINCE_ID) return false;
       if (!visibleIds.has(station.provinceId)) return false;
       if (focusedId && station.provinceId !== focusedId) return false;
       return true;
@@ -386,8 +377,8 @@ const StationCoverageReport: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex shrink-0 rounded-lg border border-gray-200 bg-gray-100 p-0.5">
           {[
-            { id: 'overview' as const, label: 'Tổng quan', icon: <MapIcon size={14} /> },
-            { id: 'list' as const, label: 'Danh sách tỉnh', icon: <List size={14} /> },
+            { id: 'overview' as const, label: 'Bản đồ', icon: <MapIcon size={14} /> },
+            { id: 'list' as const, label: 'Danh sách', icon: <List size={14} /> },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -408,8 +399,8 @@ const StationCoverageReport: React.FC = () => {
           <div className="w-[200px] shrink-0">
             <AppMultiSelect
               values={provinceFilterIds}
-              placeholder="Tất cả tỉnh / thành"
-              searchPlaceholder="Tìm tỉnh / thành..."
+              placeholder="Tất cả tỉnh"
+              searchPlaceholder="Tìm tỉnh..."
               options={provincesByName.map((row) => ({ value: row.id, label: row.name }))}
               onChange={(values) => {
                 setProvinceFilterIds(values);
@@ -519,18 +510,18 @@ const StationCoverageReport: React.FC = () => {
                       }}
                     >
                       <Tooltip direction="top" offset={[0, -14]} opacity={1} className="station-name-tooltip">
-                        <div className="max-w-[240px] whitespace-normal">
-                          <p className="text-[13px] font-bold leading-tight text-white">{station.name}</p>
-                          <p className="mt-0.5 text-[11px] font-medium text-white/80">
-                            {stationTypeLabel(station.stationType)} · {station.partner}
+                        <div className="w-full min-w-0 max-w-[296px]">
+                          <p className="text-[13px] font-bold leading-snug text-white">{station.name}</p>
+                          <p className="mt-1 text-[11px] font-medium leading-snug text-white/80">
+                            {stationTypeLabel(station.stationType)}
                           </p>
-                          <p className="mt-0.5 text-[11px] text-white/70">
+                          <p className="mt-0.5 text-[11px] leading-snug text-white/75">{station.partner}</p>
+                          <p className="mt-1 text-[11px] leading-snug text-white/70">
                             {station.code} · {station.provinceName}
                             {station.provinceSource === 'address' ? ' (suy từ địa chỉ)' : ''}
-                            {station.provinceSource === 'unassigned' ? ' · chưa gán tỉnh' : ''}
                           </p>
                           {station.address ? (
-                            <p className="mt-0.5 text-[11px] leading-snug text-white/65">{station.address}</p>
+                            <p className="mt-1 line-clamp-3 text-[11px] leading-snug text-white/65">{station.address}</p>
                           ) : null}
                         </div>
                       </Tooltip>
@@ -572,9 +563,6 @@ const StationCoverageReport: React.FC = () => {
                       <span className="h-2.5 w-2.5 rounded-full bg-[#059669]" />
                       <span className="text-[10px] font-semibold text-gray-600">Trạm bên ngoài</span>
                     </div>
-                    {missingCoordCount > 0 ? (
-                      <p className="text-[9px] text-amber-700">{missingCoordCount} trạm thiếu tọa độ, không plot</p>
-                    ) : null}
                   </>
                 ) : (
                   <>
@@ -623,7 +611,6 @@ const StationCoverageReport: React.FC = () => {
             kpis={kpis}
             drillStations={drillStations}
             drillOrders={drillOrders}
-            regionLabel={REGION_OPTIONS.find((opt) => opt.id === region)?.label ?? 'Tất cả miền'}
             onSelectProvince={setFocusedId}
             onClose={() => setFocusedId(null)}
           />
@@ -714,10 +701,9 @@ const ProvinceDetailPanel: React.FC<{
   };
   drillStations: CoverageStation[];
   drillOrders: UncoveredOrder[];
-  regionLabel: string;
   onSelectProvince: (id: string) => void;
   onClose: () => void;
-}> = ({ selected, provinceRows, kpis, drillStations, drillOrders, regionLabel, onSelectProvince, onClose }) => {
+}> = ({ selected, provinceRows, kpis, drillStations, drillOrders, onSelectProvince, onClose }) => {
   const internalCount = drillStations.filter((station) => station.stationType === 'rescue_internal').length;
   const externalCount = drillStations.filter((station) => station.stationType === 'rescue_external').length;
   const provinceList = [...provinceRows].sort((a, b) => {
@@ -730,8 +716,7 @@ const ProvinceDetailPanel: React.FC<{
     return (
       <aside className="flex w-full flex-col rounded-2xl border border-gray-100 bg-white p-4 shadow-sm xl:w-[340px] xl:shrink-0">
         <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Tổng hợp</p>
-        <h2 className="mt-1 text-base font-black text-gray-900">Tất cả tỉnh / thành</h2>
-        <p className="text-[11px] font-semibold text-gray-400">{regionLabel}</p>
+        <h2 className="mt-1 text-base font-black text-gray-900">Tất cả tỉnh</h2>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-sm font-black text-gray-900">{formatCoverage(kpis.presenceCr)}</span>
@@ -807,9 +792,6 @@ const ProvinceDetailPanel: React.FC<{
         <MiniStat label="Bên ngoài" value={formatNumber(selected.externalStations)} />
         <MiniStat label={`% mật độ (/${TARGET_STATIONS_PER_PROVINCE})`} value={formatCoverage(selected.cr)} />
       </dl>
-      {selected.row.id === UNASSIGNED_PROVINCE_ID && (
-        <p className="mt-2 text-[11px] text-amber-700">Không map được province_code / địa chỉ.</p>
-      )}
       {selected.stations === 0 && (
         <p className="mt-2 text-[11px] text-amber-700">Chưa có trạm active khớp bộ lọc tại tỉnh này.</p>
       )}
@@ -824,12 +806,6 @@ const ProvinceDetailPanel: React.FC<{
               {station.code} · {stationTypeLabel(station.stationType)} · {station.partner}
             </p>
             {station.address ? <p className="mt-0.5 text-[10px] leading-snug text-gray-500">{station.address}</p> : null}
-            {!station.hasValidPosition ? (
-              <p className="mt-0.5 text-[10px] font-semibold text-amber-700">Thiếu tọa độ — không plot trên map</p>
-            ) : null}
-            {station.provinceSource === 'address' ? (
-              <p className="mt-0.5 text-[10px] text-gray-400">Tỉnh suy từ địa chỉ</p>
-            ) : null}
           </li>
         ))}
       </ul>
