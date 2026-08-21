@@ -12,6 +12,10 @@
     "build:crm": "vite build --config crm-web/vite.config.ts",
     "preview:crm": "vite preview --config crm-web/vite.config.ts",
     "start:crm": "npm run build:crm && npx --yes serve@14 crm-web/dist -l 5180 -s",
+    "dev:coverage": "vite --config station-coverage-web/vite.config.ts",
+    "build:coverage": "vite build --config station-coverage-web/vite.config.ts",
+    "preview:coverage": "vite preview --config station-coverage-web/vite.config.ts",
+    "start:coverage": "npm run build:coverage && npx --yes serve@14 station-coverage-web/dist -l 3340 -s",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
