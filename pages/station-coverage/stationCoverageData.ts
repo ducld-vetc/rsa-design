@@ -1,5 +1,6 @@
 import { DB_STATIONS, type DbStationRow } from './stationCoverageFromDb';
 import { STATION_ADMIN_OVERRIDES } from './stationAdminOverrides';
+import { PARTNER_SIGNING_DATES } from './partnerSigningDates';
 import {
   ADDRESS_SCHEMA_OPTIONS,
   AREA_PROVINCES,
@@ -16,7 +17,7 @@ export type CoverageLevel = 'cao' | 'trung_binh' | 'thap';
 export type AreaType = 'HIGHWAY' | 'URBAN' | 'MOUNTAIN';
 export type RegionId = 'bac' | 'trung' | 'nam';
 export type MapDisplayMode = 'stations' | 'heatmap';
-export type StationType = 'rescue_internal' | 'rescue_quick' | 'rescue_external';
+export type StationType = 'rescue_internal' | 'partner_with_contract' | 'partner_no_contract';
 export type ProvinceSource = 'code' | 'address' | 'unassigned';
 export type { AddressSchemaMode };
 export { ADDRESS_SCHEMA_OPTIONS };
@@ -122,15 +123,15 @@ export const AREA_TYPE_OPTIONS: { id: AreaType | 'all'; label: string }[] = [
 
 export const STATION_TYPE_OPTIONS: { id: StationType | 'all'; label: string }[] = [
   { id: 'all', label: 'Tất cả loại trạm' },
-  { id: 'rescue_internal', label: 'Trạm nội bộ VETC' },
-  { id: 'rescue_quick', label: 'Quick Service' },
-  { id: 'rescue_external', label: 'Trạm bên ngoài' },
+  { id: 'rescue_internal', label: 'Trạm nội bộ' },
+  { id: 'partner_with_contract', label: 'Đối tác có HĐ' },
+  { id: 'partner_no_contract', label: 'Đối tác không HĐ' },
 ];
 
 export function stationTypeLabel(type: StationType): string {
-  if (type === 'rescue_internal') return 'Trạm nội bộ VETC';
-  if (type === 'rescue_quick') return 'Quick Service';
-  return 'Trạm bên ngoài';
+  if (type === 'rescue_internal') return 'Trạm nội bộ';
+  if (type === 'partner_with_contract') return 'Đối tác có HĐ';
+  return 'Đối tác không HĐ';
 }
 
 export function matchesStationTypeFilter(
@@ -394,8 +395,20 @@ function resolveProvinceFromAddress(address: string): ProvinceDef | null {
 export function resolveStationType(row: DbStationRow): StationType {
   const raw = (row.partnerType ?? '').trim().toUpperCase();
   if (raw === 'INTERNAL') return 'rescue_internal';
-  if (raw === 'QUICK_SERVICE') return 'rescue_quick';
-  return 'rescue_external';
+  // THIRD_PARTY (+ biến thể) theo signing_date
+  const signed = hasPartnerSigningDate(row);
+  return signed ? 'partner_with_contract' : 'partner_no_contract';
+}
+
+function hasPartnerSigningDate(row: DbStationRow): boolean {
+  const fromRow = row.signingDate?.trim();
+  if (fromRow) return true;
+  if (row.partnerId == null) return false;
+  return Boolean(PARTNER_SIGNING_DATES[row.partnerId]);
+}
+
+function isQuickServicePartner(row: DbStationRow): boolean {
+  return (row.partnerType ?? '').trim().toUpperCase() === 'QUICK_SERVICE';
 }
 
 export function resolveAreaType(value: string | null): AreaType | null {
@@ -433,6 +446,7 @@ const EXCLUDED_STATION_IDS = new Set<string>([
 
 function shouldIncludeStationInCoverage(row: DbStationRow): boolean {
   if (EXCLUDED_STATION_IDS.has(String(row.id))) return false;
+  if (isQuickServicePartner(row)) return false;
   if (!isIntegerLatLng(row.latitude, row.longitude)) return true;
   return Boolean(STATION_ADMIN_OVERRIDES[String(row.id)]?.districtCode);
 }
@@ -646,6 +660,36 @@ export function getProvinceCenters(mode: AddressSchemaMode): Record<string, [num
     return Object.fromEntries(OLD_PROVINCES.map((item) => [item.id, item.center]));
   }
   return PROVINCE_CENTERS;
+}
+
+/** Bán kính mặc định (km) quanh tâm area khi search/chọn 1 đơn vị hành chính. */
+export const NEARBY_RADIUS_KM = 30;
+
+/** Khoảng cách haversine (km) giữa 2 điểm [lat, lng]. */
+export function haversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+/** Trung bình lat/lng các trạm có tọa độ hợp lệ — dùng làm tâm huyện/xã. */
+export function averageStationCenter(
+  stations: Array<{ position: [number, number]; hasValidPosition?: boolean }>,
+): [number, number] | null {
+  const pts = stations.filter((s) => s.hasValidPosition !== false && Number.isFinite(s.position[0]) && Number.isFinite(s.position[1]));
+  if (pts.length === 0) return null;
+  const lat = pts.reduce((sum, s) => sum + s.position[0], 0) / pts.length;
+  const lng = pts.reduce((sum, s) => sum + s.position[1], 0) / pts.length;
+  return [lat, lng];
 }
 
 export function getProvinceCoverageRows(
@@ -924,8 +968,8 @@ export function precinctDisplayName(
 export interface HierarchyStationStats {
   total: number;
   internal: number;
-  quick: number;
-  external: number;
+  withContract: number;
+  noContract: number;
 }
 
 export interface PrecinctHierarchyNode extends HierarchyStationStats {
@@ -949,14 +993,14 @@ export interface ProvinceHierarchyNode extends HierarchyStationStats {
 }
 
 function emptyStats(): HierarchyStationStats {
-  return { total: 0, internal: 0, quick: 0, external: 0 };
+  return { total: 0, internal: 0, withContract: 0, noContract: 0 };
 }
 
 function addStationStat(stats: HierarchyStationStats, station: MapStationPoint) {
   stats.total += 1;
   if (station.stationType === 'rescue_internal') stats.internal += 1;
-  else if (station.stationType === 'rescue_quick') stats.quick += 1;
-  else stats.external += 1;
+  else if (station.stationType === 'partner_with_contract') stats.withContract += 1;
+  else stats.noContract += 1;
 }
 
 function sortStatsDesc<T extends HierarchyStationStats & { name: string }>(items: T[]): T[] {

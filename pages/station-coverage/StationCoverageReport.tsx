@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, TileLayer, GeoJSON, Marker, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, Marker, Tooltip, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { GeoJSON as GeoJSONType } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -39,6 +39,9 @@ import {
   resolveCoverageLevelFromStations,
   stationCoveragePercent,
   TARGET_STATIONS_PER_PROVINCE,
+  NEARBY_RADIUS_KM,
+  haversineKm,
+  averageStationCenter,
   stationTypeLabel,
   UNASSIGNED_PROVINCE_ID,
   type AddressSchemaMode,
@@ -46,6 +49,7 @@ import {
   type CoverageLevel,
   type CoverageStation,
   type MapDisplayMode,
+  type MapStationPoint,
   type ProvinceCoverageRow,
   type RegionId,
   type StationType,
@@ -56,8 +60,10 @@ import vetcMarkUrl from './assets/vetc-mark.png';
 const MARKER_SIZE = 28;
 const MARKER_SIZE_SELECTED = 32;
 
-/** Trạm bên ngoài — indigo, tránh trùng xanh lá logo VETC. */
-const EXTERNAL_STATION_BG = '#4F46E5';
+/** Đối tác có HĐ — indigo. */
+const CONTRACT_STATION_BG = '#4F46E5';
+/** Đối tác không HĐ — xám xanh. */
+const NO_CONTRACT_STATION_BG = '#64748B';
 
 const makeStationIcon = (bg: string, glyph: string, selected: boolean) => {
   const size = selected ? MARKER_SIZE_SELECTED : MARKER_SIZE;
@@ -79,13 +85,13 @@ const vetcIcon = (selected: boolean) => {
   });
 };
 
-const EXTERNAL_GLYPH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" style="display:block"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>`;
-const QUICK_GLYPH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" style="display:block"><path d="M13 2 3 14h8l-1 8 10-12h-8l1-8z"/></svg>`;
+const CONTRACT_GLYPH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" style="display:block"><path d="M9 12l2 2 4-4"/><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>`;
+const NO_CONTRACT_GLYPH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" style="display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9.5 15.5 14.5 10.5M14.5 15.5 9.5 10.5"/></svg>`;
 
 const iconForStation = (type: StationType, selected: boolean) => {
   if (type === 'rescue_internal') return vetcIcon(selected);
-  if (type === 'rescue_quick') return makeStationIcon('#D97706', QUICK_GLYPH, selected);
-  return makeStationIcon(EXTERNAL_STATION_BG, EXTERNAL_GLYPH, selected);
+  if (type === 'partner_with_contract') return makeStationIcon(CONTRACT_STATION_BG, CONTRACT_GLYPH, selected);
+  return makeStationIcon(NO_CONTRACT_STATION_BG, NO_CONTRACT_GLYPH, selected);
 };
 
 const FitVietnamBounds: React.FC<{ resetKey: string }> = ({ resetKey }) => {
@@ -96,11 +102,27 @@ const FitVietnamBounds: React.FC<{ resetKey: string }> = ({ resetKey }) => {
   return null;
 };
 
-const FlyToProvince: React.FC<{ center: [number, number] | null }> = ({ center }) => {
+const FlyToProvince: React.FC<{ center: [number, number] | null; fitRadiusKm?: number | null }> = ({
+  center,
+  fitRadiusKm = null,
+}) => {
   const map = useMap();
   useEffect(() => {
-    if (center) map.flyTo(center, 9, { duration: 0.45 });
-  }, [center, map]);
+    if (!center) return;
+    if (fitRadiusKm != null && fitRadiusKm > 0) {
+      const dLat = fitRadiusKm / 111;
+      const dLng = fitRadiusKm / (111 * Math.max(0.2, Math.cos((center[0] * Math.PI) / 180)));
+      map.fitBounds(
+        [
+          [center[0] - dLat, center[1] - dLng],
+          [center[0] + dLat, center[1] + dLng],
+        ],
+        { padding: [36, 36], maxZoom: 11, animate: true },
+      );
+      return;
+    }
+    map.flyTo(center, 9, { duration: 0.45 });
+  }, [center, fitRadiusKm, map]);
   return null;
 };
 
@@ -118,8 +140,8 @@ interface ViewRow {
   row: ProvinceCoverageRow;
   stations: number;
   internalStations: number;
-  quickStations: number;
-  externalStations: number;
+  withContractStations: number;
+  noContractStations: number;
   orders: number;
   covered: number;
   avgKm: number | null;
@@ -141,7 +163,7 @@ const StationCoverageReport: React.FC = () => {
   const [precinctFilterKeys, setPrecinctFilterKeys] = useState<string[]>([]);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'list'>('list');
+  const [activeTab, setActiveTab] = useState<'overview' | 'list'>('overview');
   const [mapMode, setMapMode] = useState<MapDisplayMode>('stations');
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const moreFiltersRef = useRef<HTMLDivElement>(null);
@@ -200,14 +222,24 @@ const StationCoverageReport: React.FC = () => {
     precinctFilterSet,
   ]);
 
+  /** Lọc theo loại trạm / đối tác / khu vực — dùng làm nguồn cho bán kính 30km (không khóa theo tỉnh/huyện). */
+  const attributeFilteredStations = useMemo(() => {
+    return mapStationPoints.filter((station) => {
+      if (areaType !== 'all' && station.areaType !== areaType) return false;
+      if (!matchesStationTypeFilter(station.stationType, stationTypes)) return false;
+      if (partners.length > 0 && !partnerFilterSet.has(station.partner)) return false;
+      return true;
+    });
+  }, [areaType, mapStationPoints, partners.length, partnerFilterSet, stationTypes]);
+
   const stationStatsByProvince = useMemo(() => {
-    const map = new Map<string, { total: number; internal: number; quick: number; external: number }>();
+    const map = new Map<string, { total: number; internal: number; withContract: number; noContract: number }>();
     for (const station of filteredStations) {
-      const current = map.get(station.provinceId) ?? { total: 0, internal: 0, quick: 0, external: 0 };
+      const current = map.get(station.provinceId) ?? { total: 0, internal: 0, withContract: 0, noContract: 0 };
       current.total += 1;
       if (station.stationType === 'rescue_internal') current.internal += 1;
-      else if (station.stationType === 'rescue_quick') current.quick += 1;
-      else current.external += 1;
+      else if (station.stationType === 'partner_with_contract') current.withContract += 1;
+      else current.noContract += 1;
       map.set(station.provinceId, current);
     }
     return map;
@@ -215,15 +247,15 @@ const StationCoverageReport: React.FC = () => {
 
   const buildViewRow = useCallback(
     (row: ProvinceCoverageRow): ViewRow => {
-      const stats = stationStatsByProvince.get(row.id) ?? { total: 0, internal: 0, quick: 0, external: 0 };
+      const stats = stationStatsByProvince.get(row.id) ?? { total: 0, internal: 0, withContract: 0, noContract: 0 };
       const cr = stationCoveragePercent(stats.total, TARGET_STATIONS_PER_PROVINCE);
       const level = resolveCoverageLevelFromStations(stats.total, TARGET_STATIONS_PER_PROVINCE);
       return {
         row: { ...row, stations: stats.total },
         stations: stats.total,
         internalStations: stats.internal,
-        quickStations: stats.quick,
-        externalStations: stats.external,
+        withContractStations: stats.withContract,
+        noContractStations: stats.noContract,
         orders: row.orders90,
         covered: row.covered90,
         avgKm: row.avgKm90,
@@ -381,7 +413,88 @@ const StationCoverageReport: React.FC = () => {
 
   const visibleIds = useMemo(() => new Set(rowsForMap.map((item) => item.row.id)), [rowsForMap]);
   const selected = focusedId ? (rowsForMap.find((item) => item.row.id === focusedId) ?? null) : null;
-  const selectedCenter = focusedId ? (provinceCenters[focusedId] ?? null) : null;
+
+  /**
+   * Khi search/chọn đúng 1 area (xã > huyện > tỉnh/focus) → lấy tâm điểm
+   * để vẽ bán kính 30km và liệt kê trạm lân cận.
+   */
+  const searchAreaFocus = useMemo(() => {
+    if (precinctFilterKeys.length === 1) {
+      const key = precinctFilterKeys[0];
+      const inArea = mapStationPoints.filter(
+        (s) => precinctFilterKey(s.provinceCode, s.districtCode, s.precinctCode) === key,
+      );
+      const center =
+        averageStationCenter(inArea.filter((s) => s.hasValidPosition)) ??
+        averageStationCenter(inArea);
+      if (!center) return null;
+      const label = precinctOptions.find((opt) => opt.value === key)?.label ?? 'Phường/Xã đã chọn';
+      return { center, label, level: 'precinct' as const };
+    }
+    if (addressSchema === 'old' && districtFilterKeys.length === 1) {
+      const key = districtFilterKeys[0];
+      const inArea = mapStationPoints.filter(
+        (s) => districtFilterKey(s.provinceCode, s.districtCode) === key,
+      );
+      const center =
+        averageStationCenter(inArea.filter((s) => s.hasValidPosition)) ??
+        averageStationCenter(inArea);
+      if (!center) return null;
+      const label = districtOptions.find((opt) => opt.value === key)?.label ?? 'Quận/Huyện đã chọn';
+      return { center, label, level: 'district' as const };
+    }
+    if (provinceFilterIds.length === 1) {
+      const id = provinceFilterIds[0];
+      const center = provinceCenters[id];
+      if (!center) return null;
+      const label = provincesByName.find((row) => row.id === id)?.name ?? id;
+      return { center, label, level: 'province' as const };
+    }
+    if (focusedId) {
+      const center = provinceCenters[focusedId];
+      if (!center) return null;
+      const label =
+        rowsForMap.find((item) => item.row.id === focusedId)?.row.name ??
+        provinceCoverageRows.find((row) => row.id === focusedId)?.name ??
+        focusedId;
+      return { center, label, level: 'province' as const };
+    }
+    return null;
+  }, [
+    precinctFilterKeys,
+    districtFilterKeys,
+    provinceFilterIds,
+    focusedId,
+    addressSchema,
+    mapStationPoints,
+    precinctOptions,
+    districtOptions,
+    provinceCenters,
+    provincesByName,
+    rowsForMap,
+    provinceCoverageRows,
+  ]);
+
+  const nearbyStations = useMemo(() => {
+    if (!searchAreaFocus) return [] as Array<MapStationPoint & { distanceKm: number }>;
+    const [lat, lng] = searchAreaFocus.center;
+    return attributeFilteredStations
+      .filter((station) => station.hasValidPosition && station.provinceId !== UNASSIGNED_PROVINCE_ID)
+      .map((station) => ({
+        ...station,
+        distanceKm: haversineKm(lat, lng, station.position[0], station.position[1]),
+      }))
+      .filter((station) => station.distanceKm <= NEARBY_RADIUS_KM)
+      .sort((a, b) => a.distanceKm - b.distanceKm || a.name.localeCompare(b.name, 'vi'));
+  }, [searchAreaFocus, attributeFilteredStations]);
+
+  const nearbyDistanceById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const station of nearbyStations) map.set(station.id, station.distanceKm);
+    return map;
+  }, [nearbyStations]);
+
+  const selectedCenter = searchAreaFocus?.center ?? null;
 
   const kpis = useMemo(() => {
     const source = focusedId ? viewRows : rowsForMap;
@@ -407,14 +520,20 @@ const StationCoverageReport: React.FC = () => {
   }, [viewRows, rowsForMap, focusedId]);
 
   const visibleStations = useMemo(() => {
-    return filteredStations.filter((station) => {
-      if (!station.hasValidPosition) return false;
-      if (station.provinceId === UNASSIGNED_PROVINCE_ID) return false;
-      if (!visibleIds.has(station.provinceId)) return false;
-      if (focusedId && station.provinceId !== focusedId) return false;
-      return true;
-    });
-  }, [filteredStations, visibleIds, focusedId]);
+    const byId = new Map<string, MapStationPoint>();
+    for (const station of filteredStations) {
+      if (!station.hasValidPosition) continue;
+      if (station.provinceId === UNASSIGNED_PROVINCE_ID) continue;
+      if (!visibleIds.has(station.provinceId)) continue;
+      if (focusedId && station.provinceId !== focusedId) continue;
+      byId.set(station.id, station);
+    }
+    // Bổ sung trạm trong bán kính 30km quanh tâm area đã search (có thể ngoài tỉnh đang lọc)
+    for (const station of nearbyStations) {
+      byId.set(station.id, station);
+    }
+    return [...byId.values()];
+  }, [filteredStations, visibleIds, focusedId, nearbyStations]);
 
   const drillStations = useMemo(() => {
     return filteredStations.filter((station) => {
@@ -483,9 +602,9 @@ const StationCoverageReport: React.FC = () => {
       'Xã/Phường',
       'Mã xã',
       'Số trạm',
-      'Nội bộ VETC',
-      'Quick Service',
-      'Bên ngoài',
+      'Nội bộ',
+      'Đối tác có HĐ',
+      'Đối tác không HĐ',
       `% mật độ (mục tiêu ${TARGET_STATIONS_PER_PROVINCE})`,
       'Mức',
     ];
@@ -502,8 +621,8 @@ const StationCoverageReport: React.FC = () => {
           '',
           province.total,
           province.internal,
-          province.quick,
-          province.external,
+          province.withContract,
+          province.noContract,
           province.cr.toFixed(1),
           LEVEL_META[province.level].label,
         ].join(','),
@@ -520,8 +639,8 @@ const StationCoverageReport: React.FC = () => {
             '',
             district.total,
             district.internal,
-            district.quick,
-            district.external,
+            district.withContract,
+            district.noContract,
             '',
             '',
           ].join(','),
@@ -538,8 +657,8 @@ const StationCoverageReport: React.FC = () => {
               precinct.code,
               precinct.total,
               precinct.internal,
-              precinct.quick,
-              precinct.external,
+              precinct.withContract,
+              precinct.noContract,
               '',
               '',
             ].join(','),
@@ -808,7 +927,10 @@ const StationCoverageReport: React.FC = () => {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 {selectedCenter ? (
-                  <FlyToProvince center={selectedCenter} />
+                  <FlyToProvince
+                    center={selectedCenter}
+                    fitRadiusKm={searchAreaFocus ? NEARBY_RADIUS_KM : null}
+                  />
                 ) : (
                   <FitVietnamBounds resetKey={`${region}`} />
                 )}
@@ -819,6 +941,20 @@ const StationCoverageReport: React.FC = () => {
                   style={provinceStyle}
                   onEachFeature={onEachProvince}
                 />
+
+                {searchAreaFocus && (
+                  <Circle
+                    center={searchAreaFocus.center}
+                    radius={NEARBY_RADIUS_KM * 1000}
+                    pathOptions={{
+                      color: '#00A859',
+                      weight: 2,
+                      fillColor: '#00A859',
+                      fillOpacity: 0.08,
+                      dashArray: '6 4',
+                    }}
+                  />
+                )}
 
                 {mapMode === 'heatmap' && <StationHeatLayer points={heatPoints} />}
 
@@ -837,6 +973,9 @@ const StationCoverageReport: React.FC = () => {
                           <p className="text-[13px] font-bold leading-snug text-white">{station.name}</p>
                           <p className="mt-1 text-[11px] font-medium leading-snug text-white/80">
                             {stationTypeLabel(station.stationType)}
+                            {nearbyDistanceById.has(station.id)
+                              ? ` · ${nearbyDistanceById.get(station.id)!.toFixed(1)} km`
+                              : ''}
                           </p>
                           <p className="mt-0.5 text-[11px] leading-snug text-white/75">{station.partner}</p>
                           <p className="mt-1 text-[11px] leading-snug text-white/70">
@@ -851,6 +990,20 @@ const StationCoverageReport: React.FC = () => {
                     </Marker>
                   ))}
               </MapContainer>
+
+              {searchAreaFocus && (
+                <div className="pointer-events-none absolute left-4 top-14 z-20 max-w-[280px] rounded-lg border border-emerald-200 bg-emerald-50/95 px-3 py-2 shadow-sm">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                    Bán kính {NEARBY_RADIUS_KM} km
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-semibold leading-snug text-emerald-900">
+                    {searchAreaFocus.label}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-emerald-700">
+                    {nearbyStations.length} trạm trong vòng {NEARBY_RADIUS_KM} km quanh tâm
+                  </p>
+                </div>
+              )}
 
               <div className="absolute left-4 top-4 z-20">
                 <div className="flex rounded-lg border border-gray-200 bg-white/95 p-0.5 shadow-sm">
@@ -879,22 +1032,25 @@ const StationCoverageReport: React.FC = () => {
                       <span className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full shadow-sm">
                         <img src={vetcMarkUrl} alt="" className="h-full w-full object-cover" />
                       </span>
-                      <span className="text-[10px] font-semibold text-gray-600">Trạm nội bộ VETC</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#D97706] shadow-sm">
-                        <span dangerouslySetInnerHTML={{ __html: QUICK_GLYPH }} />
-                      </span>
-                      <span className="text-[10px] font-semibold text-gray-600">Quick Service</span>
+                      <span className="text-[10px] font-semibold text-gray-600">Trạm nội bộ</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span
                         className="inline-flex h-7 w-7 items-center justify-center rounded-full shadow-sm"
-                        style={{ background: EXTERNAL_STATION_BG }}
+                        style={{ background: CONTRACT_STATION_BG }}
                       >
-                        <span dangerouslySetInnerHTML={{ __html: EXTERNAL_GLYPH }} />
+                        <span dangerouslySetInnerHTML={{ __html: CONTRACT_GLYPH }} />
                       </span>
-                      <span className="text-[10px] font-semibold text-gray-600">Trạm bên ngoài</span>
+                      <span className="text-[10px] font-semibold text-gray-600">Đối tác có HĐ</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full shadow-sm"
+                        style={{ background: NO_CONTRACT_STATION_BG }}
+                      >
+                        <span dangerouslySetInnerHTML={{ __html: NO_CONTRACT_GLYPH }} />
+                      </span>
+                      <span className="text-[10px] font-semibold text-gray-600">Đối tác không HĐ</span>
                     </div>
                   </>
                 ) : (
@@ -943,6 +1099,8 @@ const StationCoverageReport: React.FC = () => {
             provinceRows={rowsForMap}
             kpis={kpis}
             drillStations={drillStations}
+            nearbyStations={nearbyStations}
+            searchAreaLabel={searchAreaFocus?.label ?? null}
             onSelectProvince={setFocusedId}
             onClose={() => setFocusedId(null)}
           />
@@ -974,9 +1132,9 @@ const StationCoverageReport: React.FC = () => {
                   <tr>
                     <th className="px-4 py-2.5">Đơn vị hành chính</th>
                     <th className="px-4 py-2.5 text-right">Trạm</th>
-                    <th className="px-4 py-2.5 text-right">Nội bộ VETC</th>
-                    <th className="px-4 py-2.5 text-right">QS</th>
-                    <th className="px-4 py-2.5 text-right">Bên ngoài</th>
+                    <th className="px-4 py-2.5 text-right">Nội bộ</th>
+                    <th className="px-4 py-2.5 text-right">Có HĐ</th>
+                    <th className="px-4 py-2.5 text-right">Không HĐ</th>
                     <th className="px-4 py-2.5 text-right">% mật độ</th>
                     <th className="px-4 py-2.5">Mức</th>
                     <th className="px-4 py-2.5" />
@@ -1003,8 +1161,8 @@ const StationCoverageReport: React.FC = () => {
                           </td>
                           <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(province.total)}</td>
                           <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(province.internal)}</td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(province.quick)}</td>
-                          <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(province.external)}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(province.withContract)}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(province.noContract)}</td>
                           <td className={`px-4 py-2.5 text-right font-black ${LEVEL_META[province.level].text}`}>
                             {formatCoverage(province.cr)}
                           </td>
@@ -1049,8 +1207,8 @@ const StationCoverageReport: React.FC = () => {
                                   </td>
                                   <td className="px-4 py-2 text-right font-semibold text-gray-700">{formatNumber(district.total)}</td>
                                   <td className="px-4 py-2 text-right text-gray-700">{formatNumber(district.internal)}</td>
-                                  <td className="px-4 py-2 text-right text-gray-700">{formatNumber(district.quick)}</td>
-                                  <td className="px-4 py-2 text-right text-gray-700">{formatNumber(district.external)}</td>
+                                  <td className="px-4 py-2 text-right text-gray-700">{formatNumber(district.withContract)}</td>
+                                  <td className="px-4 py-2 text-right text-gray-700">{formatNumber(district.noContract)}</td>
                                   <td className="px-4 py-2 text-right text-gray-300">—</td>
                                   <td className="px-4 py-2" />
                                   <td className="px-4 py-2" />
@@ -1064,8 +1222,8 @@ const StationCoverageReport: React.FC = () => {
                                       </td>
                                       <td className="px-4 py-2 text-right font-semibold text-gray-700">{formatNumber(precinct.total)}</td>
                                       <td className="px-4 py-2 text-right text-gray-700">{formatNumber(precinct.internal)}</td>
-                                      <td className="px-4 py-2 text-right text-gray-700">{formatNumber(precinct.quick)}</td>
-                                      <td className="px-4 py-2 text-right text-gray-700">{formatNumber(precinct.external)}</td>
+                                      <td className="px-4 py-2 text-right text-gray-700">{formatNumber(precinct.withContract)}</td>
+                                      <td className="px-4 py-2 text-right text-gray-700">{formatNumber(precinct.noContract)}</td>
                                       <td className="px-4 py-2 text-right text-gray-300">—</td>
                                       <td className="px-4 py-2" />
                                       <td className="px-4 py-2" />
@@ -1100,16 +1258,60 @@ const ProvinceDetailPanel: React.FC<{
     presenceCr: number | null;
   };
   drillStations: CoverageStation[];
+  nearbyStations: Array<MapStationPoint & { distanceKm: number }>;
+  searchAreaLabel: string | null;
   onSelectProvince: (id: string) => void;
   onClose: () => void;
-}> = ({ selected, provinceRows, kpis, drillStations, onSelectProvince, onClose }) => {
+}> = ({
+  selected,
+  provinceRows,
+  kpis,
+  drillStations,
+  nearbyStations,
+  searchAreaLabel,
+  onSelectProvince,
+  onClose,
+}) => {
   const internalCount = drillStations.filter((station) => station.stationType === 'rescue_internal').length;
-  const quickCount = drillStations.filter((station) => station.stationType === 'rescue_quick').length;
-  const externalCount = drillStations.filter((station) => station.stationType === 'rescue_external').length;
+  const withContractCount = drillStations.filter((station) => station.stationType === 'partner_with_contract').length;
+  const noContractCount = drillStations.filter((station) => station.stationType === 'partner_no_contract').length;
   const provinceList = [...provinceRows].sort((a, b) => {
     if (b.stations !== a.stations) return b.stations - a.stations;
     return a.row.name.localeCompare(b.row.name, 'vi');
   });
+
+  const nearbyList = (
+    <>
+      {searchAreaLabel && (
+        <>
+          <h3 className="mt-4 text-[11px] font-black uppercase tracking-wider text-emerald-700">
+            Trong bán kính {NEARBY_RADIUS_KM} km · {nearbyStations.length} trạm
+          </h3>
+          <p className="mt-1 text-[10px] text-gray-500">Tâm: {searchAreaLabel}</p>
+          <ul className="mt-2 max-h-[32vh] space-y-2 overflow-y-auto">
+            {nearbyStations.length === 0 && (
+              <li className="text-[11px] text-gray-400">Không có trạm trong bán kính {NEARBY_RADIUS_KM} km.</li>
+            )}
+            {nearbyStations.map((station) => (
+              <li key={`near-${station.id}`} className="rounded-lg border border-emerald-100 bg-emerald-50/40 px-2.5 py-2">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-bold text-gray-800">{station.name}</p>
+                  <span className="shrink-0 text-[10px] font-black text-emerald-700">
+                    {station.distanceKm.toFixed(1)} km
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  {station.code} · {stationTypeLabel(station.stationType)} · {station.provinceName}
+                </p>
+                <p className="text-[10px] text-gray-500">{station.partner}</p>
+                {station.address ? <p className="mt-0.5 text-[10px] leading-snug text-gray-500">{station.address}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </>
+  );
 
   if (!selected) {
     return (
@@ -1128,35 +1330,41 @@ const ProvinceDetailPanel: React.FC<{
           <MiniStat label={`% mật độ TB (/${TARGET_STATIONS_PER_PROVINCE})`} value={formatCoverage(kpis.nationalCr)} />
         </dl>
         <dl className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-          <MiniStat label="Nội bộ VETC" value={formatNumber(internalCount)} />
-          <MiniStat label="Quick Service" value={formatNumber(quickCount)} />
-          <MiniStat label="Bên ngoài" value={formatNumber(externalCount)} />
+          <MiniStat label="Nội bộ" value={formatNumber(internalCount)} />
+          <MiniStat label="Đối tác có HĐ" value={formatNumber(withContractCount)} />
+          <MiniStat label="Đối tác không HĐ" value={formatNumber(noContractCount)} />
           <MiniStat label="Tỉnh mức thấp" value={formatNumber(kpis.lowProvinces)} />
         </dl>
 
-        <h3 className="mt-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Theo tỉnh</h3>
-        <ul className="mt-2 max-h-[46vh] space-y-1.5 overflow-y-auto">
-          {provinceList.map((item) => (
-            <li key={item.row.id}>
-              <button
-                type="button"
-                onClick={() => onSelectProvince(item.row.id)}
-                className="flex w-full items-center justify-between gap-2 rounded-lg border border-gray-100 px-2.5 py-2 text-left hover:bg-emerald-50/50"
-              >
-                <span>
-                  <span className="block text-xs font-bold text-gray-800">{item.row.name}</span>
-                  <span className="text-[10px] text-gray-400">{item.row.code}</span>
-                </span>
-                <span className="shrink-0 text-right">
-                  <span className="block text-xs font-black text-gray-800">{formatNumber(item.stations)}</span>
-                  <span className={`text-[10px] font-semibold ${LEVEL_META[item.level].text}`}>
-                    {LEVEL_META[item.level].label} · {formatCoverage(item.cr)}
-                  </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        {nearbyList}
+
+        {!searchAreaLabel && (
+          <>
+            <h3 className="mt-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Theo tỉnh</h3>
+            <ul className="mt-2 max-h-[46vh] space-y-1.5 overflow-y-auto">
+              {provinceList.map((item) => (
+                <li key={item.row.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectProvince(item.row.id)}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-gray-100 px-2.5 py-2 text-left hover:bg-emerald-50/50"
+                  >
+                    <span>
+                      <span className="block text-xs font-bold text-gray-800">{item.row.name}</span>
+                      <span className="text-[10px] text-gray-400">{item.row.code}</span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-xs font-black text-gray-800">{formatNumber(item.stations)}</span>
+                      <span className={`text-[10px] font-semibold ${LEVEL_META[item.level].text}`}>
+                        {LEVEL_META[item.level].label} · {formatCoverage(item.cr)}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </aside>
     );
   }
@@ -1188,17 +1396,19 @@ const ProvinceDetailPanel: React.FC<{
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
         <MiniStat label="Trạm nội tỉnh" value={formatNumber(selected.stations)} />
-        <MiniStat label="Nội bộ VETC" value={formatNumber(selected.internalStations)} />
-        <MiniStat label="Quick Service" value={formatNumber(selected.quickStations)} />
-        <MiniStat label="Bên ngoài" value={formatNumber(selected.externalStations)} />
+        <MiniStat label="Nội bộ" value={formatNumber(selected.internalStations)} />
+        <MiniStat label="Đối tác có HĐ" value={formatNumber(selected.withContractStations)} />
+        <MiniStat label="Đối tác không HĐ" value={formatNumber(selected.noContractStations)} />
         <MiniStat label={`% mật độ (/${TARGET_STATIONS_PER_PROVINCE})`} value={formatCoverage(selected.cr)} />
       </dl>
       {selected.stations === 0 && (
         <p className="mt-2 text-[11px] text-amber-700">Chưa có trạm active khớp bộ lọc tại tỉnh này.</p>
       )}
 
-      <h3 className="mt-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Trạm active</h3>
-      <ul className="mt-2 max-h-[28vh] space-y-2 overflow-y-auto">
+      {nearbyList}
+
+      <h3 className="mt-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Trạm trong tỉnh (lọc)</h3>
+      <ul className="mt-2 max-h-[22vh] space-y-2 overflow-y-auto">
         {drillStations.length === 0 && <li className="text-[11px] text-gray-400">Không có trạm khớp bộ lọc.</li>}
         {drillStations.map((station) => (
           <li key={station.id} className="rounded-lg border border-gray-100 px-2.5 py-2">

@@ -14,6 +14,8 @@ export interface DbStationRow {
   partnerCode: string | null;
   partnerName: string | null;
   partnerType: string | null;
+  /** Ngày ký HĐ partner (YYYY-MM-DD); null/absent = chưa có HĐ */
+  signingDate?: string | null;
 }
 
 export const DB_STATIONS: DbStationRow[] =
