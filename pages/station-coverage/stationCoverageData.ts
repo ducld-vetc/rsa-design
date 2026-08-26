@@ -1,11 +1,25 @@
 import { DB_STATIONS, type DbStationRow } from './stationCoverageFromDb';
+import { STATION_ADMIN_OVERRIDES } from './stationAdminOverrides';
+import {
+  ADDRESS_SCHEMA_OPTIONS,
+  AREA_PROVINCES,
+  NEW_PROVINCE_CODES,
+  OLD_NON_PROVINCE_CODES,
+  OLD_PROVINCES,
+  V1_TO_BOTH_PROVINCE,
+  type AddressSchemaMode,
+  type AreaProvinceRow,
+} from './stationCoverageProvinces';
+import { AREA_NAME_LOOKUP } from './areaNameLookup';
 
 export type CoverageLevel = 'cao' | 'trung_binh' | 'thap';
 export type AreaType = 'HIGHWAY' | 'URBAN' | 'MOUNTAIN';
 export type RegionId = 'bac' | 'trung' | 'nam';
 export type MapDisplayMode = 'stations' | 'heatmap';
-export type StationType = 'rescue_internal' | 'rescue_external';
+export type StationType = 'rescue_internal' | 'rescue_quick' | 'rescue_external';
 export type ProvinceSource = 'code' | 'address' | 'unassigned';
+export type { AddressSchemaMode };
+export { ADDRESS_SCHEMA_OPTIONS };
 
 export interface ProvinceCoverageRow {
   id: string;
@@ -36,6 +50,9 @@ export interface CoverageStation {
 export interface MapStationPoint extends CoverageStation {
   provinceId: string;
   provinceName: string;
+  provinceCode: string;
+  districtCode: string | null;
+  precinctCode: string | null;
   position: [number, number];
 }
 
@@ -106,11 +123,13 @@ export const AREA_TYPE_OPTIONS: { id: AreaType | 'all'; label: string }[] = [
 export const STATION_TYPE_OPTIONS: { id: StationType | 'all'; label: string }[] = [
   { id: 'all', label: 'Tất cả loại trạm' },
   { id: 'rescue_internal', label: 'Trạm nội bộ (Carpla)' },
+  { id: 'rescue_quick', label: 'Quick Service' },
   { id: 'rescue_external', label: 'Trạm bên ngoài' },
 ];
 
 export function stationTypeLabel(type: StationType): string {
   if (type === 'rescue_internal') return 'Trạm nội bộ (Carpla)';
+  if (type === 'rescue_quick') return 'Quick Service';
   return 'Trạm bên ngoài';
 }
 
@@ -162,7 +181,7 @@ const PROVINCE_DEFS: ProvinceDef[] = [
   },
   {
     id: 'lsn', code: 'LSN', name: 'Lạng Sơn', region: 'bac', center: [21.853, 106.761],
-    aliases: ['LSN', 'Lang Son', 'Lạng Sơn'],
+    aliases: ['LSN', 'LSO', 'Lang Son', 'Lạng Sơn'],
   },
   {
     id: 'na', code: 'NAN', name: 'Nghệ An', region: 'trung', center: [18.673, 105.681],
@@ -354,16 +373,10 @@ function resolveProvinceFromAddress(address: string): ProvinceDef | null {
   return null;
 }
 
-export function resolveProvince(row: DbStationRow): { def: ProvinceDef; source: ProvinceSource } {
-  const fromCode = resolveProvinceFromCode(row.provinceCode);
-  if (fromCode) return { def: fromCode, source: 'code' };
-  const fromAddress = resolveProvinceFromAddress(row.address);
-  if (fromAddress) return { def: fromAddress, source: 'address' };
-  return { def: UNASSIGNED_DEF, source: 'unassigned' };
-}
-
 export function resolveStationType(row: DbStationRow): StationType {
-  if ((row.partnerType ?? '').toUpperCase() === 'INTERNAL') return 'rescue_internal';
+  const raw = (row.partnerType ?? '').trim().toUpperCase();
+  if (raw === 'INTERNAL') return 'rescue_internal';
+  if (raw === 'QUICK_SERVICE') return 'rescue_quick';
   return 'rescue_external';
 }
 
@@ -372,16 +385,38 @@ export function resolveAreaType(value: string | null): AreaType | null {
   return null;
 }
 
+/** Lat/lng placeholder kiểu số nguyên (vd. 21,105 · 10,106). */
+export function isIntegerLatLng(lat: number | null, lng: number | null): boolean {
+  if (lat == null || lng == null) return false;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  const latWhole = Math.abs(lat - Math.round(lat)) < 1e-6;
+  const lngWhole = Math.abs(lng - Math.round(lng)) < 1e-6;
+  return latWhole && lngWhole;
+}
+
 export function hasPlottablePosition(lat: number | null, lng: number | null): boolean {
   if (lat == null || lng == null) return false;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
   // Trong khung bản đồ Việt Nam (cùng VIETNAM_BOUNDS).
   if (lat < 8.35 || lat > 23.45 || lng < 102.12 || lng > 109.55) return false;
-  // Tọa độ giả / làm tròn thô (vd. 21,105 · 10,106) — không plot lên map.
-  const latWhole = Math.abs(lat - Math.round(lat)) < 1e-6;
-  const lngWhole = Math.abs(lng - Math.round(lng)) < 1e-6;
-  if (latWhole && lngWhole) return false;
+  // Tọa độ giả / làm tròn thô — không plot lên map.
+  if (isIntegerLatLng(lat, lng)) return false;
   return true;
+}
+
+/**
+ * Trạm lat/lng số nguyên mà chưa có override huyện → loại khỏi báo cáo độ phủ
+ * (tọa độ giả, không tin được; Ops xử lý case-by-case ngoài danh sách này).
+ * EXCLUDED_STATION_IDS: loại hẳn theo yêu cầu Ops (address không đủ / không còn dùng).
+ */
+const EXCLUDED_STATION_IDS = new Set<string>([
+  '1721', // PTA8868E2E_7245 — hỗ trợ từ xa, address chỉ "Hà Nội"
+]);
+
+function shouldIncludeStationInCoverage(row: DbStationRow): boolean {
+  if (EXCLUDED_STATION_IDS.has(String(row.id))) return false;
+  if (!isIntegerLatLng(row.latitude, row.longitude)) return true;
+  return Boolean(STATION_ADMIN_OVERRIDES[String(row.id)]?.districtCode);
 }
 
 function partnerLabel(row: DbStationRow): string {
@@ -389,8 +424,182 @@ function partnerLabel(row: DbStationRow): string {
   return name ? name : 'Chưa gán đối tác';
 }
 
-function toMapPoint(row: DbStationRow): MapStationPoint {
-  const { def, source } = resolveProvince(row);
+const AREA_BY_CODE = new Map(AREA_PROVINCES.map((item) => [item.code.toUpperCase(), item]));
+
+function normalizeProvinceCode(code: string | null): string | null {
+  if (!code) return null;
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed || trimmed === 'N/A' || trimmed === 'NULL') return null;
+  return trimmed;
+}
+
+function areaToProvinceDef(row: AreaProvinceRow): ProvinceDef {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    region: row.region,
+    center: row.center,
+    aliases: [row.code, row.name],
+  };
+}
+
+/** Địa chỉ cũ: 63 tỉnh; mã lịch sử HTA/NHA/QK map về tỉnh kế thừa. */
+function resolveProvinceOld(row: DbStationRow): { def: ProvinceDef; source: ProvinceSource } {
+  let code = normalizeProvinceCode(row.provinceCode);
+  if (code && OLD_NON_PROVINCE_CODES.has(code)) {
+    code = V1_TO_BOTH_PROVINCE[code] ?? code;
+  }
+  const mappedJunk = code ? V1_TO_BOTH_PROVINCE[code] : null;
+  // Chỉ dùng map junk (HNO1, 01) — không gộp tỉnh V1-only vào BOTH ở mode cũ.
+  const junkOnly = code && ['HNO1', '01'].includes(code) ? mappedJunk : null;
+  const lookupCode = junkOnly ?? code;
+  const lookup = lookupCode ? AREA_BY_CODE.get(lookupCode) : null;
+  if (lookup && !OLD_NON_PROVINCE_CODES.has(lookup.code)) {
+    return { def: areaToProvinceDef(lookup), source: 'code' };
+  }
+  const fromAddress = resolveProvinceFromAddress(row.address);
+  if (fromAddress) {
+    const byCode = AREA_BY_CODE.get(fromAddress.code);
+    if (byCode && !OLD_NON_PROVINCE_CODES.has(byCode.code)) {
+      return { def: areaToProvinceDef(byCode), source: 'address' };
+    }
+  }
+  return { def: UNASSIGNED_DEF, source: 'unassigned' };
+}
+
+/** Địa chỉ mới: về 34 tỉnh BOTH (map V1-only / junk code). */
+function resolveProvinceNew(row: DbStationRow): { def: ProvinceDef; source: ProvinceSource } {
+  const code = normalizeProvinceCode(row.provinceCode);
+  if (code) {
+    const bothCode = NEW_PROVINCE_CODES.has(code) ? code : V1_TO_BOTH_PROVINCE[code] ?? code;
+    const fromLegacy = resolveProvinceFromCode(bothCode) ?? resolveProvinceFromCode(code);
+    if (fromLegacy) return { def: fromLegacy, source: 'code' };
+  }
+  const fromAddress = resolveProvinceFromAddress(row.address);
+  if (fromAddress) return { def: fromAddress, source: 'address' };
+  return { def: UNASSIGNED_DEF, source: 'unassigned' };
+}
+
+export function resolveProvince(
+  row: DbStationRow,
+  mode: AddressSchemaMode = 'new',
+): { def: ProvinceDef; source: ProvinceSource } {
+  return mode === 'old' ? resolveProvinceOld(row) : resolveProvinceNew(row);
+}
+
+/** Map tỉnh V1 → mã BOTH (34 tỉnh). */
+function toBothProvinceCode(v1Code: string): string {
+  const code = v1Code.trim().toUpperCase();
+  if (NEW_PROVINCE_CODES.has(code)) return code;
+  return V1_TO_BOTH_PROVINCE[code] ?? code;
+}
+
+/**
+ * BOTH province → các mã tỉnh V1 hợp thành (để tra tên huyện/xã V1 sau sáp nhập).
+ * Ví dụ HPH ← HPH + HDU.
+ */
+const BOTH_TO_V1_PROVINCES: Map<string, string[]> = (() => {
+  const map = new Map<string, Set<string>>();
+  for (const code of NEW_PROVINCE_CODES) {
+    map.set(code, new Set([code]));
+  }
+  for (const [v1, both] of Object.entries(V1_TO_BOTH_PROVINCE)) {
+    const set = map.get(both) ?? new Set<string>();
+    set.add(both);
+    set.add(v1.toUpperCase());
+    map.set(both, set);
+  }
+  return new Map([...map.entries()].map(([k, v]) => [k, [...v]]));
+})();
+
+/**
+ * Mã tỉnh trên PROVINCE_DEFS (UI Địa chỉ mới) đôi khi khác mã BOTH master
+ * (LDG↔LDO, GLI↔GLA, CMU↔CMA, QNA↔QNG). Map về mã BOTH để tra V1.
+ */
+const UI_PROVINCE_TO_BOTH: Map<string, string> = (() => {
+  const map = new Map<string, string>();
+  for (const def of PROVINCE_DEFS) {
+    const bothAlias = [def.code, ...def.aliases]
+      .map((a) => a.trim().toUpperCase())
+      .find((a) => NEW_PROVINCE_CODES.has(a));
+    if (bothAlias) map.set(def.code.toUpperCase(), bothAlias);
+  }
+  return map;
+})();
+
+function provinceCodesForAreaLookup(mode: AddressSchemaMode, provinceCode: string): string[] {
+  if (mode === 'old') return [provinceCode];
+  const both = UI_PROVINCE_TO_BOTH.get(provinceCode.toUpperCase()) ?? toBothProvinceCode(provinceCode);
+  return [...new Set([provinceCode, both, ...(BOTH_TO_V1_PROVINCES.get(both) ?? [])])];
+}
+
+/** Gán huyện/xã chuẩn (override + remap address) — nguồn sự thật chung 2 mode. */
+function resolveAdminDistrictPrecinct(
+  row: DbStationRow,
+  provinceCode: string,
+): { districtCode: string | null; precinctCode: string | null } {
+  let districtCode = row.districtCode?.trim() || null;
+  let precinctCode = row.precinctCode?.trim() || null;
+  const override = STATION_ADMIN_OVERRIDES[String(row.id)];
+  if (override) {
+    // districtCode: '' = Ops clear huyện (chỉ giữ tỉnh)
+    if (typeof override.districtCode === 'string') {
+      const d = override.districtCode.trim();
+      if (!d) {
+        return { districtCode: null, precinctCode: null };
+      }
+      districtCode = d;
+      if (Object.prototype.hasOwnProperty.call(override, 'precinctCode')) {
+        const p = (override.precinctCode ?? '').trim();
+        precinctCode = p || null;
+      } else if (isV2GsoPrecinct(precinctCode) || isV2DummyDistrict(row.districtCode)) {
+        const remapped = remapOldAdminFromAddress(provinceCode, row.address, districtCode, precinctCode);
+        precinctCode = remapped.precinctCode;
+      }
+      return { districtCode, precinctCode };
+    }
+  }
+  if (hasPlottablePosition(row.latitude, row.longitude)) {
+    const remapped = remapOldAdminFromAddress(provinceCode, row.address, districtCode, precinctCode);
+    districtCode = remapped.districtCode;
+    precinctCode = remapped.precinctCode;
+  } else {
+    const remapped = remapOldAdminFromAddress(provinceCode, row.address, districtCode, precinctCode);
+    districtCode = remapped.districtCode;
+    precinctCode = remapped.precinctCode;
+  }
+  return { districtCode, precinctCode };
+}
+
+function toMapPoint(row: DbStationRow, mode: AddressSchemaMode): MapStationPoint {
+  // 1) Luôn resolve theo địa chỉ cũ (63 tỉnh + override) làm nguồn sự thật huyện/xã
+  let { def, source } = resolveProvinceOld(row);
+  const override = STATION_ADMIN_OVERRIDES[String(row.id)];
+  if (override?.provinceCode) {
+    const byCode = AREA_BY_CODE.get(override.provinceCode.toUpperCase());
+    if (byCode && !OLD_NON_PROVINCE_CODES.has(byCode.code)) {
+      def = areaToProvinceDef(byCode);
+      source = 'address';
+    }
+  }
+  const v1ProvinceCode = def.code;
+  const { districtCode, precinctCode } = resolveAdminDistrictPrecinct(row, v1ProvinceCode);
+
+  // 2) Mode mới: chỉ đổi lớp tỉnh → 34 BOTH; giữ huyện/xã đã chuẩn hóa
+  if (mode === 'new' && def.id !== UNASSIGNED_PROVINCE_ID) {
+    const bothCode = toBothProvinceCode(v1ProvinceCode);
+    const bothDef =
+      resolveProvinceFromCode(bothCode) ??
+      (() => {
+        const area = AREA_BY_CODE.get(bothCode);
+        return area && area.schemaVersion === 'BOTH' ? areaToProvinceDef(area) : null;
+      })();
+    if (bothDef) {
+      def = bothDef;
+    }
+  }
+
   return {
     id: String(row.id),
     name: row.name,
@@ -403,11 +612,415 @@ function toMapPoint(row: DbStationRow): MapStationPoint {
     hasValidPosition: hasPlottablePosition(row.latitude, row.longitude),
     provinceId: def.id,
     provinceName: def.name,
+    provinceCode: def.code,
+    districtCode,
+    precinctCode,
     position: [row.latitude ?? def.center[0], row.longitude ?? def.center[1]],
   };
 }
 
-export const mapStationPoints: MapStationPoint[] = DB_STATIONS.map(toMapPoint);
+export function getMapStationPoints(mode: AddressSchemaMode): MapStationPoint[] {
+  return DB_STATIONS.filter(shouldIncludeStationInCoverage).map((row) => toMapPoint(row, mode));
+}
+
+export function getProvinceCenters(mode: AddressSchemaMode): Record<string, [number, number]> {
+  if (mode === 'old') {
+    return Object.fromEntries(OLD_PROVINCES.map((item) => [item.id, item.center]));
+  }
+  return PROVINCE_CENTERS;
+}
+
+export function getProvinceCoverageRows(
+  mode: AddressSchemaMode,
+  points: MapStationPoint[] = getMapStationPoints(mode),
+): ProvinceCoverageRow[] {
+  const counts = points.reduce((acc, station) => {
+    acc.set(station.provinceId, (acc.get(station.provinceId) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>());
+
+  const defs: ProvinceDef[] =
+    mode === 'old' ? OLD_PROVINCES.map(areaToProvinceDef) : PROVINCE_DEFS;
+
+  return defs
+    .map((def) => {
+      const mock = MOCK_ORDERS[def.id];
+      return {
+        id: def.id,
+        code: def.code,
+        name: def.name,
+        region: def.region,
+        stations: counts.get(def.id) ?? 0,
+        orders90: mock?.orders90 ?? 0,
+        covered90: mock?.covered90 ?? 0,
+        avgKm90: mock?.avgKm90 ?? null,
+        orders12: mock?.orders12 ?? 0,
+        covered12: mock?.covered12 ?? 0,
+        avgKm12: mock?.avgKm12 ?? null,
+      };
+    })
+    .sort((a, b) => {
+      const byStations = (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0);
+      if (byStations !== 0) return byStations;
+      return a.name.localeCompare(b.name, 'vi');
+    });
+}
+
+/**
+ * Tra tên đơn vị từ master area.
+ * Không trả tên cấp tỉnh (district+precinct rỗng) — tránh hiện "Hà Nội" ở cấp huyện.
+ * Mode mới: thử thêm các tỉnh V1 đã sáp nhập vào tỉnh BOTH (vd HPH ← HDU).
+ */
+export function lookupAreaName(
+  mode: AddressSchemaMode,
+  provinceCode: string,
+  districtCode: string | null,
+  precinctCode: string | null,
+): string | null {
+  const distRaw = (districtCode ?? '').trim();
+  const precRaw = (precinctCode ?? '').trim();
+  // Chỉ resolve khi có ít nhất huyện hoặc xã — không resolve node tỉnh.
+  if (!distRaw && !precRaw) return null;
+
+  const distCandidates = distRaw
+    ? /^\d+$/.test(distRaw)
+      ? Array.from(new Set([distRaw.padStart(2, '0'), distRaw]))
+      : [distRaw]
+    : [''];
+
+  const provinceCandidates = provinceCodesForAreaLookup(mode, provinceCode);
+
+  const schemas =
+    mode === 'old' ? (['V1', 'V2', 'BOTH'] as const) : (['V1', 'V2', 'BOTH'] as const);
+
+  for (const schema of schemas) {
+    for (const prov of provinceCandidates) {
+      for (const dist of distCandidates) {
+        const key = `${schema}|${prov}|${dist}|${precRaw}`;
+        const name = AREA_NAME_LOOKUP[key];
+        if (name) return name;
+      }
+    }
+  }
+  return null;
+}
+
+function isV2DummyDistrict(code: string | null | undefined): boolean {
+  return !!code && /^\d{1,2}$/.test(code.trim());
+}
+
+function isV2GsoPrecinct(code: string | null | undefined): boolean {
+  return !!code && /^\d{5}$/.test(code.trim());
+}
+
+function stripAdminPrefix(name: string): string {
+  return name
+    .replace(/^(?:đặc khu|thị trấn|thị xã|thành phố|quận|huyện|phường|xã)\s+/i, '')
+    .replace(/^(?:q|h|tx|t\/x|p|x)\.?\s*/i, '')
+    .trim();
+}
+
+interface V1AreaAlias {
+  code: string;
+  districtCode: string;
+  name: string;
+  keys: string[];
+  coreLen: number;
+}
+
+interface V1ProvinceIndex {
+  districts: V1AreaAlias[];
+  precincts: V1AreaAlias[];
+}
+
+function buildAliasKeys(name: string): { keys: string[]; coreLen: number } {
+  const core = stripAdminPrefix(name);
+  const keys = [
+    ...new Set([
+      normalizeKey(name),
+      normalizeKey(core),
+      normalizeKey(`quan ${core}`),
+      normalizeKey(`huyen ${core}`),
+      normalizeKey(`thi xa ${core}`),
+      normalizeKey(`phuong ${core}`),
+      normalizeKey(`xa ${core}`),
+    ]),
+  ].filter((k) => k.length >= 3);
+  return { keys, coreLen: normalizeKey(core).length };
+}
+
+/** Index huyện/xã V1 theo tỉnh — dùng remap Địa chỉ cũ từ address / tên V2. */
+const V1_AREA_BY_PROVINCE: Map<string, V1ProvinceIndex> = (() => {
+  const map = new Map<string, { districts: V1AreaAlias[]; precincts: V1AreaAlias[] }>();
+  for (const [key, name] of Object.entries(AREA_NAME_LOOKUP)) {
+    if (!key.startsWith('V1|')) continue;
+    const [, province, district, precinct] = key.split('|');
+    if (!province || !district) continue;
+    let bucket = map.get(province);
+    if (!bucket) {
+      bucket = { districts: [], precincts: [] };
+      map.set(province, bucket);
+    }
+    const { keys, coreLen } = buildAliasKeys(name);
+    if (!precinct) {
+      bucket.districts.push({ code: district, districtCode: district, name, keys, coreLen });
+    } else {
+      bucket.precincts.push({ code: precinct, districtCode: district, name, keys, coreLen });
+    }
+  }
+  for (const bucket of map.values()) {
+    bucket.districts.sort((a, b) => b.coreLen - a.coreLen);
+    bucket.precincts.sort((a, b) => b.coreLen - a.coreLen);
+  }
+  return map;
+})();
+
+function matchAliasInText(textKey: string, aliases: V1AreaAlias[]): V1AreaAlias | null {
+  for (const item of aliases) {
+    if (item.keys.some((k) => k.length >= 4 && textKey.includes(k))) return item;
+  }
+  return null;
+}
+
+function matchAliasByCoreName(coreKey: string, aliases: V1AreaAlias[]): V1AreaAlias | null {
+  if (coreKey.length < 4) return null;
+  for (const item of aliases) {
+    const core = normalizeKey(stripAdminPrefix(item.name));
+    if (core.length < 4) continue;
+    if (coreKey === core || coreKey.includes(core) || core.includes(coreKey)) return item;
+  }
+  return null;
+}
+
+/** V2: province|precinctGso5 → tên xã (ưu tiên dưới huyện dummy GSO 2 số). */
+const V2_PRECINCT_NAME = (() => {
+  const map = new Map<string, string>();
+  for (const [key, name] of Object.entries(AREA_NAME_LOOKUP)) {
+    if (!key.startsWith('V2|')) continue;
+    const [, province, district, precinct] = key.split('|');
+    if (!province || !district || !precinct) continue;
+    const id = `${province}|${precinct}`;
+    const existing = map.get(id);
+    // Ưu tiên node dưới huyện giả mã 2 số; không ghi đè nếu đã có
+    if (!existing || /^\d{2}$/.test(district)) {
+      map.set(id, name);
+    }
+  }
+  return map;
+})();
+
+function lookupV2PrecinctName(provinceCode: string, precinctCode: string): string | null {
+  return V2_PRECINCT_NAME.get(`${provinceCode}|${precinctCode}`) ?? null;
+}
+
+/**
+ * Mode Địa chỉ cũ: trạm đã gắn huyện giả V2 ("Không Quận Huyện" / mã GSO 2 số)
+ * → suy huyện/xã V1 từ chuỗi address (+ tên xã V2 nếu có).
+ */
+function remapOldAdminFromAddress(
+  provinceCode: string,
+  address: string,
+  districtCode: string | null,
+  precinctCode: string | null,
+): { districtCode: string | null; precinctCode: string | null } {
+  const needsRemap =
+    !districtCode || isV2DummyDistrict(districtCode) || isV2GsoPrecinct(precinctCode);
+  if (!needsRemap) {
+    return { districtCode, precinctCode };
+  }
+
+  const index = V1_AREA_BY_PROVINCE.get(provinceCode);
+  if (!index) {
+    return {
+      districtCode: isV2DummyDistrict(districtCode) ? null : districtCode,
+      precinctCode: isV2GsoPrecinct(precinctCode) ? null : precinctCode,
+    };
+  }
+
+  const addrKey = normalizeKey(address);
+  let dist = matchAliasInText(addrKey, index.districts);
+  let prec = matchAliasInText(addrKey, index.precincts);
+
+  if (!dist && prec) {
+    dist = index.districts.find((d) => d.code === prec!.districtCode) ?? null;
+  }
+
+  // Tên xã/phường V2 (vd "Phường Bồ Đề") → map về xã/huyện V1 cùng tên lõi
+  if ((!dist || !prec) && precinctCode && isV2GsoPrecinct(precinctCode)) {
+    const v2Name = lookupV2PrecinctName(provinceCode, precinctCode);
+    if (v2Name) {
+      const coreKey = normalizeKey(stripAdminPrefix(v2Name));
+      if (!dist) {
+        dist = matchAliasByCoreName(coreKey, index.districts);
+      }
+      if (!prec) {
+        prec = matchAliasByCoreName(coreKey, index.precincts);
+        if (prec && !dist) {
+          dist = index.districts.find((d) => d.code === prec!.districtCode) ?? null;
+        }
+      }
+    }
+  }
+
+  return {
+    districtCode: dist?.code ?? (isV2DummyDistrict(districtCode) || !districtCode ? null : districtCode),
+    precinctCode: prec?.code ?? (isV2GsoPrecinct(precinctCode) ? null : precinctCode),
+  };
+}
+
+function districtDisplayName(
+  mode: AddressSchemaMode,
+  provinceCode: string,
+  districtCode: string | null,
+): string {
+  if (!districtCode) return 'Chưa gán huyện';
+  const looked = lookupAreaName(mode, provinceCode, districtCode, null);
+  if (looked) {
+    // Không hiện nhãn giả V2 ở cả 2 mode (đã chuẩn hóa chung về huyện V1)
+    if (/không quận huyện/i.test(looked)) return 'Chưa gán huyện';
+    return looked;
+  }
+  // V2: district = mã GSO 2 số của tỉnh (vd HNO → 01) = node giả "Không Quận Huyện"
+  if (isV2DummyDistrict(districtCode)) {
+    return 'Chưa gán huyện';
+  }
+  return `Mã ${districtCode}`;
+}
+
+function precinctDisplayName(
+  mode: AddressSchemaMode,
+  provinceCode: string,
+  districtCode: string | null,
+  precinctCode: string | null,
+): string {
+  if (!precinctCode) return 'Chưa gán xã/phường';
+  const looked = lookupAreaName(mode, provinceCode, districtCode, precinctCode);
+  if (looked) return looked;
+  if (mode === 'old' && isV2GsoPrecinct(precinctCode)) {
+    const v2Name = lookupV2PrecinctName(provinceCode, precinctCode);
+    if (v2Name) return v2Name;
+  }
+  return `Mã ${precinctCode}`;
+}
+
+export interface HierarchyStationStats {
+  total: number;
+  internal: number;
+  quick: number;
+  external: number;
+}
+
+export interface PrecinctHierarchyNode extends HierarchyStationStats {
+  code: string;
+  name: string;
+}
+
+export interface DistrictHierarchyNode extends HierarchyStationStats {
+  code: string;
+  name: string;
+  precincts: PrecinctHierarchyNode[];
+}
+
+export interface ProvinceHierarchyNode extends HierarchyStationStats {
+  provinceId: string;
+  code: string;
+  name: string;
+  cr: number;
+  level: CoverageLevel;
+  districts: DistrictHierarchyNode[];
+}
+
+function emptyStats(): HierarchyStationStats {
+  return { total: 0, internal: 0, quick: 0, external: 0 };
+}
+
+function addStationStat(stats: HierarchyStationStats, station: MapStationPoint) {
+  stats.total += 1;
+  if (station.stationType === 'rescue_internal') stats.internal += 1;
+  else if (station.stationType === 'rescue_quick') stats.quick += 1;
+  else stats.external += 1;
+}
+
+function sortStatsDesc<T extends HierarchyStationStats & { name: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    if (b.total !== a.total) return b.total - a.total;
+    return a.name.localeCompare(b.name, 'vi');
+  });
+}
+
+/** Cây 3 cấp tỉnh → huyện → xã/phường theo mode địa chỉ. */
+export function buildProvinceHierarchy(
+  mode: AddressSchemaMode,
+  provinceRows: ProvinceCoverageRow[],
+  stations: MapStationPoint[],
+): ProvinceHierarchyNode[] {
+  const byProvince = new Map<string, MapStationPoint[]>();
+  for (const station of stations) {
+    if (station.provinceId === UNASSIGNED_PROVINCE_ID) continue;
+    const list = byProvince.get(station.provinceId) ?? [];
+    list.push(station);
+    byProvince.set(station.provinceId, list);
+  }
+
+  const nodes: ProvinceHierarchyNode[] = provinceRows.map((row) => {
+    const provinceStations = byProvince.get(row.id) ?? [];
+    const districtMap = new Map<string, MapStationPoint[]>();
+    for (const station of provinceStations) {
+      const dKey = station.districtCode || '__none__';
+      const list = districtMap.get(dKey) ?? [];
+      list.push(station);
+      districtMap.set(dKey, list);
+    }
+
+    const districts: DistrictHierarchyNode[] = [...districtMap.entries()].map(([dKey, dStations]) => {
+      const districtCode = dKey === '__none__' ? null : dKey;
+      const precinctMap = new Map<string, MapStationPoint[]>();
+      for (const station of dStations) {
+        const pKey = station.precinctCode || '__none__';
+        const list = precinctMap.get(pKey) ?? [];
+        list.push(station);
+        precinctMap.set(pKey, list);
+      }
+
+      const precincts: PrecinctHierarchyNode[] = [...precinctMap.entries()].map(([pKey, pStations]) => {
+        const precinctCode = pKey === '__none__' ? null : pKey;
+        const stats = emptyStats();
+        pStations.forEach((s) => addStationStat(stats, s));
+        return {
+          code: precinctCode ?? '—',
+          name: precinctDisplayName(mode, row.code, districtCode, precinctCode),
+          ...stats,
+        };
+      });
+
+      const dStats = emptyStats();
+      dStations.forEach((s) => addStationStat(dStats, s));
+      return {
+        code: districtCode ?? '—',
+        name: districtDisplayName(mode, row.code, districtCode),
+        ...dStats,
+        precincts: sortStatsDesc(precincts),
+      };
+    });
+
+    const pStats = emptyStats();
+    provinceStations.forEach((s) => addStationStat(pStats, s));
+    return {
+      provinceId: row.id,
+      code: row.code,
+      name: row.name,
+      ...pStats,
+      cr: stationCoveragePercent(pStats.total, TARGET_STATIONS_PER_PROVINCE),
+      level: resolveCoverageLevelFromStations(pStats.total, TARGET_STATIONS_PER_PROVINCE),
+      districts: sortStatsDesc(districts),
+    };
+  });
+
+  return sortStatsDesc(nodes);
+}
+
+/** Mặc định địa chỉ mới — tương thích import cũ (init sau V1_AREA_BY_PROVINCE). */
+export const mapStationPoints: MapStationPoint[] = getMapStationPoints('new');
 
 export const stationsByProvince: Record<string, CoverageStation[]> = mapStationPoints.reduce(
   (acc, station) => {
@@ -419,37 +1032,10 @@ export const stationsByProvince: Record<string, CoverageStation[]> = mapStationP
   {} as Record<string, CoverageStation[]>,
 );
 
-const stationCountByProvince = mapStationPoints.reduce((acc, station) => {
-  acc.set(station.provinceId, (acc.get(station.provinceId) ?? 0) + 1);
-  return acc;
-}, new Map<string, number>());
-
-const GEO_PROVINCE_IDS = PROVINCE_DEFS.map((item) => item.id);
-
-export const provinceCoverageRows: ProvinceCoverageRow[] = GEO_PROVINCE_IDS
-  .map((id) => {
-    const def = PROVINCE_BY_ID.get(id);
-    if (!def) return null;
-    const mock = MOCK_ORDERS[id];
-    return {
-      id: def.id,
-      code: def.code,
-      name: def.name,
-      region: def.region,
-      stations: stationCountByProvince.get(id) ?? 0,
-      orders90: mock?.orders90 ?? 0,
-      covered90: mock?.covered90 ?? 0,
-      avgKm90: mock?.avgKm90 ?? null,
-      orders12: mock?.orders12 ?? 0,
-      covered12: mock?.covered12 ?? 0,
-      avgKm12: mock?.avgKm12 ?? null,
-    };
-  })
-  .filter((row): row is ProvinceCoverageRow => row != null)
-  .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+export const provinceCoverageRows: ProvinceCoverageRow[] = getProvinceCoverageRows('new');
 
 export const unassignedBucket = {
-  stations: stationCountByProvince.get(UNASSIGNED_PROVINCE_ID) ?? 0,
+  stations: mapStationPoints.filter((station) => station.provinceId === UNASSIGNED_PROVINCE_ID).length,
   orders90: 0,
   orders12: 0,
 };

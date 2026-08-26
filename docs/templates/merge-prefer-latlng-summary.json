@@ -1,0 +1,323 @@
+{
+  "generatedAt": "2026-08-26T11:27:22.184Z",
+  "stats": {
+    "addressKept": 1452,
+    "geoPreferred": 0,
+    "geoAdded": 27,
+    "droppedOutVnOrBadCoord": 53,
+    "droppedNoMaster": 7,
+    "droppedGeoNoMaster": 41,
+    "skippedPlaceholderCoord": 556,
+    "overrideCount": 1479,
+    "addressOnly": 1452
+  },
+  "discarded": [
+    {
+      "id": "9",
+      "reason": "NO_MASTER",
+      "o": {
+        "provinceCode": "HNO",
+        "districtCode": "HKI",
+        "precinctCode": "XUAN"
+      }
+    },
+    {
+      "id": "56",
+      "reason": "NO_MASTER",
+      "o": {
+        "provinceCode": "HNO",
+        "districtCode": "HKI",
+        "precinctCode": "YEDO"
+      }
+    },
+    {
+      "id": "99",
+      "reason": "NO_MASTER",
+      "o": {
+        "provinceCode": "LSO",
+        "districtCode": "20",
+        "precinctCode": "PKL"
+      }
+    },
+    {
+      "id": "277",
+      "reason": "NO_MASTER",
+      "o": {
+        "provinceCode": "LSO",
+        "districtCode": "20",
+        "precinctCode": "PKL"
+      }
+    },
+    {
+      "id": "344",
+      "reason": "NO_MASTER",
+      "o": {
+        "provinceCode": "DLA",
+        "districtCode": "66",
+        "precinctCode": "PTH"
+      }
+    },
+    {
+      "id": "924",
+      "reason": "NO_MASTER",
+      "o": {
+        "provinceCode": "LSO",
+        "districtCode": "20",
+        "precinctCode": "PKL"
+      }
+    },
+    {
+      "id": "1514",
+      "reason": "NO_MASTER",
+      "o": {
+        "provinceCode": "LSO",
+        "districtCode": "20",
+        "precinctCode": "PKL"
+      }
+    },
+    {
+      "id": "66",
+      "code": "HaNoi_03_01",
+      "reason": "GEO_NO_MASTER",
+      "display": "Xã Liên Minh, Hà Nội, Việt Nam",
+      "tokens": [
+        "city_district=Xã Liên Minh",
+        "city=Hà Nội"
+      ]
+    },
+    {
+      "id": "69",
+      "code": "HQ_3_01",
+      "reason": "GEO_NO_MASTER",
+      "display": "96, Đường Lý Chiêu Hoàng, Khu phố 8, Phường Bình Phú, Thành phố Hồ Chí Minh, 71910, Việt Nam",
+      "tokens": [
+        "suburb=Phường Bình Phú",
+        "neighbourhood=Khu phố 8",
+        "city=Thành phố Hồ Chí Minh"
+      ]
+    },
+    {
+      "id": "374",
+      "code": "Tý Lốp_01",
+      "reason": "GEO_NO_MASTER",
+      "display": "Phường Phong Dinh, Thành phố Huế, Việt Nam",
+      "tokens": [
+        "city=Phường Phong Dinh"
+      ]
+    },
+    {
+      "id": "394",
+      "code": "Lốp Ô Tô Hà Phát_01",
+      "reason": "GEO_NO_MASTER",
+      "display": "Hòa Lạc, Đường Làng Văn Hóa, Xã Yên Xuân, Hà Nội, Việt Nam",
+      "tokens": [
+        "city_district=Xã Yên Xuân",
+        "city=Hà Nội"
+      ]
+    },
+    {
+      "id": "427",
+      "code": "PTD64CBF75_d2d1",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "430",
+      "code": "CAR-NAN_31",
+      "reason": "GEO_NO_MASTER",
+      "display": "Quốc lộ 1, Xã An Châu, Tỉnh Nghệ An, Việt Nam",
+      "tokens": [
+        "town=Xã An Châu",
+        "state=Tỉnh Nghệ An"
+      ]
+    },
+    {
+      "id": "434",
+      "code": "PT7935A9A8_5ea2",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "458",
+      "code": "BR-VT01_01",
+      "reason": "GEO_NO_MASTER",
+      "display": "Đường 2 Tháng 9, Khu phố 16, Phường Tam Thắng, Thành phố Hồ Chí Minh, 76666, Việt Nam",
+      "tokens": [
+        "suburb=Phường Tam Thắng",
+        "neighbourhood=Khu phố 16",
+        "city=Thành phố Hồ Chí Minh"
+      ]
+    },
+    {
+      "id": "500",
+      "code": "PT9BE39152_4d14",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "ឃុំស្វាយតាយាន, កំពង់រោទិ៍, ខេត្តស្វាយរៀង, Campuchia"
+    },
+    {
+      "id": "510",
+      "code": "PT7FFE3CA7_01fb",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "513",
+      "code": "hn-01_01",
+      "reason": "GEO_NO_MASTER",
+      "display": "Đường tỉnh 413, Xã Suối Hai, Hà Nội, Việt Nam",
+      "tokens": [
+        "city_district=Xã Suối Hai",
+        "city=Hà Nội"
+      ]
+    },
+    {
+      "id": "573",
+      "code": "PTC98D5729_98b7",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "574",
+      "code": "PT4B93C92F_8eca",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "580",
+      "code": "PT4651DCE4_5836",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "632",
+      "code": "123123_01",
+      "reason": "GEO_NO_MASTER",
+      "display": "20, Ngõ Hội Vũ, Khu phố cổ, Phường Hoàn Kiếm, Hà Nội, 11024, Việt Nam",
+      "tokens": [
+        "suburb=Phường Hoàn Kiếm",
+        "quarter=Khu phố cổ",
+        "city=Hà Nội"
+      ]
+    },
+    {
+      "id": "649",
+      "code": "HUE- Cứu hộ giao thông Hưng Lộc_01",
+      "reason": "GEO_NO_MASTER",
+      "display": "Tỉnh lộ 14B, Xã Hưng Lộc, Thành phố Huế, 52000, Việt Nam",
+      "tokens": [
+        "town=Xã Hưng Lộc"
+      ]
+    },
+    {
+      "id": "656",
+      "code": "PTADB5FFE0_693b",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "661",
+      "code": "PT605AA3C7_2ad1",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "680",
+      "code": "PT5F528C49_d485",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "727",
+      "code": "PTE80D06D9_d695",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "734",
+      "code": "ĐTA Cứu Hộ Thao Nhi_01",
+      "reason": "GEO_NO_MASTER",
+      "display": "Phường Sơn Qui, Tỉnh Đồng Tháp, Việt Nam",
+      "tokens": [
+        "county=Phường Sơn Qui",
+        "state=Tỉnh Đồng Tháp"
+      ]
+    },
+    {
+      "id": "735",
+      "code": "PT0DD15DEA_7a83",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Ga De Bay, Wine Cellar, Xã Bà Nà, Thành phố Đà Nẵng, Việt Nam"
+    },
+    {
+      "id": "736",
+      "code": "HCM-ẮC quy Huy Hậu_01",
+      "reason": "GEO_NO_MASTER",
+      "display": "Đường tỉnh 744, Rạch Bắp, Phường Tây Nam, Thành phố Hồ Chí Minh, Việt Nam",
+      "tokens": [
+        "suburb=Phường Tây Nam",
+        "quarter=Rạch Bắp",
+        "city=Thành phố Hồ Chí Minh"
+      ]
+    },
+    {
+      "id": "740",
+      "code": "PT0755D14D_9e8d",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "753",
+      "code": "PT16C0919D_8eed",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "856",
+      "code": "PT12E97FF5_9aea",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "868",
+      "code": "PTCCCB424F_bd89",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "870",
+      "code": "PTE39DB13A_c874",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "871",
+      "code": "PTFF03E35E_96d6",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "885",
+      "code": "PTEEF11A9D_1966",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "901",
+      "code": "PT39191840_a187",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Xã Bát Mọt, Tỉnh Thanh Hóa, Việt Nam"
+    },
+    {
+      "id": "902",
+      "code": "PT43FA4D52_9e83",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": "919",
+      "code": "PT41A9C8C8_0c44",
+      "reason": "BAD_OR_OUT_COORD",
+      "display": "Phonkeo, Khamkeuth, Borikhamxay, Lào"
+    }
+  ]
+}

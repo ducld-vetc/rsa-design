@@ -1,0 +1,479 @@
+{
+  "generatedAt": "2026-08-26T10:45:28.580Z",
+  "mappedStrict": 29,
+  "rejectedCrossProvince": 71,
+  "stillUnmapped": 92,
+  "overrideCount": 1488,
+  "appliedSample": [
+    {
+      "id": 125,
+      "code": "CaoBang_01_01",
+      "provinceCode": "CBA",
+      "districtCode": "CBA",
+      "precinctCode": "DTHA",
+      "confidence": "GEO_STRICT_DISTRICT",
+      "matched": "TP. Cao Bằng",
+      "display": "Đường Pác Bó, Phường Nùng Trí Cao, Cao Bằng, Tỉnh Cao Bằng, 21110, Việt Nam"
+    },
+    {
+      "id": 309,
+      "code": "CUUHO_HUE_01",
+      "provinceCode": "TTH",
+      "districtCode": "HTH",
+      "precinctCode": "TDUO",
+      "confidence": "GEO_STRICT_PRECINCT",
+      "matched": "P.Thủy Dương",
+      "display": "Đường số 20, Thủy Dương, Phường Thanh Thủy, Thành phố Huế, 54000, Việt Nam"
+    },
+    {
+      "id": 330,
+      "code": "CAR-ĐNG_51",
+      "provinceCode": "QNA",
+      "districtCode": "TKY",
+      "precinctCode": "APHU",
+      "confidence": "GEO_STRICT_DISTRICT",
+      "matched": "Tam Kỳ",
+      "display": "Hùng Vương, Phường Bàn Thạch, Tam Kỳ, Thành phố Đà Nẵng, Việt Nam"
+    },
+    {
+      "id": 345,
+      "code": "thay lốpp_01",
+      "provinceCode": "BPH",
+      "districtCode": "BDA",
+      "precinctCode": "DNAI",
+      "confidence": "GEO_STRICT_PRECINCT",
+      "matched": "Xã Đồng Nai",
+      "display": "Ấp Lý Lịch, Xã Phú Lý, Thành phố Đồng Nai, Việt Nam"
+    },
+    {
+      "id": 346,
+      "code": "LOP_HUE_01",
+      "provinceCode": "TTH",
+      "districtCode": "HTR",
+      "precinctCode": "BTHA",
+      "confidence": "GEO_STRICT_DISTRICT",
+      "matched": "Thị Xã Hương Trà",
+      "display": "Đường Lý Nhân Tông, Tổ dân phố Văn Xá 2, Phường Hương Trà, Thành phố Huế, Việt Nam"
+    },
+    {
+      "id": 356,
+      "code": "CAR-ĐBB_91",
+      "provinceCode": "CBA",
+      "districtCode": "CBA",
+      "precinctCode": "DTHA",
+      "confidence": "GEO_STRICT_DISTRICT",
+      "matched": "TP. Cao Bằng",
+      "display": "Thục Phán, Cao Bằng, Phường Thục Phán, Tỉnh Cao Bằng, 21110, Việt Nam"
+    },
+    {
+      "id": 557,
+      "code": "HN_TGL_51",
+      "provinceCode": "HDU",
+      "districtCode": "KMO",
+      "precinctCode": "APHU",
+      "confidence": "GEO_STRICT_DISTRICT",
+      "matched": "H.Kinh Môn",
+      "display": "Đường Trần Liễu, Phường Phạm Sư Mạnh, Phường Kinh Môn, Thành phố Hải Phòng, Việt Nam"
+    },
+    {
+      "id": 684,
+      "code": "LOP_NA_01",
+      "provinceCode": "NAN",
+      "districtCode": "DCH",
+      "precinctCode": "DCAT",
+      "confidence": "GEO_STRICT_PRECINCT",
+      "matched": "Xã Diễn Cát",
+      "display": "Đi Quốc lộ 7, Diễn Cát, Xã Minh Châu, Tỉnh Nghệ An, Việt Nam"
+    },
+    {
+      "id": 862,
+      "code": "CAR-NAN_51",
+      "provinceCode": "NAN",
+      "districtCode": "DLU",
+      "precinctCode": "HSO2",
+      "confidence": "GEO_STRICT_PRECINCT",
+      "matched": "Xã Hòa Sơn",
+      "display": "Hòa Sơn, Xã Văn Hiến, Tỉnh Nghệ An, Việt Nam"
+    },
+    {
+      "id": 1316,
+      "code": "CHGT_DANANG_01",
+      "provinceCode": "QNA",
+      "districtCode": "HAN",
+      "precinctCode": "TAAN",
+      "confidence": "GEO_STRICT_DISTRICT",
+      "matched": "Hội An",
+      "display": "46, Đường Võ Chí Công, Tổ dân phố Diên Hồng, Phường Hòa Xuân, Hội An, Thành phố Đà Nẵng, 50510, Việt Nam"
+    },
+    {
+      "id": 1356,
+      "code": "PT6B1D2F47_57c0",
+      "provinceCode": "HDU",
+      "districtCode": "HDU",
+      "precinctCode": "NTRA",
+      "confidence": "GEO_STRICT_PRECINCT",
+      "matched": "P.Nguyễn Trãi",
+      "display": "Nguyễn Trãi, Phường Thành Đông, Thành phố Hải Phòng, 03118, Việt Nam"
+    },
+    {
+      "id": 1376,
+      "code": "PT995E7236_2244",
+      "provinceCode": "HDU",
+      "districtCode": "HDU",
+      "precinctCode": "BHAN",
+      "confidence": "GEO_STRICT_PRECINCT",
+      "matched": "P.Bình Hàn",
+      "display": "Phố Bến Hàn, Bình Hàn, Phường Thành Đông, Thành phố Hải Dương, Thành phố Hải Phòng, 03118, Việt Nam"
+    },
+    {
+      "id": 1378,
+      "code": "PT5902BDDC_d902",
+      "provinceCode": "HDU",
+      "districtCode": "CLI",
+      "precinctCode": "VAAN",
+      "confidence": "GEO_STRICT_PRECINCT",
+      "matched": "Xã Văn An",
+      "display": "Đường Lê Thánh Tông, Văn An, Phường Chu Văn An, Thành phố Chí Linh, Thành phố Hải Phòng, 03500, Việt Nam"
+    },
+    {
+      "id": 1379,
+      "code": "PT081D3AEE_6685",
+      "provinceCode": "HDU",
+      "districtCode": "CLI",
+      "precinctCode": "VAAN",
+      "confidence": "GEO_STRICT_PRECINCT",
+      "matched": "Xã Văn An",
+      "display": "Đường tỉnh 390D, Văn An, Phường Chu Văn An, Thành phố Chí Linh, Thành phố Hải Phòng, Việt Nam"
+    },
+    {
+      "id": 1380,
+      "code": "PTEAF3E260_43e3",
+      "provinceCode": "HDU",
+      "districtCode": "CLI",
+      "precinctCode": "LLOI",
+      "confidence": "GEO_STRICT_DISTRICT",
+      "matched": "TX.Chí Linh",
+      "display": "Chí Linh, Phường Chu Văn An, Thành phố Chí Linh, Thành phố Hải Phòng, Việt Nam"
+    }
+  ],
+  "leftoverSample": [
+    {
+      "id": 66,
+      "code": "HaNoi_03_01",
+      "address": "Xã Liên Minh, Hà Nội, Việt Nam",
+      "display": "Xã Liên Minh, Hà Nội, Việt Nam",
+      "prev": {
+        "provinceCode": "HTI",
+        "districtCode": "DTH",
+        "precinctCode": "LMIN",
+        "confidence": "GEO_PRECINCT_AMBIG",
+        "matched": "Xã Liên Minh"
+      },
+      "tokens": [
+        "city_district=Xã Liên Minh",
+        "city=Hà Nội"
+      ]
+    },
+    {
+      "id": 69,
+      "code": "HQ_3_01",
+      "address": "96, Đường Lý Chiêu Hoàng, Phường Bình Phú, Thành phố Hồ Chí Minh, 73118, Việt Nam",
+      "display": "96, Đường Lý Chiêu Hoàng, Khu phố 8, Phường Bình Phú, Thành phố Hồ Chí Minh, 71910, Việt Nam",
+      "prev": {
+        "provinceCode": "AGI",
+        "districtCode": "CPH",
+        "precinctCode": "BPHU",
+        "confidence": "GEO_PRECINCT_AMBIG",
+        "matched": "Xã Bình Phú"
+      },
+      "tokens": [
+        "suburb=Phường Bình Phú",
+        "neighbourhood=Khu phố 8",
+        "city=Thành phố Hồ Chí Minh"
+      ]
+    },
+    {
+      "id": 374,
+      "code": "Tý Lốp_01",
+      "address": "Phường Phong Dinh, Thành phố Huế, Việt Nam",
+      "display": "Phường Phong Dinh, Thành phố Huế, Việt Nam",
+      "prev": null,
+      "tokens": [
+        "city=Phường Phong Dinh"
+      ]
+    },
+    {
+      "id": 394,
+      "code": "Lốp Ô Tô Hà Phát_01",
+      "address": "Hòa Lạc, Đường Làng Văn Hóa, Xã Yên Xuân, Hà Nội, Việt Nam",
+      "display": "Hòa Lạc, Đường Làng Văn Hóa, Xã Yên Xuân, Hà Nội, Việt Nam",
+      "prev": null,
+      "tokens": [
+        "city_district=Xã Yên Xuân",
+        "city=Hà Nội"
+      ]
+    },
+    {
+      "id": 427,
+      "code": "PTD64CBF75_d2d1",
+      "address": "54 Đại lộ Bình Dương, Lái Thiêu, Hồ Chí Minh, Vietnam",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+      "prev": {
+        "provinceCode": "HBI",
+        "districtCode": "DBA",
+        "precinctCode": "TPHE",
+        "confidence": "GEO_PRECINCT",
+        "matched": "Xã Tân Pheo"
+      },
+      "tokens": [
+        "village=Suối Nhon",
+        "county=Xã Tân Pheo",
+        "state=Tỉnh Phú Thọ"
+      ]
+    },
+    {
+      "id": 430,
+      "code": "CAR-NAN_31",
+      "address": "Quốc lộ 1, Xã An Châu, Tỉnh Nghệ An, Việt Nam",
+      "display": "Quốc lộ 1, Xã An Châu, Tỉnh Nghệ An, Việt Nam",
+      "prev": {
+        "provinceCode": "BGI",
+        "districtCode": "SDO",
+        "precinctCode": "ACHU",
+        "confidence": "GEO_PRECINCT_AMBIG",
+        "matched": "Xã An Châu"
+      },
+      "tokens": [
+        "town=Xã An Châu",
+        "state=Tỉnh Nghệ An"
+      ]
+    },
+    {
+      "id": 434,
+      "code": "PT7935A9A8_5ea2",
+      "address": "Đ. Nguyễn Văn Linh, Hưng Phú, Cần Thơ, Việt Nam",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+      "prev": {
+        "provinceCode": "HBI",
+        "districtCode": "DBA",
+        "precinctCode": "TPHE",
+        "confidence": "GEO_PRECINCT",
+        "matched": "Xã Tân Pheo"
+      },
+      "tokens": [
+        "village=Suối Nhon",
+        "county=Xã Tân Pheo",
+        "state=Tỉnh Phú Thọ"
+      ]
+    },
+    {
+      "id": 458,
+      "code": "BR-VT01_01",
+      "address": "Đường 2 Tháng 9, Khu phố 15, Phường Tam Thắng, Thành phố Hồ Chí Minh, 76666, Việt Nam",
+      "display": "Đường 2 Tháng 9, Khu phố 16, Phường Tam Thắng, Thành phố Hồ Chí Minh, 76666, Việt Nam",
+      "prev": {
+        "provinceCode": "DNO",
+        "districtCode": "CJU",
+        "precinctCode": "TTHA",
+        "confidence": "GEO_PRECINCT_AMBIG",
+        "matched": "Xã Tâm Thắng"
+      },
+      "tokens": [
+        "suburb=Phường Tam Thắng",
+        "neighbourhood=Khu phố 16",
+        "city=Thành phố Hồ Chí Minh"
+      ]
+    },
+    {
+      "id": 500,
+      "code": "PT9BE39152_4d14",
+      "address": "Khu phố Hiệp An 9, Phường Chánh Hiệp, Thành phố Hồ Chí Minh, 75111, Việt Nam",
+      "display": "ឃុំស្វាយតាយាន, កំពង់រោទិ៍, ខេត្តស្វាយរៀង, Campuchia",
+      "prev": null,
+      "tokens": []
+    },
+    {
+      "id": 510,
+      "code": "PT7FFE3CA7_01fb",
+      "address": "Km46+500, QL5, TT. Lai Cách, Việt Hòa, Hải Phòng, Việt Nam",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+      "prev": {
+        "provinceCode": "HBI",
+        "districtCode": "DBA",
+        "precinctCode": "TPHE",
+        "confidence": "GEO_PRECINCT",
+        "matched": "Xã Tân Pheo"
+      },
+      "tokens": [
+        "village=Suối Nhon",
+        "county=Xã Tân Pheo",
+        "state=Tỉnh Phú Thọ"
+      ]
+    },
+    {
+      "id": 513,
+      "code": "hn-01_01",
+      "address": "Đường tỉnh 413, Xã Suối Hai, Hà Nội, Việt Nam",
+      "display": "Đường tỉnh 413, Xã Suối Hai, Hà Nội, Việt Nam",
+      "prev": null,
+      "tokens": [
+        "city_district=Xã Suối Hai",
+        "city=Hà Nội"
+      ]
+    },
+    {
+      "id": 573,
+      "code": "PTC98D5729_98b7",
+      "address": "Hà Nội",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+      "prev": {
+        "provinceCode": "HBI",
+        "districtCode": "DBA",
+        "precinctCode": "TPHE",
+        "confidence": "GEO_PRECINCT",
+        "matched": "Xã Tân Pheo"
+      },
+      "tokens": [
+        "village=Suối Nhon",
+        "county=Xã Tân Pheo",
+        "state=Tỉnh Phú Thọ"
+      ]
+    },
+    {
+      "id": 574,
+      "code": "PT4B93C92F_8eca",
+      "address": "430 Nguyễn Xiển, P Long Bình, TP.HCM ",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+      "prev": {
+        "provinceCode": "HBI",
+        "districtCode": "DBA",
+        "precinctCode": "TPHE",
+        "confidence": "GEO_PRECINCT",
+        "matched": "Xã Tân Pheo"
+      },
+      "tokens": [
+        "village=Suối Nhon",
+        "county=Xã Tân Pheo",
+        "state=Tỉnh Phú Thọ"
+      ]
+    },
+    {
+      "id": 580,
+      "code": "PT4651DCE4_5836",
+      "address": "Võ Thị Sáu, Xuân Hòa, Hồ Chí Minh, Việt Nam",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+      "prev": {
+        "provinceCode": "HBI",
+        "districtCode": "DBA",
+        "precinctCode": "TPHE",
+        "confidence": "GEO_PRECINCT",
+        "matched": "Xã Tân Pheo"
+      },
+      "tokens": [
+        "village=Suối Nhon",
+        "county=Xã Tân Pheo",
+        "state=Tỉnh Phú Thọ"
+      ]
+    },
+    {
+      "id": 632,
+      "code": "123123_01",
+      "address": "20, Phố Hội Vũ, Khu phố cổ, Phường Hoàn Kiếm, Hà Nội, 11024, Việt Nam",
+      "display": "20, Ngõ Hội Vũ, Khu phố cổ, Phường Hoàn Kiếm, Hà Nội, 11024, Việt Nam",
+      "prev": null,
+      "tokens": [
+        "suburb=Phường Hoàn Kiếm",
+        "quarter=Khu phố cổ",
+        "city=Hà Nội"
+      ]
+    },
+    {
+      "id": 649,
+      "code": "HUE- Cứu hộ giao thông Hưng Lộc_01",
+      "address": "Tỉnh lộ 14B, Xã Hưng Lộc, Thành phố Huế, 52000, Việt Nam",
+      "display": "Tỉnh lộ 14B, Xã Hưng Lộc, Thành phố Huế, 52000, Việt Nam",
+      "prev": {
+        "provinceCode": "DNI",
+        "districtCode": "TNH",
+        "precinctCode": "HLOC",
+        "confidence": "GEO_PRECINCT_AMBIG",
+        "matched": "Xã Hưng Lộc"
+      },
+      "tokens": [
+        "town=Xã Hưng Lộc"
+      ]
+    },
+    {
+      "id": 656,
+      "code": "PTADB5FFE0_693b",
+      "address": "459/7 Tổ 17 Kp3, Tân Thới Hiệp, Hồ Chí Minh 700000, Việt Nam",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+      "prev": {
+        "provinceCode": "HBI",
+        "districtCode": "DBA",
+        "precinctCode": "TPHE",
+        "confidence": "GEO_PRECINCT",
+        "matched": "Xã Tân Pheo"
+      },
+      "tokens": [
+        "village=Suối Nhon",
+        "county=Xã Tân Pheo",
+        "state=Tỉnh Phú Thọ"
+      ]
+    },
+    {
+      "id": 661,
+      "code": "PT605AA3C7_2ad1",
+      "address": "Đồng Nai ",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+      "prev": {
+        "provinceCode": "HBI",
+        "districtCode": "DBA",
+        "precinctCode": "TPHE",
+        "confidence": "GEO_PRECINCT",
+        "matched": "Xã Tân Pheo"
+      },
+      "tokens": [
+        "village=Suối Nhon",
+        "county=Xã Tân Pheo",
+        "state=Tỉnh Phú Thọ"
+      ]
+    },
+    {
+      "id": 680,
+      "code": "PT5F528C49_d485",
+      "address": "726Q+R4 Diên Thọ, Khánh Hòa, Việt Nam",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+      "prev": {
+        "provinceCode": "HBI",
+        "districtCode": "DBA",
+        "precinctCode": "TPHE",
+        "confidence": "GEO_PRECINCT",
+        "matched": "Xã Tân Pheo"
+      },
+      "tokens": [
+        "village=Suối Nhon",
+        "county=Xã Tân Pheo",
+        "state=Tỉnh Phú Thọ"
+      ]
+    },
+    {
+      "id": 727,
+      "code": "PTE80D06D9_d695",
+      "address": "Hải Phòng",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+      "prev": {
+        "provinceCode": "HBI",
+        "districtCode": "DBA",
+        "precinctCode": "TPHE",
+        "confidence": "GEO_PRECINCT",
+        "matched": "Xã Tân Pheo"
+      },
+      "tokens": [
+        "village=Suối Nhon",
+        "county=Xã Tân Pheo",
+        "state=Tỉnh Phú Thọ"
+      ]
+    }
+  ]
+}

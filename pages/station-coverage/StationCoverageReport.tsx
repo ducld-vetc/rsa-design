@@ -7,6 +7,7 @@ import {
   Download,
   X,
   ChevronRight,
+  ChevronDown,
   Map as MapIcon,
   List,
   RotateCcw,
@@ -15,26 +16,27 @@ import AppSelect from '../../shared/AppSelect';
 import AppMultiSelect from '../../shared/AppMultiSelect';
 import { vietnamProvincesGeo, VIETNAM_BOUNDS } from '../rsa-dashboard/vietnamProvinceGeo';
 import {
+  ADDRESS_SCHEMA_OPTIONS,
   AREA_TYPE_OPTIONS,
   LEVEL_META,
-  LEVEL_SORT,
   MAP_MODE_OPTIONS,
   PARTNER_OPTIONS,
-  PROVINCE_CENTERS,
   REGION_OPTIONS,
   STATION_TYPE_OPTIONS,
+  buildProvinceHierarchy,
   coveragePercent,
   formatCoverage,
-  mapStationPoints,
+  getMapStationPoints,
+  getProvinceCenters,
+  getProvinceCoverageRows,
   matchesProvinceRegion,
   matchesStationTypeFilter,
-  provinceCoverageRows,
   resolveCoverageLevelFromStations,
   stationCoveragePercent,
   TARGET_STATIONS_PER_PROVINCE,
   stationTypeLabel,
-  uncoveredOrdersByProvince,
   UNASSIGNED_PROVINCE_ID,
+  type AddressSchemaMode,
   type AreaType,
   type CoverageLevel,
   type CoverageStation,
@@ -42,33 +44,41 @@ import {
   type ProvinceCoverageRow,
   type RegionId,
   type StationType,
-  type UncoveredOrder,
 } from './stationCoverageData';
 import StationHeatLayer, { buildNationalHeatFill, type HeatPoint } from './StationHeatLayer';
 
-const CARPLA_MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="28" height="28"><circle cx="16" cy="16" r="15.2" fill="#111"/><circle cx="16" cy="16" r="13.4" fill="#F5D000"/><path d="M22.6 11a8.2 8.2 0 1 0 0 10" fill="none" stroke="#111" stroke-width="4.4" stroke-linecap="butt"/></svg>`;
+const MARKER_SIZE = 28;
+const MARKER_SIZE_SELECTED = 32;
 
-const makeCircleIcon = (bg: string, glyph: string, selected: boolean) =>
-  L.divIcon({
-    html: `<div style="width:${selected ? 30 : 26}px;height:${selected ? 30 : 26}px;background:${bg};border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.3)">${glyph}</div>`,
+const CARPLA_MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="100%" height="100%" style="display:block"><circle cx="16" cy="16" r="15.2" fill="#111"/><circle cx="16" cy="16" r="13.4" fill="#F5D000"/><path d="M22.6 11a8.2 8.2 0 1 0 0 10" fill="none" stroke="#111" stroke-width="4.4" stroke-linecap="butt"/></svg>`;
+
+const makeStationIcon = (bg: string, glyph: string, selected: boolean) => {
+  const size = selected ? MARKER_SIZE_SELECTED : MARKER_SIZE;
+  return L.divIcon({
+    html: `<div style="width:${size}px;height:${size}px;background:${bg};border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;box-sizing:border-box;box-shadow:0 2px 8px rgba(0,0,0,0.35);${selected ? 'outline:2px solid #111;outline-offset:0;' : ''}">${glyph}</div>`,
     className: '',
-    iconSize: selected ? [30, 30] : [26, 26],
-    iconAnchor: selected ? [15, 15] : [13, 13],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
+};
 
-const carplaIcon = (selected: boolean) =>
-  L.divIcon({
-    html: `<div style="width:${selected ? 32 : 28}px;height:${selected ? 32 : 28}px;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.35);${selected ? 'outline:2px solid #111;' : ''}">${CARPLA_MARK_SVG}</div>`,
+const carplaIcon = (selected: boolean) => {
+  const size = selected ? MARKER_SIZE_SELECTED : MARKER_SIZE;
+  return L.divIcon({
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;box-sizing:border-box;box-shadow:0 2px 8px rgba(0,0,0,0.35);line-height:0;${selected ? 'outline:2px solid #111;outline-offset:0;' : ''}">${CARPLA_MARK_SVG}</div>`,
     className: '',
-    iconSize: selected ? [32, 32] : [28, 28],
-    iconAnchor: selected ? [16, 16] : [14, 14],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
+};
 
-const EXTERNAL_GLYPH = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>`;
+const EXTERNAL_GLYPH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" style="display:block"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>`;
+const QUICK_GLYPH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" style="display:block"><path d="M13 2 3 14h8l-1 8 10-12h-8l1-8z"/></svg>`;
 
 const iconForStation = (type: StationType, selected: boolean) => {
   if (type === 'rescue_internal') return carplaIcon(selected);
-  return makeCircleIcon('#059669', EXTERNAL_GLYPH, selected);
+  if (type === 'rescue_quick') return makeStationIcon('#D97706', QUICK_GLYPH, selected);
+  return makeStationIcon('#059669', EXTERNAL_GLYPH, selected);
 };
 
 const FitVietnamBounds: React.FC<{ resetKey: string }> = ({ resetKey }) => {
@@ -101,6 +111,7 @@ interface ViewRow {
   row: ProvinceCoverageRow;
   stations: number;
   internalStations: number;
+  quickStations: number;
   externalStations: number;
   orders: number;
   covered: number;
@@ -114,6 +125,7 @@ const selectWrapClass = 'w-[196px] shrink-0';
 const PARTNER_FILTER_OPTIONS = PARTNER_OPTIONS.slice(1);
 
 const StationCoverageReport: React.FC = () => {
+  const [addressSchema, setAddressSchema] = useState<AddressSchemaMode>('old');
   const [region, setRegion] = useState<RegionId | 'all'>('all');
   const [partners, setPartners] = useState<string[]>([]);
   const [areaType, setAreaType] = useState<AreaType | 'all'>('all');
@@ -121,13 +133,20 @@ const StationCoverageReport: React.FC = () => {
   const [provinceFilterIds, setProvinceFilterIds] = useState<string[]>([]);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'list'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'list'>('list');
   const [mapMode, setMapMode] = useState<MapDisplayMode>('stations');
   const mapRef = useRef<L.Map | null>(null);
 
   const handleMapReady = useCallback((map: L.Map) => {
     mapRef.current = map;
   }, []);
+
+  const mapStationPoints = useMemo(() => getMapStationPoints(addressSchema), [addressSchema]);
+  const provinceCoverageRows = useMemo(
+    () => getProvinceCoverageRows(addressSchema, mapStationPoints),
+    [addressSchema, mapStationPoints],
+  );
+  const provinceCenters = useMemo(() => getProvinceCenters(addressSchema), [addressSchema]);
 
   const provinceFilterSet = useMemo(() => new Set(provinceFilterIds), [provinceFilterIds]);
   const partnerFilterSet = useMemo(() => new Set(partners), [partners]);
@@ -144,14 +163,15 @@ const StationCoverageReport: React.FC = () => {
       if (partners.length > 0 && !partnerFilterSet.has(station.partner)) return false;
       return true;
     });
-  }, [areaType, partners.length, partnerFilterSet, stationType]);
+  }, [areaType, mapStationPoints, partners.length, partnerFilterSet, stationType]);
 
   const stationStatsByProvince = useMemo(() => {
-    const map = new Map<string, { total: number; internal: number; external: number }>();
+    const map = new Map<string, { total: number; internal: number; quick: number; external: number }>();
     for (const station of filteredStations) {
-      const current = map.get(station.provinceId) ?? { total: 0, internal: 0, external: 0 };
+      const current = map.get(station.provinceId) ?? { total: 0, internal: 0, quick: 0, external: 0 };
       current.total += 1;
       if (station.stationType === 'rescue_internal') current.internal += 1;
+      else if (station.stationType === 'rescue_quick') current.quick += 1;
       else current.external += 1;
       map.set(station.provinceId, current);
     }
@@ -160,13 +180,14 @@ const StationCoverageReport: React.FC = () => {
 
   const buildViewRow = useCallback(
     (row: ProvinceCoverageRow): ViewRow => {
-      const stats = stationStatsByProvince.get(row.id) ?? { total: 0, internal: 0, external: 0 };
+      const stats = stationStatsByProvince.get(row.id) ?? { total: 0, internal: 0, quick: 0, external: 0 };
       const cr = stationCoveragePercent(stats.total, TARGET_STATIONS_PER_PROVINCE);
       const level = resolveCoverageLevelFromStations(stats.total, TARGET_STATIONS_PER_PROVINCE);
       return {
         row: { ...row, stations: stats.total },
         stations: stats.total,
         internalStations: stats.internal,
+        quickStations: stats.quick,
         externalStations: stats.external,
         orders: row.orders90,
         covered: row.covered90,
@@ -183,29 +204,68 @@ const StationCoverageReport: React.FC = () => {
     return provinceCoverageRows
       .filter((row) => matchesProvinceRegion(row, region))
       .filter((row) => matchesProvinceFilter(row.id))
-      .map(buildViewRow);
-  }, [region, matchesProvinceFilter, buildViewRow]);
+      .map(buildViewRow)
+      .sort((a, b) => {
+        if (b.stations !== a.stations) return b.stations - a.stations;
+        return a.row.name.localeCompare(b.row.name, 'vi');
+      });
+  }, [region, matchesProvinceFilter, buildViewRow, provinceCoverageRows]);
 
   const viewRows: ViewRow[] = useMemo(() => {
     const source = focusedId ? rowsForMap.filter((item) => item.row.id === focusedId) : rowsForMap;
     return [...source].sort((a, b) => {
-      const byLevel = LEVEL_SORT[a.level] - LEVEL_SORT[b.level];
-      if (byLevel !== 0) return byLevel;
-      return a.cr - b.cr;
+      if (b.stations !== a.stations) return b.stations - a.stations;
+      return a.row.name.localeCompare(b.row.name, 'vi');
     });
   }, [rowsForMap, focusedId]);
+
+  const hierarchyRows = useMemo(
+    () =>
+      buildProvinceHierarchy(
+        addressSchema,
+        provinceCoverageRows.filter((row) => matchesProvinceRegion(row, region)).filter((row) => matchesProvinceFilter(row.id)),
+        filteredStations,
+      ),
+    [addressSchema, provinceCoverageRows, region, matchesProvinceFilter, filteredStations],
+  );
+
+  const [expandedProvinces, setExpandedProvinces] = useState<Set<string>>(new Set());
+  const [expandedDistricts, setExpandedDistricts] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setExpandedProvinces(new Set());
+    setExpandedDistricts(new Set());
+  }, [addressSchema, region, provinceFilterIds, stationType, partners, areaType]);
+
+  const toggleProvinceExpand = (id: string) => {
+    setExpandedProvinces((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleDistrictExpand = (key: string) => {
+    setExpandedDistricts((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const provincesByName = useMemo(
     () =>
       [...provinceCoverageRows]
         .filter((row) => matchesProvinceRegion(row, region))
         .sort((a, b) => a.name.localeCompare(b.name, 'vi')),
-    [region],
+    [region, provinceCoverageRows],
   );
 
   const visibleIds = useMemo(() => new Set(rowsForMap.map((item) => item.row.id)), [rowsForMap]);
   const selected = focusedId ? (rowsForMap.find((item) => item.row.id === focusedId) ?? null) : null;
-  const selectedCenter = focusedId ? (PROVINCE_CENTERS[focusedId] ?? null) : null;
+  const selectedCenter = focusedId ? (provinceCenters[focusedId] ?? null) : null;
 
   const kpis = useMemo(() => {
     const source = focusedId ? viewRows : rowsForMap;
@@ -248,8 +308,6 @@ const StationCoverageReport: React.FC = () => {
       return true;
     });
   }, [filteredStations, visibleIds, focusedId]);
-
-  const drillOrders = selected ? uncoveredOrdersByProvince[selected.row.id] ?? [] : [];
 
   const provinceStyle = useCallback(
     (feature?: GeoJSON.Feature) => {
@@ -297,26 +355,82 @@ const StationCoverageReport: React.FC = () => {
     [rowsForMap],
   );
 
-  const geoKey = `${region}-${provinceFilterIds.join('|') || 'all'}-${focusedId ?? 'none'}-${mapMode}`;
+  const geoKey = `${addressSchema}-${region}-${provinceFilterIds.join('|') || 'all'}-${focusedId ?? 'none'}-${mapMode}`;
 
   const handleExport = () => {
-    const exportRows = [...rowsForMap].sort((a, b) => {
-      const byLevel = LEVEL_SORT[a.level] - LEVEL_SORT[b.level];
-      if (byLevel !== 0) return byLevel;
-      return a.cr - b.cr;
-    });
-    const header = ['Tỉnh', 'Mã', 'Số trạm', 'Nội bộ', 'Bên ngoài', `% mật độ (mục tiêu ${TARGET_STATIONS_PER_PROVINCE})`, 'Mức'];
-    const lines = exportRows.map((item) =>
-      [
-        item.row.name,
-        item.row.code,
-        item.stations,
-        item.internalStations,
-        item.externalStations,
-        item.cr.toFixed(1),
-        LEVEL_META[item.level].label,
-      ].join(','),
-    );
+    const header = [
+      'Cấp',
+      'Tỉnh',
+      'Mã tỉnh',
+      'Huyện',
+      'Mã huyện',
+      'Xã/Phường',
+      'Mã xã',
+      'Số trạm',
+      'Nội bộ',
+      'Quick Service',
+      'Bên ngoài',
+      `% mật độ (mục tiêu ${TARGET_STATIONS_PER_PROVINCE})`,
+      'Mức',
+    ];
+    const lines: string[] = [];
+    for (const province of hierarchyRows) {
+      lines.push(
+        [
+          'Tỉnh',
+          province.name,
+          province.code,
+          '',
+          '',
+          '',
+          '',
+          province.total,
+          province.internal,
+          province.quick,
+          province.external,
+          province.cr.toFixed(1),
+          LEVEL_META[province.level].label,
+        ].join(','),
+      );
+      for (const district of province.districts) {
+        lines.push(
+          [
+            'Huyện',
+            province.name,
+            province.code,
+            district.name,
+            district.code,
+            '',
+            '',
+            district.total,
+            district.internal,
+            district.quick,
+            district.external,
+            '',
+            '',
+          ].join(','),
+        );
+        for (const precinct of district.precincts) {
+          lines.push(
+            [
+              'Xã/Phường',
+              province.name,
+              province.code,
+              district.name,
+              district.code,
+              precinct.name,
+              precinct.code,
+              precinct.total,
+              precinct.internal,
+              precinct.quick,
+              precinct.external,
+              '',
+              '',
+            ].join(','),
+          );
+        }
+      }
+    }
     const csv = `\uFEFF${header.join(',')}\n${lines.join('\n')}`;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -325,14 +439,8 @@ const StationCoverageReport: React.FC = () => {
     a.download = 'do-phu-tram-theo-tinh.csv';
     a.click();
     URL.revokeObjectURL(url);
-    setExportNote(`Đã xuất ${exportRows.length} tỉnh (CSV mở bằng Excel).`);
+    setExportNote(`Đã xuất ${hierarchyRows.length} tỉnh · 3 cấp địa chỉ (CSV mở bằng Excel).`);
   };
-
-  const listRows = [...rowsForMap].sort((a, b) => {
-    const byLevel = LEVEL_SORT[a.level] - LEVEL_SORT[b.level];
-    if (byLevel !== 0) return byLevel;
-    return a.cr - b.cr;
-  });
 
   const nationalFillPoints = useMemo(() => buildNationalHeatFill(visibleIds), [visibleIds]);
 
@@ -347,7 +455,8 @@ const StationCoverageReport: React.FC = () => {
     region !== 'all' ||
     partners.length > 0 ||
     areaType !== 'all' ||
-    stationType !== 'all';
+    stationType !== 'all' ||
+    addressSchema !== 'new';
 
   const resetFilters = () => {
     setProvinceFilterIds([]);
@@ -356,7 +465,13 @@ const StationCoverageReport: React.FC = () => {
     setPartners([]);
     setAreaType('all');
     setStationType('all');
+    setAddressSchema('new');
   };
+
+  useEffect(() => {
+    setProvinceFilterIds([]);
+    setFocusedId(null);
+  }, [addressSchema]);
 
   return (
     <div className="space-y-4">
@@ -396,6 +511,23 @@ const StationCoverageReport: React.FC = () => {
           ))}
         </div>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className="flex shrink-0 rounded-lg border border-gray-200 bg-white p-0.5">
+            {ADDRESS_SCHEMA_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                title={opt.hint}
+                onClick={() => setAddressSchema(opt.id)}
+                className={`rounded-md px-3 py-1.5 text-[11px] font-bold transition-all ${
+                  addressSchema === opt.id
+                    ? 'bg-[#00A859] text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
           <div className="w-[200px] shrink-0">
             <AppMultiSelect
               values={provinceFilterIds}
@@ -554,13 +686,21 @@ const StationCoverageReport: React.FC = () => {
                     <p className="text-[9px] font-black uppercase tracking-wide text-gray-400">Loại trạm</p>
                     <div className="flex items-center gap-2">
                       <span
-                        className="inline-flex h-4 w-4 items-center justify-center overflow-hidden rounded-full"
-                        dangerouslySetInnerHTML={{ __html: CARPLA_MARK_SVG.replace('width="28"', 'width="16"').replace('height="28"', 'height="16"') }}
+                        className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full shadow-sm"
+                        dangerouslySetInnerHTML={{ __html: CARPLA_MARK_SVG }}
                       />
                       <span className="text-[10px] font-semibold text-gray-600">Trạm nội bộ (Carpla)</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#059669]" />
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#D97706] shadow-sm">
+                        <span dangerouslySetInnerHTML={{ __html: QUICK_GLYPH }} />
+                      </span>
+                      <span className="text-[10px] font-semibold text-gray-600">Quick Service</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#059669] shadow-sm">
+                        <span dangerouslySetInnerHTML={{ __html: EXTERNAL_GLYPH }} />
+                      </span>
                       <span className="text-[10px] font-semibold text-gray-600">Trạm bên ngoài</span>
                     </div>
                   </>
@@ -610,7 +750,6 @@ const StationCoverageReport: React.FC = () => {
             provinceRows={rowsForMap}
             kpis={kpis}
             drillStations={drillStations}
-            drillOrders={drillOrders}
             onSelectProvince={setFocusedId}
             onClose={() => setFocusedId(null)}
           />
@@ -631,13 +770,19 @@ const StationCoverageReport: React.FC = () => {
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="border-b border-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500">
+              {addressSchema === 'new'
+                ? 'Địa chỉ mới · 34 tỉnh (sau sáp nhập) · huyện/xã chuẩn hóa chung với địa chỉ cũ'
+                : 'Địa chỉ cũ · 63 tỉnh → Huyện → Xã/Phường · sắp xếp theo số trạm'}
+            </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-xs">
                 <thead className="bg-gray-50 text-[10px] font-black uppercase tracking-wide text-gray-400">
                   <tr>
-                    <th className="px-4 py-2.5">Tỉnh</th>
+                    <th className="px-4 py-2.5">Đơn vị hành chính</th>
                     <th className="px-4 py-2.5 text-right">Trạm</th>
                     <th className="px-4 py-2.5 text-right">Nội bộ</th>
+                    <th className="px-4 py-2.5 text-right">QS</th>
                     <th className="px-4 py-2.5 text-right">Bên ngoài</th>
                     <th className="px-4 py-2.5 text-right">% mật độ</th>
                     <th className="px-4 py-2.5">Mức</th>
@@ -645,36 +790,98 @@ const StationCoverageReport: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {listRows.map((item) => {
-                    const active = item.row.id === focusedId;
+                  {hierarchyRows.map((province) => {
+                    const provinceOpen = expandedProvinces.has(province.provinceId);
                     return (
-                      <tr
-                        key={item.row.id}
-                        onClick={() => {
-                          setFocusedId(item.row.id);
-                          setActiveTab('overview');
-                        }}
-                        className={`cursor-pointer border-t border-gray-50 hover:bg-emerald-50/40 ${active ? 'bg-emerald-50/70' : ''}`}
-                      >
-                        <td className="px-4 py-2.5">
-                          <p className="font-bold text-gray-800">{item.row.name}</p>
-                          <p className="text-[10px] text-gray-400">{item.row.code}</p>
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(item.stations)}</td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(item.internalStations)}</td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(item.externalStations)}</td>
-                        <td className={`px-4 py-2.5 text-right font-black ${LEVEL_META[item.level].text}`}>
-                          {formatCoverage(item.cr)}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <span className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${LEVEL_META[item.level].badge}`}>
-                            {LEVEL_META[item.level].label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-gray-300">
-                          <ChevronRight size={14} />
-                        </td>
-                      </tr>
+                      <React.Fragment key={province.provinceId}>
+                        <tr className="border-t border-gray-50 bg-white hover:bg-emerald-50/40">
+                          <td className="px-4 py-2.5">
+                            <button
+                              type="button"
+                              className="flex w-full items-center gap-2 text-left"
+                              onClick={() => toggleProvinceExpand(province.provinceId)}
+                            >
+                              {provinceOpen ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
+                              <span>
+                                <span className="block font-bold text-gray-800">{province.name}</span>
+                                <span className="text-[10px] text-gray-400">{province.code} · Tỉnh</span>
+                              </span>
+                            </button>
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(province.total)}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(province.internal)}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(province.quick)}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-gray-800">{formatNumber(province.external)}</td>
+                          <td className={`px-4 py-2.5 text-right font-black ${LEVEL_META[province.level].text}`}>
+                            {formatCoverage(province.cr)}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${LEVEL_META[province.level].badge}`}>
+                              {LEVEL_META[province.level].label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-gray-300">
+                            <button
+                              type="button"
+                              className="rounded p-1 hover:bg-gray-100 hover:text-gray-700"
+                              aria-label={`Mở bản đồ ${province.name}`}
+                              onClick={() => {
+                                setFocusedId(province.provinceId);
+                                setActiveTab('overview');
+                              }}
+                            >
+                              <ChevronRight size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                        {provinceOpen &&
+                          province.districts.map((district) => {
+                            const districtKey = `${province.provinceId}::${district.code}`;
+                            const districtOpen = expandedDistricts.has(districtKey);
+                            return (
+                              <React.Fragment key={districtKey}>
+                                <tr className="border-t border-gray-50 bg-gray-50/70">
+                                  <td className="px-4 py-2 pl-10">
+                                    <button
+                                      type="button"
+                                      className="flex w-full items-center gap-2 text-left"
+                                      onClick={() => toggleDistrictExpand(districtKey)}
+                                    >
+                                      {districtOpen ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
+                                      <span>
+                                        <span className="block font-semibold text-gray-700">{district.name}</span>
+                                        <span className="text-[10px] text-gray-400">{district.code} · Huyện</span>
+                                      </span>
+                                    </button>
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-semibold text-gray-700">{formatNumber(district.total)}</td>
+                                  <td className="px-4 py-2 text-right text-gray-700">{formatNumber(district.internal)}</td>
+                                  <td className="px-4 py-2 text-right text-gray-700">{formatNumber(district.quick)}</td>
+                                  <td className="px-4 py-2 text-right text-gray-700">{formatNumber(district.external)}</td>
+                                  <td className="px-4 py-2 text-right text-gray-300">—</td>
+                                  <td className="px-4 py-2" />
+                                  <td className="px-4 py-2" />
+                                </tr>
+                                {districtOpen &&
+                                  district.precincts.map((precinct) => (
+                                    <tr key={`${districtKey}::${precinct.code}`} className="border-t border-gray-50 bg-white">
+                                      <td className="px-4 py-2 pl-16">
+                                        <p className="font-medium text-gray-700">{precinct.name}</p>
+                                        <p className="text-[10px] text-gray-400">{precinct.code} · Xã/Phường</p>
+                                      </td>
+                                      <td className="px-4 py-2 text-right font-semibold text-gray-700">{formatNumber(precinct.total)}</td>
+                                      <td className="px-4 py-2 text-right text-gray-700">{formatNumber(precinct.internal)}</td>
+                                      <td className="px-4 py-2 text-right text-gray-700">{formatNumber(precinct.quick)}</td>
+                                      <td className="px-4 py-2 text-right text-gray-700">{formatNumber(precinct.external)}</td>
+                                      <td className="px-4 py-2 text-right text-gray-300">—</td>
+                                      <td className="px-4 py-2" />
+                                      <td className="px-4 py-2" />
+                                    </tr>
+                                  ))}
+                              </React.Fragment>
+                            );
+                          })}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -700,15 +907,14 @@ const ProvinceDetailPanel: React.FC<{
     presenceCr: number | null;
   };
   drillStations: CoverageStation[];
-  drillOrders: UncoveredOrder[];
   onSelectProvince: (id: string) => void;
   onClose: () => void;
-}> = ({ selected, provinceRows, kpis, drillStations, drillOrders, onSelectProvince, onClose }) => {
+}> = ({ selected, provinceRows, kpis, drillStations, onSelectProvince, onClose }) => {
   const internalCount = drillStations.filter((station) => station.stationType === 'rescue_internal').length;
+  const quickCount = drillStations.filter((station) => station.stationType === 'rescue_quick').length;
   const externalCount = drillStations.filter((station) => station.stationType === 'rescue_external').length;
   const provinceList = [...provinceRows].sort((a, b) => {
-    const byStations = b.stations - a.stations;
-    if (byStations !== 0) return byStations;
+    if (b.stations !== a.stations) return b.stations - a.stations;
     return a.row.name.localeCompare(b.row.name, 'vi');
   });
 
@@ -730,6 +936,7 @@ const ProvinceDetailPanel: React.FC<{
         </dl>
         <dl className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
           <MiniStat label="Nội bộ (Carpla)" value={formatNumber(internalCount)} />
+          <MiniStat label="Quick Service" value={formatNumber(quickCount)} />
           <MiniStat label="Bên ngoài" value={formatNumber(externalCount)} />
           <MiniStat label="Tỉnh mức thấp" value={formatNumber(kpis.lowProvinces)} />
         </dl>
@@ -789,6 +996,7 @@ const ProvinceDetailPanel: React.FC<{
       <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
         <MiniStat label="Trạm nội tỉnh" value={formatNumber(selected.stations)} />
         <MiniStat label="Nội bộ" value={formatNumber(selected.internalStations)} />
+        <MiniStat label="Quick Service" value={formatNumber(selected.quickStations)} />
         <MiniStat label="Bên ngoài" value={formatNumber(selected.externalStations)} />
         <MiniStat label={`% mật độ (/${TARGET_STATIONS_PER_PROVINCE})`} value={formatCoverage(selected.cr)} />
       </dl>
@@ -806,18 +1014,6 @@ const ProvinceDetailPanel: React.FC<{
               {station.code} · {stationTypeLabel(station.stationType)} · {station.partner}
             </p>
             {station.address ? <p className="mt-0.5 text-[10px] leading-snug text-gray-500">{station.address}</p> : null}
-          </li>
-        ))}
-      </ul>
-
-      <h3 className="mt-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Hotspot đơn ngoài R</h3>
-      <ul className="mt-2 max-h-[28vh] space-y-2 overflow-y-auto">
-        {drillOrders.length === 0 && <li className="text-[11px] text-gray-400">Không có hotspot trong dữ liệu preview.</li>}
-        {drillOrders.map((order) => (
-          <li key={order.orderId} className="rounded-lg border border-red-50 bg-red-50/50 px-2.5 py-2">
-            <p className="text-xs font-bold text-gray-800">{order.orderId}</p>
-            <p className="text-[10px] text-gray-500">{order.address}</p>
-            <p className="text-[10px] font-semibold text-red-600">{order.distanceKm.toFixed(1)} km tới trạm gần nhất</p>
           </li>
         ))}
       </ul>

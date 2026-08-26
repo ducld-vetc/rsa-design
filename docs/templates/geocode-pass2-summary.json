@@ -1,0 +1,254 @@
+{
+  "added": 2,
+  "still": 90,
+  "overrideCount": 1490,
+  "details": [
+    {
+      "id": "1300",
+      "code": "Cứu Hộ lốp 24/24_01",
+      "source": "STRICT_NAME_PRECINCT",
+      "provinceCode": "PTH",
+      "districtCode": "TTH",
+      "precinctCode": "KHTHTHUY",
+      "address": "Xã Bất Bạt, Hà Nội, Việt Nam",
+      "display": "Xã Bất Bạt, Hà Nội, Việt Nam"
+    },
+    {
+      "id": "1736",
+      "code": "Kích Bình, Vá Lốp Cứu Hộ Ô Tô HN_01",
+      "source": "STRICT_NAME_PRECINCT",
+      "provinceCode": "HNO",
+      "districtCode": "SSO",
+      "precinctCode": "TXUA",
+      "address": "Trường Tiểu học Thăng Long, Ngõ 7 Đa Lộc, Xã Thiên Lộc, Hà Nội, 11909, Việt Nam",
+      "display": "Trường Tiểu học Thăng Long, Ngõ 7 Đa Lộc, Xã Thiên Lộc, Hà Nội, 11909, Việt Nam"
+    }
+  ],
+  "stillSample": [
+    {
+      "id": 66,
+      "code": "HaNoi_03_01",
+      "address": "Xã Liên Minh, Hà Nội, Việt Nam",
+      "lat": 21.130349,
+      "lng": 105.651051,
+      "prov": "HNO",
+      "display": "Xã Liên Minh, Hà Nội, Việt Nam"
+    },
+    {
+      "id": 69,
+      "code": "HQ_3_01",
+      "address": "96, Đường Lý Chiêu Hoàng, Phường Bình Phú, Thành phố Hồ Chí Minh, 73118, Việt Nam",
+      "lat": 10.738531,
+      "lng": 106.627471,
+      "prov": "HCM",
+      "display": "96, Đường Lý Chiêu Hoàng, Khu phố 8, Phường Bình Phú, Thành phố Hồ Chí Minh, 71910, Việt Nam"
+    },
+    {
+      "id": 374,
+      "code": "Tý Lốp_01",
+      "address": "Phường Phong Dinh, Thành phố Huế, Việt Nam",
+      "lat": 16.638085,
+      "lng": 107.389767,
+      "prov": "TTH",
+      "display": "Phường Phong Dinh, Thành phố Huế, Việt Nam"
+    },
+    {
+      "id": 394,
+      "code": "Lốp Ô Tô Hà Phát_01",
+      "address": "Hòa Lạc, Đường Làng Văn Hóa, Xã Yên Xuân, Hà Nội, Việt Nam",
+      "lat": 20.989901,
+      "lng": 105.520947,
+      "prov": "HNO",
+      "display": "Hòa Lạc, Đường Làng Văn Hóa, Xã Yên Xuân, Hà Nội, Việt Nam"
+    },
+    {
+      "id": 427,
+      "code": "PTD64CBF75_d2d1",
+      "address": "54 Đại lộ Bình Dương, Lái Thiêu, Hồ Chí Minh, Vietnam",
+      "lat": 21,
+      "lng": 105,
+      "prov": null,
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": 430,
+      "code": "CAR-NAN_31",
+      "address": "Quốc lộ 1, Xã An Châu, Tỉnh Nghệ An, Việt Nam",
+      "lat": 18.94327,
+      "lng": 105.604251,
+      "prov": "NAN",
+      "display": "Quốc lộ 1, Xã An Châu, Tỉnh Nghệ An, Việt Nam"
+    },
+    {
+      "id": 434,
+      "code": "PT7935A9A8_5ea2",
+      "address": "Đ. Nguyễn Văn Linh, Hưng Phú, Cần Thơ, Việt Nam",
+      "lat": 21,
+      "lng": 105,
+      "prov": null,
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": 458,
+      "code": "BR-VT01_01",
+      "address": "Đường 2 Tháng 9, Khu phố 15, Phường Tam Thắng, Thành phố Hồ Chí Minh, 76666, Việt Nam",
+      "lat": 10.356357,
+      "lng": 107.089334,
+      "prov": "HCM",
+      "display": "Đường 2 Tháng 9, Khu phố 16, Phường Tam Thắng, Thành phố Hồ Chí Minh, 76666, Việt Nam"
+    },
+    {
+      "id": 500,
+      "code": "PT9BE39152_4d14",
+      "address": "Khu phố Hiệp An 9, Phường Chánh Hiệp, Thành phố Hồ Chí Minh, 75111, Việt Nam",
+      "lat": 11,
+      "lng": 106,
+      "prov": null,
+      "display": "ឃុំស្វាយតាយាន, កំពង់រោទិ៍, ខេត្តស្វាយរៀង, Campuchia"
+    },
+    {
+      "id": 510,
+      "code": "PT7FFE3CA7_01fb",
+      "address": "Km46+500, QL5, TT. Lai Cách, Việt Hòa, Hải Phòng, Việt Nam",
+      "lat": 21,
+      "lng": 105,
+      "prov": null,
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": 513,
+      "code": "hn-01_01",
+      "address": "Đường tỉnh 413, Xã Suối Hai, Hà Nội, Việt Nam",
+      "lat": 21.158571,
+      "lng": 105.371091,
+      "prov": "HNO",
+      "display": "Đường tỉnh 413, Xã Suối Hai, Hà Nội, Việt Nam"
+    },
+    {
+      "id": 573,
+      "code": "PTC98D5729_98b7",
+      "address": "Hà Nội",
+      "lat": 21,
+      "lng": 105,
+      "prov": null,
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": 574,
+      "code": "PT4B93C92F_8eca",
+      "address": "430 Nguyễn Xiển, P Long Bình, TP.HCM ",
+      "lat": 21,
+      "lng": 105,
+      "prov": null,
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": 580,
+      "code": "PT4651DCE4_5836",
+      "address": "Võ Thị Sáu, Xuân Hòa, Hồ Chí Minh, Việt Nam",
+      "lat": 21,
+      "lng": 105,
+      "prov": null,
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": 632,
+      "code": "123123_01",
+      "address": "20, Phố Hội Vũ, Khu phố cổ, Phường Hoàn Kiếm, Hà Nội, 11024, Việt Nam",
+      "lat": 21.0285,
+      "lng": 105.8452,
+      "prov": "HCM",
+      "display": "20, Ngõ Hội Vũ, Khu phố cổ, Phường Hoàn Kiếm, Hà Nội, 11024, Việt Nam"
+    },
+    {
+      "id": 649,
+      "code": "HUE- Cứu hộ giao thông Hưng Lộc_01",
+      "address": "Tỉnh lộ 14B, Xã Hưng Lộc, Thành phố Huế, 52000, Việt Nam",
+      "lat": 16.308537,
+      "lng": 107.718969,
+      "prov": "TTH",
+      "display": "Tỉnh lộ 14B, Xã Hưng Lộc, Thành phố Huế, 52000, Việt Nam"
+    },
+    {
+      "id": 656,
+      "code": "PTADB5FFE0_693b",
+      "address": "459/7 Tổ 17 Kp3, Tân Thới Hiệp, Hồ Chí Minh 700000, Việt Nam",
+      "lat": 21,
+      "lng": 105,
+      "prov": null,
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": 661,
+      "code": "PT605AA3C7_2ad1",
+      "address": "Đồng Nai ",
+      "lat": 21,
+      "lng": 105,
+      "prov": null,
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": 680,
+      "code": "PT5F528C49_d485",
+      "address": "726Q+R4 Diên Thọ, Khánh Hòa, Việt Nam",
+      "lat": 21,
+      "lng": 105,
+      "prov": null,
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": 727,
+      "code": "PTE80D06D9_d695",
+      "address": "Hải Phòng",
+      "lat": 21,
+      "lng": 105,
+      "prov": null,
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": 734,
+      "code": "ĐTA Cứu Hộ Thao Nhi_01",
+      "address": "Phường Sơn Qui, Tỉnh Đồng Tháp, Việt Nam",
+      "lat": 10.414838,
+      "lng": 106.674831,
+      "prov": "DTH",
+      "display": "Phường Sơn Qui, Tỉnh Đồng Tháp, Việt Nam"
+    },
+    {
+      "id": 735,
+      "code": "PT0DD15DEA_7a83",
+      "address": "Nút giao Túy Loan, Cầu vượt cao tốc, Xã Bà Nà, Thành phố Đà Nẵng, Việt Nam",
+      "lat": 16,
+      "lng": 108,
+      "prov": null,
+      "display": "Ga De Bay, Wine Cellar, Xã Bà Nà, Thành phố Đà Nẵng, Việt Nam"
+    },
+    {
+      "id": 736,
+      "code": "HCM-ẮC quy Huy Hậu_01",
+      "address": "Đường tỉnh 744, Rạch Bắp, Phường Tây Nam, Thành phố Hồ Chí Minh, Việt Nam",
+      "lat": 11.131097,
+      "lng": 106.518698,
+      "prov": "HCM",
+      "display": "Đường tỉnh 744, Rạch Bắp, Phường Tây Nam, Thành phố Hồ Chí Minh, Việt Nam"
+    },
+    {
+      "id": 740,
+      "code": "PT0755D14D_9e8d",
+      "address": "Quốc lộ 3, Xã Phúc Thịnh, Thành phố Hà Nội, Việt Nam",
+      "lat": 21,
+      "lng": 105,
+      "prov": "HNO",
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    },
+    {
+      "id": 753,
+      "code": "PT16C0919D_8eed",
+      "address": "Đan Loan, Nguyễn Lương Bằng, Hải Phòng, Việt Nam",
+      "lat": 21,
+      "lng": 105,
+      "prov": null,
+      "display": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam"
+    }
+  ]
+}

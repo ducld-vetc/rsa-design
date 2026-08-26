@@ -1,0 +1,470 @@
+{
+  "an phu": [
+    "an phu",
+    "vinh hoi dong",
+    "hu hoi",
+    "huoc hung"
+  ],
+  "vinh hau": [
+    "da phuoc",
+    "vinh truong",
+    "vinh hau"
+  ],
+  "nhon hoi": [
+    "uoc thai",
+    "nhon hoi",
+    "huoc hung"
+  ],
+  "khanh binh": [
+    "long binh",
+    "khanh an",
+    "khanh binh"
+  ],
+  "hu huu": [
+    "hu huu",
+    "vinh loc"
+  ],
+  "tan an": [
+    "tan an",
+    "tan thanh",
+    "long an"
+  ],
+  "chau phong": [
+    "hu vinh",
+    "le chanh",
+    "chau phong"
+  ],
+  "vinh xuong": [
+    "vinh hoa",
+    "hu loc",
+    "vinh xuong"
+  ],
+  "hu tan": [
+    "tan hoa",
+    "tan trung",
+    "hu hung",
+    "hu my"
+  ],
+  "hu an": [
+    "hu tho",
+    "hu xuan",
+    "hu an"
+  ],
+  "binh thanh dong": [
+    "iep xuong",
+    "hu binh",
+    "binh thanh dong"
+  ],
+  "cho vam": [
+    "cho vam",
+    "hu thanh"
+  ],
+  "oa lac": [
+    "hu hiep",
+    "oa lac"
+  ],
+  "hu lam": [
+    "long hoa",
+    "hu long",
+    "hu lam"
+  ],
+  "chau phu": [
+    "cai dau",
+    "binh long",
+    "binh phu"
+  ],
+  "my duc": [
+    "khanh hoa",
+    "my duc"
+  ],
+  "vinh thanh trung": [
+    "vinh thanh trung",
+    "my phu"
+  ],
+  "binh my": [
+    "binh thuy",
+    "binh chanh",
+    "binh my"
+  ],
+  "thanh my tay": [
+    "dao huu canh",
+    "o long vi",
+    "thanh my tay"
+  ],
+  "an cu": [
+    "van giao",
+    "vinh trung",
+    "an cu"
+  ],
+  "nui cam": [
+    "tan lap",
+    "an hao"
+  ],
+  "ba chuc": [
+    "ba chuc",
+    "lac quoi",
+    "le tri"
+  ],
+  "tri ton": [
+    "tri ton",
+    "nui to",
+    "chau lang"
+  ],
+  "o lam": [
+    "an tuc",
+    "luong phi",
+    "o lam"
+  ],
+  "co to": [
+    "co to",
+    "ta danh",
+    "tan tuyen"
+  ],
+  "vinh gia": [
+    "vinh phuoc",
+    "luong an tra",
+    "vinh gia"
+  ],
+  "an chau": [
+    "an chau",
+    "oa binh thanh",
+    "vinh"
+  ],
+  "binh hoa": [
+    "binh thanh",
+    "an hoa",
+    "binh hoa"
+  ],
+  "can dang": [
+    "vinh loi",
+    "can dang"
+  ],
+  "vinh hanh": [
+    "vinh nhuan",
+    "vinh hanh"
+  ],
+  "vinh an": [
+    "vinh binh",
+    "tan phu",
+    "vinh an"
+  ],
+  "cho moi": [
+    "cho moi",
+    "kien an",
+    "kien"
+  ],
+  "cu lao gieng": [
+    "tan my",
+    "my hiep",
+    "binh phuoc xuan"
+  ],
+  "oi an": [
+    "oi an",
+    "oa an",
+    "oa binh",
+    "cho moi va xa hoa binh"
+  ],
+  "long dien": [
+    "my luong",
+    "long dien a",
+    "long dien b"
+  ],
+  "nhon my": [
+    "my hoi dong",
+    "long giang",
+    "nhon my"
+  ],
+  "long kien": [
+    "an thanh trung",
+    "my an",
+    "long kien"
+  ],
+  "thoai son": [
+    "nui sap",
+    "thoai giang",
+    "binh"
+  ],
+  "oc eo": [
+    "oc eo",
+    "vong the",
+    "vong dong"
+  ],
+  "dinh my": [
+    "vinh phu",
+    "dinh"
+  ],
+  "hu hoa": [
+    "hu hoa",
+    "hu thuan",
+    "vinh chanh"
+  ],
+  "vinh trach": [
+    "vinh khanh",
+    "vinh trach"
+  ],
+  "tay phu": [
+    "an binh",
+    "my phu dong",
+    "tay phu"
+  ],
+  "vinh binh": [
+    "vinh binh bac",
+    "vinh binh nam",
+    "binh minh"
+  ],
+  "vinh thuan": [
+    "tan thuan",
+    "vinh thuan"
+  ],
+  "vinh phong": [
+    "vinh thuan",
+    "hong dong",
+    "vinh phong"
+  ],
+  "vinh hoa": [
+    "vinh hoa",
+    "thanh yen a",
+    "oa chanh",
+    "thanh yen"
+  ],
+  "u minh thuong": [
+    "an minh bac",
+    "minh thuan"
+  ],
+  "dong hoa": [
+    "dong thanh",
+    "dong hoa"
+  ],
+  "tan thanh": [
+    "tan thanh",
+    "thuan hoa",
+    "an minh va xa thuan hoa"
+  ],
+  "dong hung": [
+    "van khanh dong",
+    "dong hung a"
+  ],
+  "an minh": [
+    "thu muoi mot",
+    "dong hung",
+    "dong hung b"
+  ],
+  "van khanh": [
+    "van khanh tay",
+    "van khanh"
+  ],
+  "tay yen": [
+    "tay yen a",
+    "nam yen",
+    "tay yen"
+  ],
+  "dong thai": [
+    "nam thai",
+    "nam thai a",
+    "dong thai"
+  ],
+  "an bien": [
+    "thu ba",
+    "dong yen",
+    "ung yen"
+  ],
+  "dinh hoa": [
+    "thoi quan",
+    "thuy lieu",
+    "dinh hoa"
+  ],
+  "go quao": [
+    "go quao",
+    "vinh phuoc b",
+    "dinh an"
+  ],
+  "vinh hoa hung": [
+    "vinh hoa hung bac",
+    "vinh hoa hung nam"
+  ],
+  "vinh tuy": [
+    "vinh thang",
+    "vinh phuoc a",
+    "vinh tuy"
+  ],
+  "giong rieng": [
+    "ban tan dinh",
+    "thanh hoa",
+    "ban thach",
+    "thanh binh",
+    "giong rieng"
+  ],
+  "thanh hung": [
+    "thanh loc",
+    "thanh phuoc",
+    "thanh hung"
+  ],
+  "long thanh": [
+    "vinh phu",
+    "vinh thanh",
+    "long thanh"
+  ],
+  "oa hung": [
+    "oa an",
+    "oa loi",
+    "oa hung"
+  ],
+  "ngoc chuc": [
+    "ngoc thuan",
+    "ngoc"
+  ],
+  "oa thuan": [
+    "ngoc hoa",
+    "oa thuan"
+  ],
+  "tan hoi": [
+    "tan hoa",
+    "tan an",
+    "tan thanh",
+    "tan hoi"
+  ],
+  "tan hiep": [
+    "tan hiep b",
+    "thanh dong b",
+    "thanh dong",
+    "tan hiep"
+  ],
+  "thanh dong": [
+    "tan hiep a",
+    "thanh tri",
+    "thanh dong a"
+  ],
+  "thanh loc": [
+    "thanh loc",
+    "mong tho",
+    "mong tho a",
+    "mong tho b"
+  ],
+  "chau thanh": [
+    "minh luong",
+    "minh hoa",
+    "giuc tuong"
+  ],
+  "binh an": [
+    "binh an",
+    "vinh hoa hiep",
+    "vinh hoa phu"
+  ],
+  "on dat": [
+    "linh huynh",
+    "tho son",
+    "nam thai son",
+    "on dat"
+  ],
+  "son kien": [
+    "son binh",
+    "my thai",
+    "son kien"
+  ],
+  "my thuan": [
+    "my hiep son",
+    "my phuoc",
+    "my thuan",
+    "soc son"
+  ],
+  "oa dien": [
+    "kien binh",
+    "oa dien"
+  ],
+  "kien luong": [
+    "kien luong",
+    "binh an",
+    "binh tri",
+    "kien luong va xa binh tri"
+  ],
+  "giang thanh": [
+    "tan khanh hoa",
+    "hu loi",
+    "hu my"
+  ],
+  "vinh dieu": [
+    "vinh phu",
+    "vinh dieu",
+    "giang thanh va xa vinh dieu"
+  ],
+  "long xuyen": [
+    "my binh",
+    "my long",
+    "my xuyen",
+    "my phuoc",
+    "my quy",
+    "my hoa"
+  ],
+  "binh duc": [
+    "binh khanh",
+    "binh duc",
+    "my khanh"
+  ],
+  "my thoi": [
+    "my thanh",
+    "my thoi"
+  ],
+  "chau doc": [
+    "vinh nguon",
+    "chau phu a",
+    "chau phu b",
+    "vinh my",
+    "uy mo dan so cua xa vinh chau",
+    "vinh chau"
+  ],
+  "vinh te": [
+    "nui sam",
+    "vinh te"
+  ],
+  "tan chau": [
+    "long thanh",
+    "long son"
+  ],
+  "long phu": [
+    "long hung",
+    "long chau",
+    "long phu"
+  ],
+  "tinh bien": [
+    "an phu",
+    "tinh bien",
+    "an nong"
+  ],
+  "thoi son": [
+    "nhon hung",
+    "nha bang",
+    "thoi son"
+  ],
+  "chi lang": [
+    "nui voi",
+    "chi lang",
+    "tan loi"
+  ],
+  "vinh thong": [
+    "vinh thong",
+    "hi thong",
+    "my lam"
+  ],
+  "rach gia": [
+    "vinh quang",
+    "vinh thanh",
+    "vinh thanh van",
+    "vinh lac",
+    "an hoa",
+    "vinh hiep",
+    "an binh",
+    "rach soi",
+    "vinh loi"
+  ],
+  "a tien": [
+    "hao dai",
+    "binh san",
+    "my duc",
+    "dong ho"
+  ],
+  "to chau": [
+    "to chau",
+    "thuan yen",
+    "duong hoa"
+  ]
+}

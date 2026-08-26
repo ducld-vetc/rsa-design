@@ -1,0 +1,5964 @@
+[
+  {
+    "id": 66,
+    "code": "HaNoi_03_01",
+    "address": "Xã Liên Minh, Hà Nội, Việt Nam",
+    "display_name": "Xã Liên Minh, Hà Nội, Việt Nam",
+    "tokens": [
+      "city_district=Xã Liên Minh",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "HNO",
+    "hit": {
+      "provinceCode": "HTI",
+      "districtCode": "DTH",
+      "precinctCode": "LMIN",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Liên Minh"
+    }
+  },
+  {
+    "id": 69,
+    "code": "HQ_3_01",
+    "address": "96, Đường Lý Chiêu Hoàng, Phường Bình Phú, Thành phố Hồ Chí Minh, 73118, Việt Nam",
+    "display_name": "96, Đường Lý Chiêu Hoàng, Khu phố 8, Phường Bình Phú, Thành phố Hồ Chí Minh, 71910, Việt Nam",
+    "tokens": [
+      "suburb=Phường Bình Phú",
+      "neighbourhood=Khu phố 8",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": {
+      "provinceCode": "AGI",
+      "districtCode": "CPH",
+      "precinctCode": "BPHU",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Bình Phú"
+    }
+  },
+  {
+    "id": 125,
+    "code": "CaoBang_01_01",
+    "address": "Tổ dân phố 21, Phường Nùng Trí Cao, Tỉnh Cao Bằng, 27000, Việt Nam",
+    "display_name": "Đường Pác Bó, Phường Nùng Trí Cao, Cao Bằng, Tỉnh Cao Bằng, 21110, Việt Nam",
+    "tokens": [
+      "suburb=Phường Nùng Trí Cao",
+      "city=Cao Bằng",
+      "state=Tỉnh Cao Bằng"
+    ],
+    "preferredProvince": "CBA",
+    "hit": {
+      "provinceCode": "CBA",
+      "districtCode": "CBA",
+      "precinctCode": "DTHA",
+      "confidence": "GEO_DISTRICT",
+      "matched": "TP. Cao Bằng"
+    }
+  },
+  {
+    "id": 309,
+    "code": "CUUHO_HUE_01",
+    "address": "Đường số 20, Thủy Dương, Phường Thanh Thủy, Thành phố Huế, 54000, Việt Nam",
+    "display_name": "Đường số 20, Thủy Dương, Phường Thanh Thủy, Thành phố Huế, 54000, Việt Nam",
+    "tokens": [
+      "quarter=Thủy Dương",
+      "city=Phường Thanh Thủy"
+    ],
+    "preferredProvince": "TTH",
+    "hit": {
+      "provinceCode": "TTH",
+      "districtCode": "HTH",
+      "precinctCode": "TDUO",
+      "confidence": "GEO_PRECINCT",
+      "matched": "P.Thủy Dương"
+    }
+  },
+  {
+    "id": 330,
+    "code": "CAR-ĐNG_51",
+    "address": "Hùng Vương, Phường Bàn Thạch, Thành phố Đà Nẵng, Việt Nam",
+    "display_name": "Hùng Vương, Phường Bàn Thạch, Tam Kỳ, Thành phố Đà Nẵng, Việt Nam",
+    "tokens": [
+      "suburb=Phường Bàn Thạch",
+      "city=Tam Kỳ"
+    ],
+    "preferredProvince": "DNA",
+    "hit": {
+      "provinceCode": "KGI",
+      "districtCode": "GRI",
+      "precinctCode": "BTHA",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Bàn Thạch"
+    }
+  },
+  {
+    "id": 345,
+    "code": "thay lốpp_01",
+    "address": "Tỉnh Đồng Nai, Việt Nam",
+    "display_name": "Ấp Lý Lịch, Xã Phú Lý, Thành phố Đồng Nai, Việt Nam",
+    "tokens": [
+      "village=Ấp Lý Lịch",
+      "county=Xã Phú Lý",
+      "state=Thành phố Đồng Nai"
+    ],
+    "preferredProvince": "DNI",
+    "hit": {
+      "provinceCode": "DNI",
+      "districtCode": "DQU",
+      "precinctCode": "PHLY",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Phú Lý"
+    }
+  },
+  {
+    "id": 346,
+    "code": "LOP_HUE_01",
+    "address": "Vị trí (16.51559896700118, 107.49047365767056)",
+    "display_name": "Đường Lý Nhân Tông, Tổ dân phố Văn Xá 2, Phường Hương Trà, Thành phố Huế, Việt Nam",
+    "tokens": [
+      "quarter=Tổ dân phố Văn Xá 2",
+      "city=Phường Hương Trà"
+    ],
+    "preferredProvince": "TTH",
+    "hit": {
+      "provinceCode": "HTI",
+      "districtCode": "HKH",
+      "precinctCode": "HUTR",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Hương Trà"
+    }
+  },
+  {
+    "id": 356,
+    "code": "CAR-ĐBB_91",
+    "address": "Tổ dân phố Đề Thám 2, Phường Thục Phán, Tỉnh Cao Bằng, 21110, Việt Nam",
+    "display_name": "Thục Phán, Cao Bằng, Phường Thục Phán, Tỉnh Cao Bằng, 21110, Việt Nam",
+    "tokens": [
+      "suburb=Thục Phán",
+      "city=Cao Bằng",
+      "state=Tỉnh Cao Bằng"
+    ],
+    "preferredProvince": "CBA",
+    "hit": {
+      "provinceCode": "CBA",
+      "districtCode": "CBA",
+      "precinctCode": "DTHA",
+      "confidence": "GEO_DISTRICT",
+      "matched": "TP. Cao Bằng"
+    }
+  },
+  {
+    "id": 374,
+    "code": "Tý Lốp_01",
+    "address": "Phường Phong Dinh, Thành phố Huế, Việt Nam",
+    "display_name": "Phường Phong Dinh, Thành phố Huế, Việt Nam",
+    "tokens": [
+      "city=Phường Phong Dinh"
+    ],
+    "preferredProvince": "TTH",
+    "hit": null
+  },
+  {
+    "id": 394,
+    "code": "Lốp Ô Tô Hà Phát_01",
+    "address": "Hòa Lạc, Đường Làng Văn Hóa, Xã Yên Xuân, Hà Nội, Việt Nam",
+    "display_name": "Hòa Lạc, Đường Làng Văn Hóa, Xã Yên Xuân, Hà Nội, Việt Nam",
+    "tokens": [
+      "city_district=Xã Yên Xuân",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "HNO",
+    "hit": null
+  },
+  {
+    "id": 427,
+    "code": "PTD64CBF75_d2d1",
+    "address": "54 Đại lộ Bình Dương, Lái Thiêu, Hồ Chí Minh, Vietnam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 430,
+    "code": "CAR-NAN_31",
+    "address": "Quốc lộ 1, Xã An Châu, Tỉnh Nghệ An, Việt Nam",
+    "display_name": "Quốc lộ 1, Xã An Châu, Tỉnh Nghệ An, Việt Nam",
+    "tokens": [
+      "town=Xã An Châu",
+      "state=Tỉnh Nghệ An"
+    ],
+    "preferredProvince": "NAN",
+    "hit": {
+      "provinceCode": "BGI",
+      "districtCode": "SDO",
+      "precinctCode": "ACHU",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã An Châu"
+    }
+  },
+  {
+    "id": 434,
+    "code": "PT7935A9A8_5ea2",
+    "address": "Đ. Nguyễn Văn Linh, Hưng Phú, Cần Thơ, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 458,
+    "code": "BR-VT01_01",
+    "address": "Đường 2 Tháng 9, Khu phố 15, Phường Tam Thắng, Thành phố Hồ Chí Minh, 76666, Việt Nam",
+    "display_name": "Đường 2 Tháng 9, Khu phố 16, Phường Tam Thắng, Thành phố Hồ Chí Minh, 76666, Việt Nam",
+    "tokens": [
+      "suburb=Phường Tam Thắng",
+      "neighbourhood=Khu phố 16",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": {
+      "provinceCode": "DNO",
+      "districtCode": "CJU",
+      "precinctCode": "TTHA",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Tâm Thắng"
+    }
+  },
+  {
+    "id": 500,
+    "code": "PT9BE39152_4d14",
+    "address": "Khu phố Hiệp An 9, Phường Chánh Hiệp, Thành phố Hồ Chí Minh, 75111, Việt Nam",
+    "display_name": "ឃុំស្វាយតាយាន, កំពង់រោទិ៍, ខេត្តស្វាយរៀង, Campuchia",
+    "tokens": [],
+    "preferredProvince": null,
+    "hit": null
+  },
+  {
+    "id": 510,
+    "code": "PT7FFE3CA7_01fb",
+    "address": "Km46+500, QL5, TT. Lai Cách, Việt Hòa, Hải Phòng, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 513,
+    "code": "hn-01_01",
+    "address": "Đường tỉnh 413, Xã Suối Hai, Hà Nội, Việt Nam",
+    "display_name": "Đường tỉnh 413, Xã Suối Hai, Hà Nội, Việt Nam",
+    "tokens": [
+      "city_district=Xã Suối Hai",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "HNO",
+    "hit": null
+  },
+  {
+    "id": 557,
+    "code": "HN_TGL_51",
+    "address": "Đường Trần Liễu, An Cường, Phường Phạm Sư Mạnh, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Đường Trần Liễu, Phường Phạm Sư Mạnh, Phường Kinh Môn, Thành phố Hải Phòng, Việt Nam",
+    "tokens": [
+      "suburb=Phường Phạm Sư Mạnh",
+      "city=Phường Kinh Môn"
+    ],
+    "preferredProvince": "HPH",
+    "hit": null
+  },
+  {
+    "id": 573,
+    "code": "PTC98D5729_98b7",
+    "address": "Hà Nội",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 574,
+    "code": "PT4B93C92F_8eca",
+    "address": "430 Nguyễn Xiển, P Long Bình, TP.HCM ",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 580,
+    "code": "PT4651DCE4_5836",
+    "address": "Võ Thị Sáu, Xuân Hòa, Hồ Chí Minh, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 632,
+    "code": "123123_01",
+    "address": "20, Phố Hội Vũ, Khu phố cổ, Phường Hoàn Kiếm, Hà Nội, 11024, Việt Nam",
+    "display_name": "20, Ngõ Hội Vũ, Khu phố cổ, Phường Hoàn Kiếm, Hà Nội, 11024, Việt Nam",
+    "tokens": [
+      "suburb=Phường Hoàn Kiếm",
+      "quarter=Khu phố cổ",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "HCM",
+    "hit": null
+  },
+  {
+    "id": 649,
+    "code": "HUE- Cứu hộ giao thông Hưng Lộc_01",
+    "address": "Tỉnh lộ 14B, Xã Hưng Lộc, Thành phố Huế, 52000, Việt Nam",
+    "display_name": "Tỉnh lộ 14B, Xã Hưng Lộc, Thành phố Huế, 52000, Việt Nam",
+    "tokens": [
+      "town=Xã Hưng Lộc"
+    ],
+    "preferredProvince": "TTH",
+    "hit": {
+      "provinceCode": "DNI",
+      "districtCode": "TNH",
+      "precinctCode": "HLOC",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Hưng Lộc"
+    }
+  },
+  {
+    "id": 656,
+    "code": "PTADB5FFE0_693b",
+    "address": "459/7 Tổ 17 Kp3, Tân Thới Hiệp, Hồ Chí Minh 700000, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 661,
+    "code": "PT605AA3C7_2ad1",
+    "address": "Đồng Nai ",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 680,
+    "code": "PT5F528C49_d485",
+    "address": "726Q+R4 Diên Thọ, Khánh Hòa, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 684,
+    "code": "LOP_NA_01",
+    "address": "Đi Quốc lộ 7, Diễn Cát, Xã Minh Châu, Tỉnh Nghệ An, Việt Nam",
+    "display_name": "Đi Quốc lộ 7, Diễn Cát, Xã Minh Châu, Tỉnh Nghệ An, Việt Nam",
+    "tokens": [
+      "town=Xã Minh Châu",
+      "village=Diễn Cát",
+      "state=Tỉnh Nghệ An"
+    ],
+    "preferredProvince": "NAN",
+    "hit": {
+      "provinceCode": "NAN",
+      "districtCode": "DCH",
+      "precinctCode": "DCAT",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Diễn Cát"
+    }
+  },
+  {
+    "id": 727,
+    "code": "PTE80D06D9_d695",
+    "address": "Hải Phòng",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 734,
+    "code": "ĐTA Cứu Hộ Thao Nhi_01",
+    "address": "Phường Sơn Qui, Tỉnh Đồng Tháp, Việt Nam",
+    "display_name": "Phường Sơn Qui, Tỉnh Đồng Tháp, Việt Nam",
+    "tokens": [
+      "county=Phường Sơn Qui",
+      "state=Tỉnh Đồng Tháp"
+    ],
+    "preferredProvince": "DTH",
+    "hit": null
+  },
+  {
+    "id": 735,
+    "code": "PT0DD15DEA_7a83",
+    "address": "Nút giao Túy Loan, Cầu vượt cao tốc, Xã Bà Nà, Thành phố Đà Nẵng, Việt Nam",
+    "display_name": "Ga De Bay, Wine Cellar, Xã Bà Nà, Thành phố Đà Nẵng, Việt Nam",
+    "tokens": [
+      "city_district=Xã Bà Nà",
+      "city=Thành phố Đà Nẵng"
+    ],
+    "preferredProvince": "DNA",
+    "hit": null
+  },
+  {
+    "id": 736,
+    "code": "HCM-ẮC quy Huy Hậu_01",
+    "address": "Đường tỉnh 744, Rạch Bắp, Phường Tây Nam, Thành phố Hồ Chí Minh, Việt Nam",
+    "display_name": "Đường tỉnh 744, Rạch Bắp, Phường Tây Nam, Thành phố Hồ Chí Minh, Việt Nam",
+    "tokens": [
+      "suburb=Phường Tây Nam",
+      "quarter=Rạch Bắp",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": null
+  },
+  {
+    "id": 740,
+    "code": "PT0755D14D_9e8d",
+    "address": "Quốc lộ 3, Xã Phúc Thịnh, Thành phố Hà Nội, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": "HNO",
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 753,
+    "code": "PT16C0919D_8eed",
+    "address": "Đan Loan, Nguyễn Lương Bằng, Hải Phòng, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 856,
+    "code": "PT12E97FF5_9aea",
+    "address": "Đắk Lắk",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 862,
+    "code": "CAR-NAN_51",
+    "address": "Hòa Sơn, Xã Văn Hiến, Tỉnh Nghệ An, Việt Nam",
+    "display_name": "Hòa Sơn, Xã Văn Hiến, Tỉnh Nghệ An, Việt Nam",
+    "tokens": [
+      "town=Xã Văn Hiến",
+      "village=Hòa Sơn",
+      "state=Tỉnh Nghệ An"
+    ],
+    "preferredProvince": "NAN",
+    "hit": {
+      "provinceCode": "NAN",
+      "districtCode": "DLU",
+      "precinctCode": "HSO2",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Hòa Sơn"
+    }
+  },
+  {
+    "id": 868,
+    "code": "PTCCCB424F_bd89",
+    "address": "Đà Nẵng",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 870,
+    "code": "PTE39DB13A_c874",
+    "address": "Quảng Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 871,
+    "code": "PTFF03E35E_96d6",
+    "address": "Quảng Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 885,
+    "code": "PTEEF11A9D_1966",
+    "address": "929M+4R Hội Cư, Đồng Tháp, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 901,
+    "code": "PT39191840_a187",
+    "address": "Xã Ứng Thiên, Thành phố Hà Nội, 13524, Việt Nam",
+    "display_name": "Xã Bát Mọt, Tỉnh Thanh Hóa, Việt Nam",
+    "tokens": [
+      "town=Xã Bát Mọt",
+      "state=Tỉnh Thanh Hóa"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "THO",
+      "districtCode": "TXA",
+      "precinctCode": "BMOT",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Bát Mọt"
+    }
+  },
+  {
+    "id": 902,
+    "code": "PT43FA4D52_9e83",
+    "address": "6MFV+38Q, AH1, Quỳnh Mai, Nghệ An, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 919,
+    "code": "PT41A9C8C8_0c44",
+    "address": "Xã Thần Lĩnh, Tỉnh Nghệ An, Việt Nam",
+    "display_name": "Phonkeo, Khamkeuth, Borikhamxay, Lào",
+    "tokens": [
+      "village=Phonkeo",
+      "county=Khamkeuth",
+      "state=Borikhamxay"
+    ],
+    "preferredProvince": null,
+    "hit": null
+  },
+  {
+    "id": 928,
+    "code": "PTEFAB1604_e40b",
+    "address": "Hồ Chí Minh",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 937,
+    "code": "PTE4CD0C71_51dd",
+    "address": "18A Võ Nguyên Giáp, P, Hưng Phú, Cần Thơ 94000, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 954,
+    "code": "PT4F36141F_b576",
+    "address": "Cầu suối hàng, Tu Bông, Khánh Hòa, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 957,
+    "code": "PTA66EFD62_9446",
+    "address": "W4MH+XP Phú Thủy, Bình Thuận, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 959,
+    "code": "PTAA1A2743_7686",
+    "address": "454 Trần Văn Giàu, Tân Tạo, Hồ Chí Minh 70000, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 978,
+    "code": "PT0C508367_2c1d",
+    "address": "121 Nguyễn Hữu Thọ, Hòa Cường, Đà Nẵng 550000, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1017,
+    "code": "PT88DAF139_b805",
+    "address": "ĐCT Hàm Nghi - Vũng Áng",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1024,
+    "code": "PT809C6FD5_ed6d",
+    "address": "Quốc lộ 48E, Nghi Mỹ, Xã Thần Lĩnh, Tỉnh Nghệ An, Việt Nam",
+    "display_name": "Phonkeo, Khamkeuth, Borikhamxay, Lào",
+    "tokens": [
+      "village=Phonkeo",
+      "county=Khamkeuth",
+      "state=Borikhamxay"
+    ],
+    "preferredProvince": null,
+    "hit": null
+  },
+  {
+    "id": 1041,
+    "code": "Cứu Hộ Giao Thông Long Giang_01",
+    "address": "Đường tỉnh 421B, Xã Kiều Phú, Hà Nội, 01234, Việt Nam",
+    "display_name": "Đường tỉnh 421B, Xã Kiều Phú, Hà Nội, 01234, Việt Nam",
+    "tokens": [
+      "city_district=Xã Kiều Phú",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "HNO",
+    "hit": null
+  },
+  {
+    "id": 1045,
+    "code": "PT4D5181A5_72f8",
+    "address": "Đường cao tốc Hà Nội-Hải Phòng, Xã Nguyễn Lương Bằng, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Xã Nga Sơn, Tỉnh Thanh Hóa, Việt Nam",
+    "tokens": [
+      "town=Xã Nga Sơn",
+      "state=Tỉnh Thanh Hóa"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "LAN",
+      "districtCode": "THO",
+      "precinctCode": "THAN",
+      "confidence": "GEO_DISTRICT",
+      "matched": "H.Thạnh Hóa"
+    }
+  },
+  {
+    "id": 1047,
+    "code": "PT6CC91876_bcc4",
+    "address": "Hà Nội",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1060,
+    "code": "PTD8643323_c6d6",
+    "address": "77 Đ. Nguyễn Văn Linh, Phúc Lợi, Hà Nội, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1103,
+    "code": "PTDA18BC38_3e55",
+    "address": "Thôn 5, Xã Ea Riêng, Tỉnh Đắk Lắk, Việt Nam",
+    "display_name": "Xã Tà Đùng, Tỉnh Lâm Đồng, Việt Nam",
+    "tokens": [
+      "county=Xã Tà Đùng",
+      "state=Tỉnh Lâm Đồng"
+    ],
+    "preferredProvince": null,
+    "hit": null
+  },
+  {
+    "id": 1108,
+    "code": "PTE40D6783_1dfe",
+    "address": "5QQC+929, ĐT35, Quang Minh, Hà Nội, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1123,
+    "code": "PTCB2989FE_9887",
+    "address": "Xã Bà Nà, Thành phố Đà Nẵng, 51000, Việt Nam",
+    "display_name": "Ga De Bay, Wine Cellar, Xã Bà Nà, Thành phố Đà Nẵng, Việt Nam",
+    "tokens": [
+      "city_district=Xã Bà Nà",
+      "city=Thành phố Đà Nẵng"
+    ],
+    "preferredProvince": "DNA",
+    "hit": null
+  },
+  {
+    "id": 1124,
+    "code": "LOP_DALAT_01",
+    "address": "Tổ dân phố 2, D'Ran, Xã D'Ran, Tỉnh Lâm Đồng, Việt Nam",
+    "display_name": "Tổ dân phố 2, D'Ran, Xã D'Ran, Tỉnh Lâm Đồng, Việt Nam",
+    "tokens": [
+      "quarter=Tổ dân phố 2",
+      "town=D'Ran",
+      "county=Xã D'Ran",
+      "state=Tỉnh Lâm Đồng"
+    ],
+    "preferredProvince": "LDO",
+    "hit": null
+  },
+  {
+    "id": 1136,
+    "code": "PT125C1B6E_95a5",
+    "address": "20.730865598800087, 106.1119034810229",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1145,
+    "code": "PTAEE8553E_c414",
+    "address": "5QMW+5F Phúc Thịnh, Hà Nội, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1149,
+    "code": "PT695A360B_04b3",
+    "address": "105 Nguyễn Văn Cừ, Tân Lập, Đắk Lắk 630000, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1163,
+    "code": "PTC8385CE3_e8a2",
+    "address": "số 302, Quán Rẽ, An Khánh, Hải Phòng, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1171,
+    "code": "PTD2DFC836_70b0",
+    "address": "5PG7+7PR, Khe Tre, Huế, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1197,
+    "code": "GR_LONGBIEN_01",
+    "address": "Khu đô thị Sài Đồng, Phường Phúc Lợi, Hà Nội, 08443, Việt Nam",
+    "display_name": "Khu đô thị Sài Đồng, Phường Phúc Lợi, Hà Nội, 08443, Việt Nam",
+    "tokens": [
+      "suburb=Phường Phúc Lợi",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "HNO",
+    "hit": {
+      "provinceCode": "YBA",
+      "districtCode": "LYE",
+      "precinctCode": "PLOI",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Phúc Lợi"
+    }
+  },
+  {
+    "id": 1226,
+    "code": "PT9E2029A2_57bb",
+    "address": "Hồ Chí Minh",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1250,
+    "code": "PT51991623_4111",
+    "address": "18.42066651117783, 105.7344615116663",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1254,
+    "code": "PT6A4CEF87_d940",
+    "address": "Hẻm 173 Võ Thành Trang, Phường Bảy Hiền, Thành phố Hồ Chí Minh, 72117, Việt Nam",
+    "display_name": "Xã Trà Côn, Tỉnh Vĩnh Long, Việt Nam",
+    "tokens": [
+      "county=Xã Trà Côn",
+      "state=Tỉnh Vĩnh Long"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "VLO",
+      "districtCode": "TON",
+      "precinctCode": "TCON",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Trà Côn"
+    }
+  },
+  {
+    "id": 1258,
+    "code": "Xuân Trường lốp Pháp Vân_01",
+    "address": "Xã Thượng Phúc, Hà Nội, Việt Nam",
+    "display_name": "Xã Thượng Phúc, Hà Nội, Việt Nam",
+    "tokens": [
+      "city_district=Xã Thượng Phúc",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "HNO",
+    "hit": null
+  },
+  {
+    "id": 1260,
+    "code": "CH317_01",
+    "address": "Xã Vạn An, Tỉnh Nghệ An, Việt Nam",
+    "display_name": "Xã Vạn An, Tỉnh Nghệ An, Việt Nam",
+    "tokens": [
+      "town=Xã Vạn An",
+      "state=Tỉnh Nghệ An"
+    ],
+    "preferredProvince": "NAN",
+    "hit": {
+      "provinceCode": "BNI",
+      "districtCode": "YPH",
+      "precinctCode": "VAAN",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Vạn An"
+    }
+  },
+  {
+    "id": 1284,
+    "code": "PTC1EB88A8_c5b8",
+    "address": "QL1, Thanh Hưng, Đồng Tháp 840000, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1292,
+    "code": "PT6218D74C_71e4",
+    "address": "Đ. Phú Lợi/714 Tổ 9, Khu 9, Phú Lợi, Hồ Chí Minh 820000, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1300,
+    "code": "Cứu Hộ lốp 24/24_01",
+    "address": "Xã Bất Bạt, Hà Nội, Việt Nam",
+    "display_name": "Xã Bất Bạt, Hà Nội, Việt Nam",
+    "tokens": [
+      "city_district=Xã Bất Bạt",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "PTH",
+    "hit": null
+  },
+  {
+    "id": 1316,
+    "code": "CHGT_DANANG_01",
+    "address": "46, Đường Võ Chí Công, Phường Hòa Xuân, Thành phố Đà Nẵng, 50507, Việt Nam",
+    "display_name": "46, Đường Võ Chí Công, Tổ dân phố Diên Hồng, Phường Hòa Xuân, Hội An, Thành phố Đà Nẵng, 50510, Việt Nam",
+    "tokens": [
+      "suburb=Phường Hòa Xuân",
+      "neighbourhood=Tổ dân phố Diên Hồng",
+      "city=Hội An"
+    ],
+    "preferredProvince": "DNA",
+    "hit": {
+      "provinceCode": "DLA",
+      "districtCode": "BMT",
+      "precinctCode": "HXUA",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Hòa Xuân"
+    }
+  },
+  {
+    "id": 1325,
+    "code": "PT1E366B47_d6d6",
+    "address": "202 Trương Hán Siêu, Phú Thủy, Lâm Đồng, Vietnam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1338,
+    "code": "PTACEF650F_738e",
+    "address": "Xã Thiên Lộc, Hà Nội, Việt Nam",
+    "display_name": "Xã Thiên Lộc, Hà Nội, 11909, Việt Nam",
+    "tokens": [
+      "city_district=Xã Thiên Lộc",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "HNO",
+    "hit": {
+      "provinceCode": "BPH",
+      "districtCode": "LNI",
+      "precinctCode": "TLOC",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "P.Thiện Lộc"
+    }
+  },
+  {
+    "id": 1356,
+    "code": "PT6B1D2F47_57c0",
+    "address": "Nguyễn Trãi, Phường Thành Đông, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Nguyễn Trãi, Phường Thành Đông, Thành phố Hải Phòng, 03118, Việt Nam",
+    "tokens": [
+      "suburb=Phường Thành Đông",
+      "quarter=Nguyễn Trãi",
+      "city=Thành phố Hải Phòng"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "HDU",
+      "districtCode": "HDU",
+      "precinctCode": "NTRA",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "P.Nguyễn Trãi"
+    }
+  },
+  {
+    "id": 1375,
+    "code": "PT25BA3291_e400",
+    "address": "Quốc lộ 5, Xã Kẻ Sặt, Thành phố Hải Phòng, Tỉnh Hưng Yên, Việt Nam",
+    "display_name": "Quốc lộ 5, Xã Kẻ Sặt, Thành phố Hải Phòng, Tỉnh Hưng Yên, 56789, Việt Nam",
+    "tokens": [
+      "city=Thành phố Hải Phòng",
+      "town=Xã Kẻ Sặt",
+      "state=Tỉnh Hưng Yên"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "NDI",
+      "districtCode": "HHA",
+      "precinctCode": "HPHO",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Hải Phong"
+    }
+  },
+  {
+    "id": 1376,
+    "code": "PT995E7236_2244",
+    "address": "Phố Bến Hàn, Bình Hàn, Phường Thành Đông, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Phố Bến Hàn, Bình Hàn, Phường Thành Đông, Thành phố Hải Dương, Thành phố Hải Phòng, 03118, Việt Nam",
+    "tokens": [
+      "suburb=Phường Thành Đông",
+      "quarter=Bình Hàn",
+      "city=Thành phố Hải Dương"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "KGI",
+      "districtCode": "THI",
+      "precinctCode": "TDON",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Thạnh Đông"
+    }
+  },
+  {
+    "id": 1378,
+    "code": "PT5902BDDC_d902",
+    "address": "Đường Lê Thánh Tông, Văn An, Trại Mới, Phường Chu Văn An, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Đường Lê Thánh Tông, Văn An, Phường Chu Văn An, Thành phố Chí Linh, Thành phố Hải Phòng, 03500, Việt Nam",
+    "tokens": [
+      "suburb=Phường Chu Văn An",
+      "quarter=Văn An",
+      "city=Thành phố Chí Linh"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "BNI",
+      "districtCode": "YPH",
+      "precinctCode": "VAAN",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Vạn An"
+    }
+  },
+  {
+    "id": 1379,
+    "code": "PT081D3AEE_6685",
+    "address": "Đường tỉnh 390D, Phường Chu Văn An, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Đường tỉnh 390D, Văn An, Phường Chu Văn An, Thành phố Chí Linh, Thành phố Hải Phòng, Việt Nam",
+    "tokens": [
+      "suburb=Phường Chu Văn An",
+      "quarter=Văn An",
+      "city=Thành phố Chí Linh"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "BNI",
+      "districtCode": "YPH",
+      "precinctCode": "VAAN",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Vạn An"
+    }
+  },
+  {
+    "id": 1380,
+    "code": "PTEAF3E260_43e3",
+    "address": "Lôi Động, Phường Chu Văn An, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Chí Linh, Phường Chu Văn An, Thành phố Chí Linh, Thành phố Hải Phòng, Việt Nam",
+    "tokens": [
+      "suburb=Phường Chu Văn An",
+      "quarter=Chí Linh",
+      "city=Thành phố Chí Linh"
+    ],
+    "preferredProvince": "HPH",
+    "hit": null
+  },
+  {
+    "id": 1383,
+    "code": "PTBE420218_e1f1",
+    "address": "Viet Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1386,
+    "code": "PTC7EB184F_dd31",
+    "address": "Tam Anh, Đà Nẵng, Việt Nam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1388,
+    "code": " Lốp xe Huy Phát_01",
+    "address": "Đường 2 Tháng 9, Khu phố 15, Phường Tam Thắng, Thành phố Hồ Chí Minh, 76666, Việt Nam",
+    "display_name": "Đường 2 Tháng 9, Khu phố 16, Phường Tam Thắng, Thành phố Hồ Chí Minh, 76666, Việt Nam",
+    "tokens": [
+      "suburb=Phường Tam Thắng",
+      "neighbourhood=Khu phố 16",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": {
+      "provinceCode": "DNO",
+      "districtCode": "CJU",
+      "precinctCode": "TTHA",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Tâm Thắng"
+    }
+  },
+  {
+    "id": 1410,
+    "code": "PTF1D3F014_62f6",
+    "address": "Đường tỉnh 389, Xã Nam An Phụ, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Đường tỉnh 389, Xã Nam An Phụ, Thành phố Hải Phòng, Việt Nam",
+    "tokens": [
+      "city=Thành phố Hải Phòng",
+      "town=Xã Nam An Phụ"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "NDI",
+      "districtCode": "HHA",
+      "precinctCode": "HPHO",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Hải Phong"
+    }
+  },
+  {
+    "id": 1415,
+    "code": "Vá Vỏ Ô Tô Lưu Động Văn Sang_01",
+    "address": "Trường Tiểu học Chu Văn An, Đường Lê Ngô Cát, Khu phố 1, Phường Hố Nai, Đồng Nai, Thành phố Đồng Nai, 76000, Việt Nam",
+    "display_name": "Trường Tiểu học Chu Văn An, Đường Lê Ngô Cát, Khu phố 1, Phường Hố Nai, Đồng Nai, Thành phố Đồng Nai, 76000, Việt Nam",
+    "tokens": [
+      "suburb=Phường Hố Nai",
+      "quarter=Khu phố 1",
+      "city=Đồng Nai",
+      "state=Thành phố Đồng Nai"
+    ],
+    "preferredProvince": "DNI",
+    "hit": {
+      "provinceCode": "BPH",
+      "districtCode": "BDA",
+      "precinctCode": "DNAI",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Đồng Nai"
+    }
+  },
+  {
+    "id": 1419,
+    "code": "PT26D2AAF7_1c0b",
+    "address": "Quốc lộ 37, Xã Vĩnh Lại, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Quốc lộ 37, Xã Vĩnh Lại, Thành phố Hải Phòng, Việt Nam",
+    "tokens": [
+      "city=Thành phố Hải Phòng",
+      "town=Xã Vĩnh Lại"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "NDI",
+      "districtCode": "HHA",
+      "precinctCode": "HPHO",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Hải Phong"
+    }
+  },
+  {
+    "id": 1421,
+    "code": "PT1FFD71C8_6daa",
+    "address": "Xã Vĩnh Lại, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Xã Vĩnh Lại, Thành phố Hải Phòng, Việt Nam",
+    "tokens": [
+      "city=Thành phố Hải Phòng",
+      "town=Xã Vĩnh Lại"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "NDI",
+      "districtCode": "HHA",
+      "precinctCode": "HPHO",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Hải Phong"
+    }
+  },
+  {
+    "id": 1447,
+    "code": "PTA541458E_9ab6",
+    "address": "Đường An Định, Cẩm Thượng, Phường Thành Đông, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Đường An Định, Cẩm Thượng, Phường Thành Đông, Phường Hải Dương, Thành phố Hải Phòng, 03118, Việt Nam",
+    "tokens": [
+      "suburb=Phường Thành Đông",
+      "quarter=Cẩm Thượng",
+      "city=Phường Hải Dương"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "KGI",
+      "districtCode": "THI",
+      "precinctCode": "TDON",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Thạnh Đông"
+    }
+  },
+  {
+    "id": 1459,
+    "code": "PTB364392A_ac04",
+    "address": "38 Nguyễn Thị Thập, Tân Thuận, Hồ Chí Minh 72900, Vietnam",
+    "display_name": "Suối Nhon, Xã Tân Pheo, Tỉnh Phú Thọ, Việt Nam",
+    "tokens": [
+      "village=Suối Nhon",
+      "county=Xã Tân Pheo",
+      "state=Tỉnh Phú Thọ"
+    ],
+    "preferredProvince": null,
+    "hit": {
+      "provinceCode": "HBI",
+      "districtCode": "DBA",
+      "precinctCode": "TPHE",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Tân Pheo"
+    }
+  },
+  {
+    "id": 1471,
+    "code": "PTB8F1D78B_c5fc",
+    "address": "Phố Quán Thánh, Bình Hàn, Phường Thành Đông, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Phố Quán Thánh, Bình Hàn, Phường Thành Đông, Thành phố Hải Phòng, 03118, Việt Nam",
+    "tokens": [
+      "suburb=Phường Thành Đông",
+      "quarter=Bình Hàn",
+      "city=Thành phố Hải Phòng"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "KGI",
+      "districtCode": "THI",
+      "precinctCode": "TDON",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Thạnh Đông"
+    }
+  },
+  {
+    "id": 1476,
+    "code": "PT551D5238_932b",
+    "address": "Đường An Định, Cẩm Thượng, Phường Thành Đông, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Đường An Định, Nhị Châu, Phường Thành Đông, Phường Hải Dương, Thành phố Hải Phòng, 03118, Việt Nam",
+    "tokens": [
+      "suburb=Phường Thành Đông",
+      "quarter=Nhị Châu",
+      "city=Phường Hải Dương"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "KGI",
+      "districtCode": "THI",
+      "precinctCode": "TDON",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Thạnh Đông"
+    }
+  },
+  {
+    "id": 1489,
+    "code": "PT8DC9BF8F_5271",
+    "address": "Xã Đường An, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Xã Đường An, Thành phố Hải Phòng, Việt Nam",
+    "tokens": [
+      "city=Thành phố Hải Phòng",
+      "town=Xã Đường An"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "NDI",
+      "districtCode": "HHA",
+      "precinctCode": "HPHO",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Hải Phong"
+    }
+  },
+  {
+    "id": 1494,
+    "code": "Garage Ô Tô Hợp Cường_01",
+    "address": "Phố Trần Tất Văn, Tràng Minh, Phường Phù Liễn, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Phố Trần Tất Văn, Phường Phù Liễn, Xã An Khánh, Thành phố Hải Phòng, Việt Nam",
+    "tokens": [
+      "suburb=Phường Phù Liễn",
+      "city=Thành phố Hải Phòng",
+      "town=Xã An Khánh"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "NDI",
+      "districtCode": "HHA",
+      "precinctCode": "HPHO",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Hải Phong"
+    }
+  },
+  {
+    "id": 1508,
+    "code": "Cứu hộ ô tô_01",
+    "address": "Khu phố Quang Vinh, Phường Trấn Biên, Đồng Nai, Thành phố Đồng Nai, 76106, Việt Nam",
+    "display_name": "Khu phố Quang Vinh, Phường Trấn Biên, Đồng Nai, Thành phố Đồng Nai, 76106, Việt Nam",
+    "tokens": [
+      "suburb=Phường Trấn Biên",
+      "quarter=Khu phố Quang Vinh",
+      "city=Đồng Nai",
+      "state=Thành phố Đồng Nai"
+    ],
+    "preferredProvince": "DNI",
+    "hit": {
+      "provinceCode": "BPH",
+      "districtCode": "BDA",
+      "precinctCode": "DNAI",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Đồng Nai"
+    }
+  },
+  {
+    "id": 1510,
+    "code": "PT02807DF3_ffe5",
+    "address": "Số 350352 Ung Văn Khiêm, Khu phố 31, Phường Thạnh Mỹ Tây, Thành phố Hồ Chí Minh, Việt Nam",
+    "display_name": "Hẻm 348 Ung Văn Khiêm, Khu phố 31, Phường Thạnh Mỹ Tây, Thành phố Hồ Chí Minh, 71108, Việt Nam",
+    "tokens": [
+      "suburb=Phường Thạnh Mỹ Tây",
+      "neighbourhood=Khu phố 31",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": {
+      "provinceCode": "AGI",
+      "districtCode": "CPH",
+      "precinctCode": "TMTA",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Thạnh Mỹ Tây"
+    }
+  },
+  {
+    "id": 1515,
+    "code": "PT5054E373_73b1",
+    "address": "Đường Trần Nhân Tông, Nam Sơn, Phường Phù Liễn, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Đường Trần Nhân Tông, Nam Sơn, Phường Phù Liễn, Thành phố Hải Phòng, 18000, Việt Nam",
+    "tokens": [
+      "suburb=Phường Phù Liễn",
+      "quarter=Nam Sơn",
+      "city=Thành phố Hải Phòng"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "HPH",
+      "districtCode": "ADU",
+      "precinctCode": "LSON",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Nam Sơn"
+    }
+  },
+  {
+    "id": 1553,
+    "code": "PTD78988D5_145a",
+    "address": "Phố Tuệ Tĩnh, Bình Hàn, Phường Thành Đông, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Phố Tuệ Tĩnh, Phạm Ngũ Lão, Phường Thành Đông, Thành phố Hải Phòng, 03118, Việt Nam",
+    "tokens": [
+      "suburb=Phường Thành Đông",
+      "quarter=Phạm Ngũ Lão",
+      "city=Thành phố Hải Phòng"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "HPH",
+      "districtCode": "TNG",
+      "precinctCode": "NLAO",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Phường Phạm Ngũ Lão"
+    }
+  },
+  {
+    "id": 1575,
+    "code": "PT10D0F9A0_4176",
+    "address": "373-375-377 Đường 29 Tháng 3, Tổ dân phố Trung Lương 11, Phường Hòa Xuân, Thành phố Đà Nẵng, Việt Nam",
+    "display_name": "Đường 29 Tháng 3, Tổ dân phố Trung Lương 11, Phường Hòa Xuân, Thành phố Đà Nẵng, 50507, Việt Nam",
+    "tokens": [
+      "suburb=Phường Hòa Xuân",
+      "neighbourhood=Tổ dân phố Trung Lương 11",
+      "city=Thành phố Đà Nẵng"
+    ],
+    "preferredProvince": "DNA",
+    "hit": {
+      "provinceCode": "DLA",
+      "districtCode": "BMT",
+      "precinctCode": "HXUA",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Hòa Xuân"
+    }
+  },
+  {
+    "id": 1590,
+    "code": "PTD43F4ACA_346e",
+    "address": "Tổ dân phố Bích Nhôi 3, phường Nhị Chiểu, thành phố Hải Phòng",
+    "display_name": "Đường Minh Tân, Minh Tân, Phường Nhị Chiểu, Thành phố Hải Phòng, Việt Nam",
+    "tokens": [
+      "suburb=Minh Tân",
+      "city=Thành phố Hải Phòng"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "HPH",
+      "districtCode": "KTH",
+      "precinctCode": "MTAN",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Minh Tân"
+    }
+  },
+  {
+    "id": 1612,
+    "code": "PT7B7A9DCF_f0ad",
+    "address": "Đường 25 tháng 4, Trần Hưng Đạo, Bạch Đằng, Phường Hồng Gai, Thành phố Quảng Ninh, Việt Nam",
+    "display_name": "Đường 25 tháng 4, Trần Hưng Đạo, Phường Hồng Gai, Thành phố Quảng Ninh, 01000, Việt Nam",
+    "tokens": [
+      "suburb=Phường Hồng Gai",
+      "quarter=Trần Hưng Đạo",
+      "city=Thành phố Quảng Ninh"
+    ],
+    "preferredProvince": "QNI",
+    "hit": {
+      "provinceCode": "QNI",
+      "districtCode": "HLO",
+      "precinctCode": "THDA",
+      "confidence": "GEO_PRECINCT",
+      "matched": "P.Trần Hưng Đạo"
+    }
+  },
+  {
+    "id": 1653,
+    "code": "PTDAE9DCEF_e6cd",
+    "address": "558 Điện Biên Phủ, Khu phố 28, Phường Thạnh Mỹ Tây, Thành phố Hồ Chí Minh, Việt Nam",
+    "display_name": "Điện Biên Phủ, Khu phố 28, Phường Thạnh Mỹ Tây, Thành phố Hồ Chí Minh, 71108, Việt Nam",
+    "tokens": [
+      "suburb=Phường Thạnh Mỹ Tây",
+      "neighbourhood=Khu phố 28",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": {
+      "provinceCode": "AGI",
+      "districtCode": "CPH",
+      "precinctCode": "TMTA",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Thạnh Mỹ Tây"
+    }
+  },
+  {
+    "id": 1658,
+    "code": "PT883C0D45_de3c",
+    "address": "Xã Bà Nà, Thành phố Đà Nẵng, 51000, Việt Nam",
+    "display_name": "Xã Bà Nà, Thành phố Đà Nẵng, Việt Nam",
+    "tokens": [
+      "city_district=Xã Bà Nà",
+      "city=Thành phố Đà Nẵng"
+    ],
+    "preferredProvince": "DNA",
+    "hit": null
+  },
+  {
+    "id": 1667,
+    "code": "PTF996C30E_6356",
+    "address": "Nguyễn Thông, Phường Phú Thủy, Tỉnh Lâm Đồng, Việt Nam",
+    "display_name": "Nguyễn Thông, Phường Phú Thủy, Tỉnh Lâm Đồng, 77120, Việt Nam",
+    "tokens": [
+      "suburb=Phường Phú Thủy",
+      "state=Tỉnh Lâm Đồng"
+    ],
+    "preferredProvince": "LDO",
+    "hit": {
+      "provinceCode": "AGI",
+      "districtCode": "CPH",
+      "precinctCode": "PTHU",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Phú Thủy"
+    }
+  },
+  {
+    "id": 1673,
+    "code": "PT4C6C79DE_4f91",
+    "address": "QL1A, Phú Hưng, Tuyên Quang, Lâm Đồng",
+    "display_name": "Salon tóc đẹp Hoài An, 46, Quốc lộ 1, Phú Hưng, Xã Tuyên Quang, Tỉnh Lâm Đồng, Việt Nam",
+    "tokens": [
+      "village=Phú Hưng",
+      "county=Xã Tuyên Quang",
+      "state=Tỉnh Lâm Đồng"
+    ],
+    "preferredProvince": "LDO",
+    "hit": {
+      "provinceCode": "AGI",
+      "districtCode": "PTA",
+      "precinctCode": "PHUN",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Phú Hưng"
+    }
+  },
+  {
+    "id": 1687,
+    "code": "BL_Vá võ lưu động 24/7_01",
+    "address": "Quốc lộ 1, Xã Nhu Gia, Thành phố Cần Thơ, Việt Nam",
+    "display_name": "Quốc lộ 1, Xã Nhu Gia, Thành phố Cần Thơ, Việt Nam",
+    "tokens": [
+      "city_district=Xã Nhu Gia",
+      "city=Thành phố Cần Thơ"
+    ],
+    "preferredProvince": "CTH",
+    "hit": null
+  },
+  {
+    "id": 1694,
+    "code": "PT2CA62ABC_fa3a",
+    "address": "529 Điện Biên Phủ, Khu phố 39, Phường Thạnh Mỹ Tây, Thành phố Hồ Chí Minh, Việt Nam",
+    "display_name": "Điện Biên Phủ, Khu phố 39, Phường Thạnh Mỹ Tây, Thành phố Hồ Chí Minh, 72308, Việt Nam",
+    "tokens": [
+      "suburb=Phường Thạnh Mỹ Tây",
+      "neighbourhood=Khu phố 39",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": {
+      "provinceCode": "AGI",
+      "districtCode": "CPH",
+      "precinctCode": "TMTA",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Thạnh Mỹ Tây"
+    }
+  },
+  {
+    "id": 1696,
+    "code": "PTA14BD46F_f073",
+    "address": "82 Cù Lao, Khu phố 14, Phường Cầu Kiệu, Thành phố Hồ Chí Minh, Việt Nam",
+    "display_name": "Cù Lao, Khu phố 14, Phường Cầu Kiệu, Thành phố Hồ Chí Minh, 72212, Việt Nam",
+    "tokens": [
+      "suburb=Phường Cầu Kiệu",
+      "neighbourhood=Khu phố 14",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": null
+  },
+  {
+    "id": 1706,
+    "code": "PTEEF51F51_f93d",
+    "address": "18/10 Đường số 53",
+    "display_name": "Khu phố 36, Phường An Hội Tây, Thành phố Hồ Chí Minh, 71500, Việt Nam",
+    "tokens": [
+      "suburb=Phường An Hội Tây",
+      "neighbourhood=Khu phố 36",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": null
+  },
+  {
+    "id": 1711,
+    "code": "PT64FD5814_7a71",
+    "address": "1662 Võ Văn Kiệt, Bình Phú, TP.HCM",
+    "display_name": "Đường Võ Văn Kiệt, Khu phố 15, Phường Bình Phú, Thành phố Hồ Chí Minh, 71959, Việt Nam",
+    "tokens": [
+      "suburb=Phường Bình Phú",
+      "neighbourhood=Khu phố 15",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": {
+      "provinceCode": "AGI",
+      "districtCode": "CPH",
+      "precinctCode": "BPHU",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Bình Phú"
+    }
+  },
+  {
+    "id": 1712,
+    "code": "PT3E42A5E4_578a",
+    "address": "102, Phổ Quang, Phường Tân Sơn Hòa, Thành phố Hồ Chí Minh, Việt Nam",
+    "display_name": "Tòa nhà Waseco Building, 10, Phổ Quang, Phường Tân Sơn Hòa, Thành phố Hồ Chí Minh, 72215, Việt Nam",
+    "tokens": [
+      "suburb=Phường Tân Sơn Hòa",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": null
+  },
+  {
+    "id": 1721,
+    "code": "PTA8868E2E_7245",
+    "address": "Hà Nội",
+    "display_name": "Uỷ ban nhân dân thành phố Hà Nội, 79, Phố Đinh Tiên Hoàng, Khu phố cổ, Phường Hoàn Kiếm, Hà Nội, 10140, Việt Nam",
+    "tokens": [
+      "suburb=Phường Hoàn Kiếm",
+      "quarter=Khu phố cổ",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "HNO",
+    "hit": {
+      "provinceCode": "HNO",
+      "districtCode": "HKI",
+      "precinctCode": "LTKI",
+      "confidence": "GEO_DISTRICT",
+      "matched": "Q.Hoàn Kiếm"
+    }
+  },
+  {
+    "id": 1736,
+    "code": "Kích Bình, Vá Lốp Cứu Hộ Ô Tô HN_01",
+    "address": "Trường Tiểu học Thăng Long, Ngõ 7 Đa Lộc, Xã Thiên Lộc, Hà Nội, 11909, Việt Nam",
+    "display_name": "Trường Tiểu học Thăng Long, Ngõ 7 Đa Lộc, Xã Thiên Lộc, Hà Nội, 11909, Việt Nam",
+    "tokens": [
+      "city_district=Xã Thiên Lộc",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "HNO",
+    "hit": {
+      "provinceCode": "BPH",
+      "districtCode": "LNI",
+      "precinctCode": "TLOC",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "P.Thiện Lộc"
+    }
+  },
+  {
+    "id": 1799,
+    "code": "PTC9D8A933_332e",
+    "address": "108 Trần Bình Trọng, Thành phố Hồ Chí Minh, Hồ Chí Minh",
+    "display_name": "Trần Bình Trọng, Khu phố 12, Phường Tam Thắng, Thành phố Hồ Chí Minh, 76666, Việt Nam",
+    "tokens": [
+      "suburb=Phường Tam Thắng",
+      "neighbourhood=Khu phố 12",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": {
+      "provinceCode": "DNO",
+      "districtCode": "CJU",
+      "precinctCode": "TTHA",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Tâm Thắng"
+    }
+  },
+  {
+    "id": 1809,
+    "code": "PT61407A96_7adb",
+    "address": "08 Hùng Vương, P. Phú Thủy, Lâm Đồng",
+    "display_name": "O2, 40, Hùng Vương, Phường Phú Thủy, Phan Thiết, Tỉnh Lâm Đồng, 77120, Việt Nam",
+    "tokens": [
+      "suburb=Phường Phú Thủy",
+      "city=Phan Thiết",
+      "state=Tỉnh Lâm Đồng"
+    ],
+    "preferredProvince": "LDO",
+    "hit": {
+      "provinceCode": "AGI",
+      "districtCode": "CPH",
+      "precinctCode": "PTHU",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Phú Thủy"
+    }
+  },
+  {
+    "id": 1810,
+    "code": "PT53613005_82b1",
+    "address": "45 Trần Thị Trọng",
+    "display_name": "45, Trần Thị Trọng, Phường Tân Sơn, Thành phố Hồ Chí Minh, 71509, Việt Nam",
+    "tokens": [
+      "suburb=Phường Tân Sơn",
+      "city=Thành phố Hồ Chí Minh"
+    ],
+    "preferredProvince": "HCM",
+    "hit": {
+      "provinceCode": "BGI",
+      "districtCode": "LNG",
+      "precinctCode": "TSON",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Tân Sơn"
+    }
+  },
+  {
+    "id": 1812,
+    "code": "PTE298C410_5286",
+    "address": "Trường Chinh, P. Bình Thuận, Lâm Đồng",
+    "display_name": "Trường Chinh, Phường Bình Thuận, Phan Thiết, Tỉnh Lâm Đồng, 77120, Việt Nam",
+    "tokens": [
+      "suburb=Phường Bình Thuận",
+      "city=Phan Thiết",
+      "state=Tỉnh Lâm Đồng"
+    ],
+    "preferredProvince": "LDO",
+    "hit": {
+      "provinceCode": "BDI",
+      "districtCode": "TSO",
+      "precinctCode": "BTHU",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Bình Thuận"
+    }
+  },
+  {
+    "id": 1813,
+    "code": "PT51606617_3ea3",
+    "address": "Đường Điện Biên Phủ, Phạm Ngũ Lão, Phường Thành Đông, Thành phố Hải Phòng, Việt Nam",
+    "display_name": "Đường Điện Biên Phủ, Phạm Ngũ Lão, Phường Thành Đông, Thành phố Hải Phòng, 03118, Việt Nam",
+    "tokens": [
+      "suburb=Phường Thành Đông",
+      "quarter=Phạm Ngũ Lão",
+      "city=Thành phố Hải Phòng"
+    ],
+    "preferredProvince": "HPH",
+    "hit": {
+      "provinceCode": "HPH",
+      "districtCode": "TNG",
+      "precinctCode": "NLAO",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Phường Phạm Ngũ Lão"
+    }
+  },
+  {
+    "id": 1841,
+    "code": "PTB5448E2C_8dac",
+    "address": "Trường Chinh, Phường Bình Thuận, Tỉnh Lâm Đồng, Việt Nam",
+    "display_name": "Trường Chinh, Phường Bình Thuận, Phan Thiết, Tỉnh Lâm Đồng, 77120, Việt Nam",
+    "tokens": [
+      "suburb=Phường Bình Thuận",
+      "city=Phan Thiết",
+      "state=Tỉnh Lâm Đồng"
+    ],
+    "preferredProvince": "LDO",
+    "hit": {
+      "provinceCode": "BDI",
+      "districtCode": "TSO",
+      "precinctCode": "BTHU",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Bình Thuận"
+    }
+  },
+  {
+    "id": 1850,
+    "code": "PT24772D17_57a2",
+    "address": "Thanh Hóa, P. Hương Trà, Thành Phố Đà Nẵng",
+    "display_name": "Quốc lộ 40B, Phường Hương Trà, Thành phố Đà Nẵng, Việt Nam",
+    "tokens": [
+      "suburb=Phường Hương Trà",
+      "city=Thành phố Đà Nẵng"
+    ],
+    "preferredProvince": "DNA",
+    "hit": {
+      "provinceCode": "HTI",
+      "districtCode": "HKH",
+      "precinctCode": "HUTR",
+      "confidence": "GEO_PRECINCT",
+      "matched": "Xã Hương Trà"
+    }
+  },
+  {
+    "id": 1851,
+    "code": "PT7B922C71_b1df",
+    "address": "Đường Làng Văn Hóa, Xã Hòa Lạc, Hà Nội, Việt Nam",
+    "display_name": "Đường Làng Văn Hóa, Xã Hòa Lạc, Hà Nội, Việt Nam",
+    "tokens": [
+      "city_district=Xã Hòa Lạc",
+      "city=Hà Nội"
+    ],
+    "preferredProvince": "HNO",
+    "hit": {
+      "provinceCode": "AGI",
+      "districtCode": "PTA",
+      "precinctCode": "HLAC",
+      "confidence": "GEO_PRECINCT_AMBIG",
+      "matched": "Xã Hòa Lạc"
+    }
+  },
+  {
+    "id": 4,
+    "code": "VL-01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 20,
+    "code": "CAR-HN-01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 33,
+    "code": "CAR-HN-11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 35,
+    "code": "CAR-NAN-02",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 36,
+    "code": "CAR-NAN-03",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 61,
+    "code": "DN136_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 80,
+    "code": "HQ_5_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 81,
+    "code": "VinhLong_01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 82,
+    "code": "Công ty TNHH LĐ Đông Thiên Ân_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 94,
+    "code": "HCM_01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 95,
+    "code": "HQ_6_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 96,
+    "code": "HoaBinh_01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 97,
+    "code": "DT-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 98,
+    "code": "QN-87_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 99,
+    "code": "HQ_8_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 106,
+    "code": "GL49_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 116,
+    "code": "BUI_4_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 120,
+    "code": "HTH-01_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 122,
+    "code": "BUI_8_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 124,
+    "code": "DNAI142_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 127,
+    "code": "BacKan_01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 129,
+    "code": "KienGiang_01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 130,
+    "code": "GiaLai_02_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 131,
+    "code": "BG-152_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 132,
+    "code": "AnGiang_01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 133,
+    "code": "AnGiang_02_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 139,
+    "code": "LC67_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 143,
+    "code": "QNG-02_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 147,
+    "code": "QJ_5_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 148,
+    "code": "QJ_4_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 153,
+    "code": "AS_6_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 157,
+    "code": "HQ_7_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 158,
+    "code": "QNG-04_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 159,
+    "code": "BacLieu_01_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 160,
+    "code": "MOCCHAU_SONLA_01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 161,
+    "code": "SOCTRANG_01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 162,
+    "code": "DN-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 163,
+    "code": "LAICHAU_01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 164,
+    "code": "GiaLai_01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 165,
+    "code": "Xe kéo 5_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 167,
+    "code": "QB135_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 173,
+    "code": "THAINGUYEN_20_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 174,
+    "code": "TB_caukeo_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 175,
+    "code": "CT_caukeo_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 177,
+    "code": "LOP_ĐN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 178,
+    "code": "LOP_NB_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 179,
+    "code": "BP_caukeo_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 191,
+    "code": "SAVICO-25_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 194,
+    "code": "SAVICO-24_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 197,
+    "code": "DNG-168_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 212,
+    "code": "SAVICO-13_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 215,
+    "code": "cầu keo_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 218,
+    "code": "BĐ-03_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 238,
+    "code": "hanoi_022_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 239,
+    "code": "CẨU KÉO_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 242,
+    "code": "CAUKEO_24h_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 244,
+    "code": "cẩu kéo_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 246,
+    "code": "HQ_5_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 248,
+    "code": "SAVICO-27_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 249,
+    "code": "SAVICO-26_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 254,
+    "code": "THAYLOP-HN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 256,
+    "code": "CẨU KÉO__01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 266,
+    "code": "TH-NN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 267,
+    "code": "HQ_5_21",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 270,
+    "code": "kích bình__01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 271,
+    "code": "CÔNG TY TNHH THƯƠNG MẠI CÔNG QUỲNH_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 272,
+    "code": "CÔNG TY TNHH THƯƠNG MẠI CÔNG QUỲNH_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 273,
+    "code": "CAR-CTO_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 277,
+    "code": "CAR-ĐBB_51",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 279,
+    "code": "CAR-HCM_31",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 280,
+    "code": "CAR-HCM_41",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 281,
+    "code": "CAR-TBB_21",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 282,
+    "code": "cẩu kéoo_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 283,
+    "code": "HN_caukeo_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 284,
+    "code": "CAR-HCM_61",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 285,
+    "code": "CAR-HCM_71",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 286,
+    "code": "CAR-HCM_81",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 287,
+    "code": "CAR-ĐBB_61",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 288,
+    "code": "CAR-HCM_91",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 289,
+    "code": "CUUHO_DN1_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 290,
+    "code": "TEST_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 292,
+    "code": "cẩu kéoT_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 295,
+    "code": "ĐN-001_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 296,
+    "code": "cuuho_HCM_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 297,
+    "code": "caukeo_Camau_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 298,
+    "code": "CUU HO_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 299,
+    "code": "cuuho_TN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 300,
+    "code": "CUU - HO_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 301,
+    "code": "cuuho_HN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 302,
+    "code": "cuuho_KH_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 303,
+    "code": "CUU Hộ_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 305,
+    "code": "CUUHO-QN1_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 306,
+    "code": "CUUHO-QN1_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 307,
+    "code": "kéo xe_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 308,
+    "code": "keoxe_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 310,
+    "code": "CaukeoTN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 311,
+    "code": "CAR-TBB_31",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 312,
+    "code": "CAR-CTO_21",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 313,
+    "code": "CAR-CTO_31",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 314,
+    "code": "CAR-CTO_41",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 315,
+    "code": "CAR-CTO_51",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 317,
+    "code": "Kích bình_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 319,
+    "code": "CAR-HCM_101",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 320,
+    "code": "CUU HO kéo xe_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 322,
+    "code": "Carpla_HN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 325,
+    "code": "001202028213_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 328,
+    "code": "lốp_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 331,
+    "code": "CAR-HN_61",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 332,
+    "code": "CAR-ĐNG_61",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 333,
+    "code": "CAR-ĐBB_71",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 334,
+    "code": "CAR-ĐNB_31",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 335,
+    "code": "ĐN-00222_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 337,
+    "code": "TN-00111_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 340,
+    "code": "Vá lốp Đà Nẵng_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 341,
+    "code": "CAR-HN_71",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 342,
+    "code": "CAR-CTO_81",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 344,
+    "code": "CAR-ĐNG_71",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 347,
+    "code": "kíchbinh_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 349,
+    "code": "CAU_QN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 350,
+    "code": "CỨU  HỘ Ô TÔ 24H_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 351,
+    "code": "CUUHO_CT_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 352,
+    "code": "HUE-Cẩu kéo_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 353,
+    "code": "CAR-ĐBB_81",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 354,
+    "code": "CAR-CTO_91",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 357,
+    "code": "CAR-ĐNG_81",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 359,
+    "code": "CAR-CTO_101",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 360,
+    "code": "CAR-HN_81",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 361,
+    "code": "CAR-CTO_121",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 362,
+    "code": "CAR-CTO_131",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 363,
+    "code": "CAR-ĐNG_101",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 365,
+    "code": "KIA-LÂM ĐỒNG_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 366,
+    "code": "CAR-TBB_51",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 367,
+    "code": "CAR-TBB_61",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 368,
+    "code": "CAR-TBB_71",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 369,
+    "code": "CAR-TBB_81",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 370,
+    "code": "sonlacaukeo_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 371,
+    "code": "THAYLOP-LB_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 372,
+    "code": "BNHDUONG002_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 388,
+    "code": "KG-004_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 393,
+    "code": "KG-009_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 399,
+    "code": "QN-002_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 404,
+    "code": "CAR-HCM_121",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 406,
+    "code": "CAOTOCHLD_01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 407,
+    "code": "MONGCAI136_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 408,
+    "code": "CHTT_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 420,
+    "code": "ĐN-000_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 422,
+    "code": "NT-001_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 431,
+    "code": "HN-001_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 440,
+    "code": "CAR-ĐNB_21",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 447,
+    "code": "Cứu hộ Ninh bình_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 448,
+    "code": "HN-001_21",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 449,
+    "code": "HN-001_31",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 450,
+    "code": "HN-001_41",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 451,
+    "code": "HN-001_51",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 453,
+    "code": "BD01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 454,
+    "code": "HOCMON1_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 455,
+    "code": "Eakar-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 456,
+    "code": "CAR-CTO_141",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 457,
+    "code": "ĐT01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 459,
+    "code": "AG-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 460,
+    "code": "BN-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 462,
+    "code": "HP-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 463,
+    "code": "HY-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 464,
+    "code": "HT-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 465,
+    "code": "Hà Tĩnh_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 466,
+    "code": "Hà Quảng_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 467,
+    "code": "Sơn La_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 468,
+    "code": "Cần Thơ_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 469,
+    "code": "Garage Định Còi_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 471,
+    "code": "Thuê xe ô tô tự lái Đà Nẵng - Đại Gia Định_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 474,
+    "code": "Gara ô tô Anh Tài Cứu Hộ Giao Thông_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 477,
+    "code": "Garage Văn Quyền_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 478,
+    "code": "GARA Ô TÔ KỲ ĐỒNG_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 479,
+    "code": "Bình Thuận_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 480,
+    "code": "KÍCH BÌNH HƯNG YÊN _01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 481,
+    "code": "LỐP_Bình Thuận_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 482,
+    "code": "PAN_ Bạc Liêu_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 487,
+    "code": "NBI-Lâm Nguyễn_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 488,
+    "code": "ĐL-Thịnh Long Phát_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 489,
+    "code": "TQ-001_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 490,
+    "code": "TQ-002_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 491,
+    "code": "PT-001_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 493,
+    "code": "Gara Văn Tài cứu hộ 24/24_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 494,
+    "code": "Garage Ô Tô Moto Bảo Anh_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 495,
+    "code": "Sáu Vá Vỏ oto_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 496,
+    "code": "Cứu Hộ Lốp TAM ĐIỆP - NINH BÌNH_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 497,
+    "code": "Lốp Long Biên, vá lốp lưu động_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 498,
+    "code": "Cơ Sở Vá Vỏ Ô Tô Đại Phát_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 499,
+    "code": "Vá Lốp Ôtô Quý_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 509,
+    "code": "Làm lốp bán lốp Dũng Đạt_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 514,
+    "code": "vp-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 515,
+    "code": "lc-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 516,
+    "code": "PT-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 517,
+    "code": "CB-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 518,
+    "code": "hue-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 520,
+    "code": "yb-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 521,
+    "code": "hn-02_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 522,
+    "code": "bt-01_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 523,
+    "code": "TB-03_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 524,
+    "code": "TB-04_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 525,
+    "code": "HY-02_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 526,
+    "code": "PAN_ ĐN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 527,
+    "code": "PAN_ SƠN LA_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 535,
+    "code": "Gara Oto Hàng Sơn_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 536,
+    "code": "Điện Ô Tô Nghĩa Phận_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 537,
+    "code": "CTY TNHH TM DV Ô TÔ ĐỨC TÍN PHÁT_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 538,
+    "code": "Auto Bình Trinh_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 551,
+    "code": "QNI-Thegioilop.vn (cứu hộ lôp ô tô)_21",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 552,
+    "code": "HN_TGL_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 553,
+    "code": "HN_TGL_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 554,
+    "code": "HN_TGL_21",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 555,
+    "code": "HN_TGL_31",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 556,
+    "code": "HN_TGL_41",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 558,
+    "code": "HN_TGL_61",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 559,
+    "code": "HN_TGL_71",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 560,
+    "code": "HN_TGL_81",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 561,
+    "code": "HN_TGL_91",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 562,
+    "code": "HN_TGL_101",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 563,
+    "code": "HN_TGL_111",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 564,
+    "code": "HN_manhlop_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 565,
+    "code": "HN_manhlop_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 566,
+    "code": "HN_manhlop_21",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 641,
+    "code": "Làm lốp CT_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 645,
+    "code": "VinaK Auto Hà Nam_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 648,
+    "code": "DNA-garage như an phát_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 663,
+    "code": "NAT-HN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 664,
+    "code": "NAT-HN_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 665,
+    "code": "NAT-HN_21",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 666,
+    "code": "NAT-HN_31",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 667,
+    "code": "NAT-HN_41",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 668,
+    "code": "NAT-HN_51",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 669,
+    "code": "NAT-HN_61",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 670,
+    "code": "NAT-HN_71",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 671,
+    "code": "NAT-HN_81",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 672,
+    "code": "NAT-HN_91",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 673,
+    "code": "NAT-HN_101",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 675,
+    "code": "HN_TGL_121",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 676,
+    "code": "CỨU HỘ CAO TỐC HÀ NỘI-HẢI PHÒNG_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 721,
+    "code": "CAR-NAN_41",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 745,
+    "code": "TNI-CỨU HỘ GIAO THÔNG LỘC THỌ_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 757,
+    "code": "FORD-BD",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 758,
+    "code": "HONDA-CT",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 759,
+    "code": "HYUNDAI-HT",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 760,
+    "code": "ISUZU-TBSG",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 761,
+    "code": "NISSAN-TP",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 762,
+    "code": "SGCL-01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 763,
+    "code": "SGCL-01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 875,
+    "code": "SLA-Gara Hoàng Hải_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 888,
+    "code": "HN_GARA_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 889,
+    "code": "HN_GARA2_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 892,
+    "code": "CT_HLD_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 895,
+    "code": "TNI-Garage Thành Đạt_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 903,
+    "code": "CHCT_PHUONGHUE_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 904,
+    "code": "LOPCT_NBLC_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 912,
+    "code": "LC_CHGT_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 935,
+    "code": "LOP_NBLC_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 952,
+    "code": "LOP_CTBN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 955,
+    "code": "Làm lốp CT_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 994,
+    "code": "CHGT_QNinh_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1022,
+    "code": "LOP_TUSON_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1023,
+    "code": "Vá lốp đèo Đại Ninh _01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1026,
+    "code": "Cứu hộ cao tốc La Sơn - Cam LộCẩu kéo cứu hộ.24/24_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1027,
+    "code": "DNA-Mâm Lốp Ô Tô Hoàng Hải cs2_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1029,
+    "code": "DTH_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1053,
+    "code": "Lốp xe - Rửa Xe Ngọc Tân_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1093,
+    "code": "LOP_DUCPHO_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1094,
+    "code": "LOP_DUCPHO_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1095,
+    "code": "Vá Vỏ Lưu Động Cao Tốc Trung Lương - Mỹ Thuận_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1096,
+    "code": "Cứu hộ lốp triệu sơn_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1140,
+    "code": "PT8770835B_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1148,
+    "code": "CH_LAMDONG_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1162,
+    "code": "Dũng Lốp Hạ Long_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1168,
+    "code": "PTF8E82AB6_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1172,
+    "code": "Gara_hongphat_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1173,
+    "code": "LÀM LỐP 24/24_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1179,
+    "code": "Lop_BN_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1184,
+    "code": "Lốp Hội an Kết_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1192,
+    "code": "lop_caobang_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1194,
+    "code": "PTCD7FD53A_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1196,
+    "code": "CHGT_CAMAU_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1207,
+    "code": "ACQUY_HCM_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1215,
+    "code": "Cứu hộ Ô Tô HTC Tây Ninh _01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1221,
+    "code": "Lốp Oto A LỰC_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1224,
+    "code": "GARAGE VÂN SANG_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1229,
+    "code": "PTA66EFD62_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1233,
+    "code": "CT-VÁ VỎ-KÍCH BÌNH LƯU ĐỘNG- BÌNH MINH_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1242,
+    "code": "GARA XUÂN THÙY_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1243,
+    "code": "Trung Tâm Lốp Ngọc Hồi_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1247,
+    "code": "Cứu hộ giao thông Hữu Thiện_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1256,
+    "code": "Cứu Hộ Giao Thông Hải Dương888_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1262,
+    "code": "LOP_BNinh_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1263,
+    "code": "LOP_BNinh_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1265,
+    "code": "Minh Thành_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1267,
+    "code": "Trung Tâm Lốp & Ắc Quy VIMPA_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1280,
+    "code": "Cường Lốp_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1288,
+    "code": "Gara ôtô Đạt_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1290,
+    "code": "Cứu hộ Hà Tĩnh_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1291,
+    "code": "Lốp Ô Tô Tuấn Thắng_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1299,
+    "code": "Làm lốp Vân thành_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1303,
+    "code": "PTDCFB137A_AB1D",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1304,
+    "code": "PT77B42256_EB4F",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1306,
+    "code": "PTA2E79F8D_B494",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1307,
+    "code": "PT96599307_7995",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1308,
+    "code": "Kích bình vá võ 24/7_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1309,
+    "code": "Cứu hộ cao tốc Quảng Ngãi_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1311,
+    "code": "PT86CF86C3_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1313,
+    "code": "honda nghìn_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1321,
+    "code": "Bình cứu hộ ắc quy_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1323,
+    "code": "Lốp ô tô Mai Kha_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1327,
+    "code": "PT12D34BE9_9758",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1330,
+    "code": "Thịnh cứu hộ lốp ôtô Kon Tum_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1333,
+    "code": "PT3967E76B_8d96",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1334,
+    "code": "PTAA2FED04_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1335,
+    "code": "PT86110857_561d",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1339,
+    "code": "PTBDEF90D9_02fd",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1344,
+    "code": "TQ-003_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1346,
+    "code": "PT65662F6B_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1348,
+    "code": "PTBBC80A65_bfe6",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1349,
+    "code": "Vá lốp ôtô Văn Ảnh_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1350,
+    "code": "PT423BD0F2_4721",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1351,
+    "code": "PTF15E2002_a851",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1353,
+    "code": "PTD2CBCB82_3ed6",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1354,
+    "code": "PT0641CC93_30e4",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1355,
+    "code": "Phạm Tạo Vá Lốp_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1357,
+    "code": "lốp hải triều _01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1358,
+    "code": "PT2DC2F61A_bccb",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1359,
+    "code": "PT61E9C2BE_d5f8",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1360,
+    "code": "Làm lốp cứu hộ Ninh bình_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1361,
+    "code": "PT42344DBB_343e",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1362,
+    "code": "PTB453A182_aab2",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1364,
+    "code": "PTCDD08840_3910",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1365,
+    "code": "PTF57516C4_efc6",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1366,
+    "code": "PT5C227630_446f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1367,
+    "code": "PT777DD972_58e4",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1369,
+    "code": "Đức vá lốp_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1370,
+    "code": "Bình lốp_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1373,
+    "code": "Lốp Thuận Phát_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1374,
+    "code": "Garage Long Chí_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1377,
+    "code": "PT6D882C62_f81f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1381,
+    "code": "PTC6F4461D_274d",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1395,
+    "code": "PT9B7DE6BF_636a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1398,
+    "code": "PT8E7B1633_c04b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1399,
+    "code": "PT056A7C5E_68ac",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1400,
+    "code": "PTE53B5A87_9247",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1402,
+    "code": "CH_Cantho_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1403,
+    "code": "PTD253F762_1189",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1404,
+    "code": "PT38D130C5_60fc",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1406,
+    "code": "PT7CFE179D_15d3",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1407,
+    "code": "PT6CCB7D1D_2894",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1408,
+    "code": "PT6E43A0F9_468b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1409,
+    "code": "PTB02146CD_469a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1411,
+    "code": "Cứu hộ lốp Mười Liên_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1412,
+    "code": "Lốp Ôtô Hậu_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1420,
+    "code": "PTB0C77E7F_7391",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1430,
+    "code": "PT582CDBB9_9346",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1445,
+    "code": "PTA2B0E273_6956",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1452,
+    "code": "PT99CF5570_056f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1453,
+    "code": "PT49C555E9_8a2c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1454,
+    "code": "PT07E1FA0E_5d95",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1455,
+    "code": "Cứu Hộ Giao Thông Hạ Long Quảng Ninh_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1457,
+    "code": "PT91BF1486_2e8e",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1463,
+    "code": "PTA4B22FA7_b1c9",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1465,
+    "code": "PT123A659A_e21a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1466,
+    "code": "PT6ECD29F6_7bee",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1467,
+    "code": "PT451F8546_7534",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1468,
+    "code": "PTDFCCC25C_6f99",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1469,
+    "code": "Vá Vỏ Lưu Động Cao Tốc Trung Lương - Mỹ Thuận_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1475,
+    "code": "PT6BB343E4_e544",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1478,
+    "code": "PT8076737A_2c1c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1482,
+    "code": "Gara Lốp Ô Tô Tình Thuỷ_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1486,
+    "code": "PTB77D746E_ee6b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1487,
+    "code": "PTD71208A0_0685",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1488,
+    "code": "PTF3B0D0C8_b7bd",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1491,
+    "code": "PT73A37F5D_ae73",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1495,
+    "code": "PTC4457F26_b2e0",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1497,
+    "code": " lốp ô tô Xuân Anh_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1500,
+    "code": "Cứu hộ lốp cao tốc_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1503,
+    "code": "PT0461CB88_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1504,
+    "code": "PT3C2C4054_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1505,
+    "code": "Gara Ô Tô Hải Nhung_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1507,
+    "code": "PTB1CD3958_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1509,
+    "code": "HIỆU VÁ LỐP Ô TÔ_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1511,
+    "code": "PT7A9D1E16_63b6",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1513,
+    "code": "Ắc Quy Lâm An_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1519,
+    "code": "Thịnh Lốp - Ắc Quy Vinh Nghệ An_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1539,
+    "code": "Tổng Kho Bán Buôn Bán Lẻ Ắc Quy Nội Ngoại Hải Đăng_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1542,
+    "code": "Vá Vỏ Ô Tô Lưu Động Biên Hoà-Xuân Thành_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1546,
+    "code": "PTAD476A8C_36e3",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1547,
+    "code": "PTA2AD9621_b40d",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1548,
+    "code": "PTAE09E2A4_49e9",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1549,
+    "code": "PT75F7E3C1_db89",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1550,
+    "code": "PT8CD420BD_07a7",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1552,
+    "code": "PT2D4EA13C_cb0b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1554,
+    "code": "PTB0326ED0_4e81",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1555,
+    "code": "PT58F17150_9539",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1556,
+    "code": "Vá Lốp Đà Nẵng_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1559,
+    "code": "PT5483718E_6e55",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1561,
+    "code": "PT61D76B3E_4f66",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1562,
+    "code": "PT73C286E4_0cd0",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1564,
+    "code": "PT4E176AA6_868f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1567,
+    "code": "PT84918774_37ae",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1569,
+    "code": "PTFA3E26B5_67eb",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1571,
+    "code": "PT653FCFD0_5139",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1573,
+    "code": "PTB7D8B516_6a03",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1574,
+    "code": "PT590DB69D_c2b9",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1576,
+    "code": "PT2060050D_2017",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1577,
+    "code": "PTD2E8E503_4e71",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1578,
+    "code": "PT6622D80A_d249",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1579,
+    "code": "PT571BE802_67e9",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1580,
+    "code": "PT98E137F3_59a1",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1581,
+    "code": "phú ắc quy_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1582,
+    "code": "PTB186CAC0_4e61",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1588,
+    "code": "PT17DF81B2_f74d",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1589,
+    "code": "PT4FAAAED5_971e",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1591,
+    "code": "PT03ABBFD9_9828",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1592,
+    "code": "PTC7A5455F_1db6",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1593,
+    "code": "PTA5D291FC_a2b6",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1594,
+    "code": "PTE69449BA_2c54",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1596,
+    "code": "PT1F66379B_7659",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1597,
+    "code": "PTD30A0896_bb25",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1598,
+    "code": "PT59463592_c8c6",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1605,
+    "code": "PTFD048676_5a83",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1606,
+    "code": "PTA2848555_ad37",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1607,
+    "code": "PTE7E0CF62_12ab",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1608,
+    "code": "PTFC056AF2_0b32",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1611,
+    "code": "PTD65241C2_622f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1613,
+    "code": "PTB8B7E9A2_28f8",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1614,
+    "code": "PT18DB224A_292c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1616,
+    "code": "PT44F292B6_bf9c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1617,
+    "code": "PTF1147913_775e",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1622,
+    "code": "PT892CC214_09fc",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1623,
+    "code": "PTDE1385AE_b751",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1624,
+    "code": "PT236F3053_2052",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1629,
+    "code": "PT70180BED_4248",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1631,
+    "code": "1231234123_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1634,
+    "code": "PT917C2F51_b8c0",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1635,
+    "code": "PT87298E44_d1b1",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1636,
+    "code": "PTADE72121_c912",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1638,
+    "code": "PTD5E81E6D_2f20",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1639,
+    "code": "PTE8F45955_1f7e",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1641,
+    "code": "PTABE403CC_99cc",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1648,
+    "code": "PT9D3243AB_4905",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1649,
+    "code": "PTC44699C4_1030",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1650,
+    "code": "PT78524B84_a92f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1651,
+    "code": "PT9D5F6378_3aa8",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1652,
+    "code": "Vá Lốp, Ắc Quy Đà Nẵng_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1654,
+    "code": "Cứu hộ lốp ô tô 24/7_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1657,
+    "code": "PT368CB706_2290",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1659,
+    "code": "PTCB077F39_e2fd",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1660,
+    "code": "PT174EED8F_2b50",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1661,
+    "code": "Gara ô tô Cơ Hiền_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1663,
+    "code": "PT86B90BBF_00b6",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1664,
+    "code": "PT3B1948B6_f58c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1665,
+    "code": "PT6031836C_8ffa",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1668,
+    "code": "PT5B48F094_768f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1669,
+    "code": "PT5B48F094_11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1670,
+    "code": "PTC9026072_6dd1",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1671,
+    "code": "PTC5B753DD_bf25",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1672,
+    "code": "PT53DE0F2B_4767",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1674,
+    "code": "PT43E1DF3C_9eae",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1678,
+    "code": "PTE80662F3_8bca",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1679,
+    "code": "PT11A6ABD5_59e9",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1680,
+    "code": "PTD402B5B4_688b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1681,
+    "code": "Gara Quốc Thảo_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1683,
+    "code": "PT5B41D639_612b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1686,
+    "code": "Lốp ôtô Phương Vân_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1689,
+    "code": "PT92366BB8_b4e4",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1690,
+    "code": "PTE2FBAD5C_1afd",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1691,
+    "code": "PTB2A24A14_8a0d",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1692,
+    "code": "PT0CE718AB_0f6f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1693,
+    "code": "PT37FDB882_6cdf",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1695,
+    "code": "PTC2CBDF54_67e9",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1697,
+    "code": "PTDD2DA93B_4535",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1698,
+    "code": "PT83D0D496_69d0",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1699,
+    "code": "PTB365E7F4_5740",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1700,
+    "code": "PT143EA96E_ebfc",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1701,
+    "code": "PTCF4186C5_c5fc",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1702,
+    "code": "PT0DE76026_c61a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1703,
+    "code": "PT377596BB_907c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1704,
+    "code": "PTBE6579B4_6930",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1705,
+    "code": "PTEEAE2342_7654",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1707,
+    "code": "PT357D4B5D_1d59",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1708,
+    "code": "PTB1465A99_94c8",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1709,
+    "code": "PT212C159F_b4fb",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1710,
+    "code": "PT8ED924A6_a645",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1713,
+    "code": "PT3E3D1032_bae7",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1714,
+    "code": "PT427007C0_3b3e",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1715,
+    "code": "PT6199A6F2_0dae",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1716,
+    "code": "PT4C6D05A4_60ec",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1717,
+    "code": "PT86ADCEF7_3053",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1718,
+    "code": "PT3ABC989C_9e42",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1724,
+    "code": "PT0E224A9B_a5f4",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1725,
+    "code": "PTA03087C2_201b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1729,
+    "code": "Ắc quy vinh_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1730,
+    "code": "PTF2131798_45f4",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1731,
+    "code": "HYN_Cứu hộ lốp ác quy vin 2-3_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1732,
+    "code": "PTFF2B3ADB_dad7",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1733,
+    "code": "PT550F5900_7119",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1734,
+    "code": "Trọng Lốp_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1735,
+    "code": "cứu hộ lốp xuân đoàn_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1737,
+    "code": "Cứu Hộ Hà Đông_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1738,
+    "code": "PT6A9649CF_7ddb",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1739,
+    "code": "PTC24F496E_38e2",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1740,
+    "code": "PT8AEB5F60_129d",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1741,
+    "code": "PTC5865314_90df",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1742,
+    "code": "PTE47C9779_1174",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1743,
+    "code": "PT58D95F98_3710",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1744,
+    "code": "PT835FB4F3_d819",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1745,
+    "code": "PTB523573B_9264",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1746,
+    "code": "PT361553E7_d77d",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1747,
+    "code": "PT2D83A88E_daa0",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1748,
+    "code": "PT1EF25BDD_953f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1749,
+    "code": "PT5DE43EC4_f794",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1750,
+    "code": "PT8859EA4F_34b9",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1751,
+    "code": "PT272A5F31_5246",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1752,
+    "code": "PT80271A39_c24f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1753,
+    "code": "PT6B381D65_8da1",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1754,
+    "code": "PT9D9BDD60_f1d3",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1755,
+    "code": "PT06AA3A9A_36e7",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1756,
+    "code": "Vá lốp quản phú cưrmgar_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1757,
+    "code": "PT742D9175_c7a8",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1758,
+    "code": "PT4D8F2364_09fd",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1759,
+    "code": "PT7622E55C_a969",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1760,
+    "code": "PT5F8FC694_f981",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1761,
+    "code": "PT1352358B_9746",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1762,
+    "code": "PTF795D2BB_7e60",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1763,
+    "code": "PTCD93E10A_da82",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1764,
+    "code": "PTCDFF767F_72b0",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1765,
+    "code": "PTBDF989BD_145a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1766,
+    "code": "PT9D374568_8619",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1767,
+    "code": "PTF2F7882C_4ecf",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1768,
+    "code": "PTC82A5A8C_67c9",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1769,
+    "code": "PT7B617D5E_4d2a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1770,
+    "code": "PT197BBD1E_6346",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1771,
+    "code": "Lốp xe MICHELIN_tấn nghĩa_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1772,
+    "code": "PTAEBB36BC_2911",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1773,
+    "code": "PT6B370F86_a2c7",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1774,
+    "code": "PT32ADFC72_a17c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1775,
+    "code": "PT77AA50C9_2fa4",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1776,
+    "code": "PT645B9EE8_eb41",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1777,
+    "code": "PTC50F634A_2406",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1778,
+    "code": "PT31946F2B_2e46",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1779,
+    "code": "PT89047360_7d3b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1780,
+    "code": "PTD7740E85_fd14",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1781,
+    "code": "Đức lốp sở dầu_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1782,
+    "code": "PT0A54069B_207c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1783,
+    "code": "PT3EAEF973_d63b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1786,
+    "code": "PT297F56A1_d139",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1787,
+    "code": "PT30D82ECE_0715",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1788,
+    "code": "PT8AB747B4_7b57",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1789,
+    "code": "PTAE5313B9_69ec",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1790,
+    "code": "PTECBF3105_7b20",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1791,
+    "code": "PT7868D969_3095",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1792,
+    "code": "PT85C8BD70_9ad0",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1793,
+    "code": "PTFE2B3FDF_4322",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1794,
+    "code": "PTC4195698_a7b1",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1795,
+    "code": "PT4FC2ABC5_cec1",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1796,
+    "code": "PTADDE7C90_b582",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1798,
+    "code": "PT1204F471_d62a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1800,
+    "code": "PT2D4C89B9_a69a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1801,
+    "code": "LOP_HP_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1802,
+    "code": "PTB8ECF296_fcca",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1803,
+    "code": "PTFC63B500_f1ec",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1804,
+    "code": "PTCA40F383_f490",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1805,
+    "code": "PT9F371AA5_0d86",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1806,
+    "code": "PT6EFD6EE0_70f9",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1807,
+    "code": "PTAEE0F616_f8db",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1808,
+    "code": "PT559BBBD9_f92c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1811,
+    "code": "PT25A4020F_cb9e",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1814,
+    "code": "PT1F535E52_8746",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1815,
+    "code": "PTB72A1980_c8c2",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1816,
+    "code": "PT0DC0514C_6542",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1817,
+    "code": "PT3783F653_8e95",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1818,
+    "code": "PT348BB90B_7810",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1819,
+    "code": "PT1707762A_9d4b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1820,
+    "code": "PT12C6AE29_97ae",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1821,
+    "code": "PT39C85A41_f10c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1822,
+    "code": "PTCBF5C1D8_c745",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1823,
+    "code": "PT1F7A7343_115c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1824,
+    "code": "PTED466F19_7bd8",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1825,
+    "code": "PT1F40236F_d05f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1826,
+    "code": "PT9FEFB2E3_308a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1827,
+    "code": "PTD2571ED1_8684",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1828,
+    "code": "PT70DAFF3A_4d21",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1829,
+    "code": "PT29572CCB_ab59",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1830,
+    "code": "PT39C55534_bf95",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1831,
+    "code": "PTFCB30817_9ab3",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1832,
+    "code": "PT075CD476_c8fa",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1833,
+    "code": "PT93C6B17D_1aa8",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1834,
+    "code": "PTB561B5DB_b63b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1835,
+    "code": "PT81DAB9AE_3509",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1836,
+    "code": "PT5CDDD46E_723e",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1837,
+    "code": "PTF4AB937F_6195",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1838,
+    "code": "PT5C2618BA_4fe7",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1839,
+    "code": "PT03ADAC28_538a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1840,
+    "code": "PTB5B9AC65_80a3",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1842,
+    "code": "PT7E2325A8_7405",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1843,
+    "code": "PT0159B76A_4370",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1844,
+    "code": "PTCAB773CA_8fb8",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1845,
+    "code": "PTADD4797E_e946",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1846,
+    "code": "PT0F2C7304_09ea",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1847,
+    "code": "PT91FBD464_dfc9",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1848,
+    "code": "PT0325E741_c788",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1849,
+    "code": "PT084246F8_9273",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1852,
+    "code": "PT6EF61CB1_ee1a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1853,
+    "code": "PT0C7FB603_ca5d",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1854,
+    "code": "PTF7677A6A_affa",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1855,
+    "code": "PTEF05C167_54c4",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1858,
+    "code": "PT3C41B1F7_eb2c",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1859,
+    "code": "PT9E542D4A_0783",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1860,
+    "code": "PT3606E033_b04e",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1861,
+    "code": "PTE3FB51DF_6a55",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1862,
+    "code": "PT57B92F5A_8d7d",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1863,
+    "code": "PT0AC3716B_3b11",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1864,
+    "code": "PT96372776_118a",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1865,
+    "code": "PTF2A074CD_4078",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1866,
+    "code": "PTB8EF460F_c995",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1868,
+    "code": "PT1F425B44_75bb",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1869,
+    "code": "PTB18628CD_eac4",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1870,
+    "code": "PTAE0793E9_b7a8",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1871,
+    "code": "PTA104BEF3_301d",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1872,
+    "code": "PT808DED96_f3b5",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1873,
+    "code": "PT902FB06D_a6ae",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1874,
+    "code": "PTF60F1499_e6ee",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1875,
+    "code": "PT77A45979_ff73",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1876,
+    "code": "PTEA84BD91_4ed7",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1877,
+    "code": "PT7DB1F5D8_9788",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1878,
+    "code": "PTEF84421A_c76f",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1879,
+    "code": "PTE907A76C_ae80",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1880,
+    "code": "Vá Vỏ Hồng Vũ_01",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1881,
+    "code": "PTA90DE38F_103b",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1882,
+    "code": "PT1D77EBDF_344d",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1883,
+    "code": "PTF18A84F3_efa1",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1884,
+    "code": "PT76395CE8_b1a3",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1886,
+    "code": "PT7847A275_b031",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1887,
+    "code": "PT687D2A3C_27f9",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1888,
+    "code": "PT08414B93_8b95",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1889,
+    "code": "PT6CF5BDA1_398e",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1890,
+    "code": "PTE7650154_3243",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  },
+  {
+    "id": 1891,
+    "code": "PT1D29F49B_dd91",
+    "error": "curl: (56) CONNECT tunnel failed, response 403",
+    "provider": "bigdatacloud"
+  }
+]

@@ -1,0 +1,78 @@
+{
+  "generatedAt": "2026-08-26T11:27:22.035Z",
+  "nq1654Wards": 93,
+  "stats": {
+    "nq1654": 31,
+    "heuristicPrecinct": 788,
+    "heuristicDistrict": 612,
+    "keepV1": 28,
+    "unmapped": 121
+  },
+  "overrideCount": 1459,
+  "sampleRachGia": [
+    {
+      "id": "129",
+      "provinceCode": "KGI",
+      "districtCode": "RGI",
+      "precinctCode": "VLOI",
+      "source": "NQ1654",
+      "address": "Mạc Cửu, Rạch Giá, Phường Rạch Giá, Tỉnh An Giang, Việt Nam"
+    },
+    {
+      "id": "361",
+      "provinceCode": "KGI",
+      "districtCode": "RGI",
+      "precinctCode": "VHIE",
+      "source": "NQ1654",
+      "address": "Ba Tháng Hai, Khu phố 8, Rạch Giá, Phường Rạch Giá, Tỉnh An Giang, Việt Nam"
+    },
+    {
+      "id": "385",
+      "provinceCode": "KGI",
+      "districtCode": "RGI",
+      "precinctCode": "VTHA",
+      "source": "NQ1654",
+      "address": "Lương Thế Vinh, Khu phố 5, Rạch Giá, Phường Rạch Giá, Tỉnh An Giang, Việt Nam"
+    },
+    {
+      "id": "388",
+      "provinceCode": "KGI",
+      "districtCode": "RGI",
+      "precinctCode": "VHIE",
+      "source": "NQ1654",
+      "address": "Huỳnh Tấn Phát, Thông Chữ, Rạch Giá, Phường Rạch Giá, Tỉnh An Giang, Việt Nam"
+    },
+    {
+      "id": "396",
+      "provinceCode": "KGI",
+      "districtCode": "RGI",
+      "precinctCode": "VLAC",
+      "source": "NQ1654",
+      "address": "Trần Công Án, Khu phố 5, Rạch Giá, Phường Rạch Giá, Tỉnh An Giang, Việt Nam"
+    },
+    {
+      "id": "1764",
+      "provinceCode": "KGI",
+      "districtCode": "RGI",
+      "precinctCode": "VTVA",
+      "source": "NQ1654",
+      "address": "Lạc Hồng, Khu phố 1, Phường Rạch Giá, Rạch Giá, Tỉnh An Giang, Việt Nam"
+    },
+    {
+      "id": "1775",
+      "provinceCode": "KGI",
+      "districtCode": "RGI",
+      "precinctCode": "VTVA",
+      "source": "NQ1654",
+      "address": "Lâm Quang Ky, Khu phố 7, Phường Rạch Giá, Rạch Giá, Tỉnh An Giang, Việt Nam"
+    },
+    {
+      "id": "1845",
+      "provinceCode": "KGI",
+      "districtCode": "RGI",
+      "precinctCode": "VLAC",
+      "source": "NQ1654",
+      "address": "Đống Đa, Khu phố 2, Phường Rạch Giá, Rạch Giá, Tỉnh An Giang, Việt Nam"
+    }
+  ]
+}

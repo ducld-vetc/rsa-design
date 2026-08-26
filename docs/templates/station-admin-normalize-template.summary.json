@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-08-26T11:27:22.944Z",
+  "stationCount": 1580,
+  "overridesApplied": 1479,
+  "flags": {
+    "OK": 313,
+    "HUYEN_GIA_V2": 683,
+    "THIEU_HUYEN": 584
+  },
+  "canDuyet": 99,
+  "xacNhan": 1481,
+  "suggestedDistrictFilled": 1506,
+  "outputs": [
+    "/Users/admin/Documents/RSA/rsa-design/docs/templates/station-admin-normalize-template.xlsx",
+    "/Users/admin/Documents/RSA/rsa-design/public/templates/mau_chuan_hoa_quan_huyen_tram.xlsx",
+    "/Users/admin/Documents/RSA/rsa-docs/docs/rescue_station/mau_chuan_hoa_quan_huyen_tram.xlsx"
+  ]
+}
