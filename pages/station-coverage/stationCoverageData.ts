@@ -1,4 +1,5 @@
 import { DB_STATIONS, type DbStationRow } from './stationCoverageFromDb';
+import { INTERNAL_VEHICLE_STATIONS } from './stationCoverageInternalVehicles';
 import { STATION_ADMIN_OVERRIDES } from './stationAdminOverrides';
 import { PARTNER_SIGNING_DATES } from './partnerSigningDates';
 import {
@@ -12,6 +13,16 @@ import {
   type AreaProvinceRow,
 } from './stationCoverageProvinces';
 import { AREA_NAME_LOOKUP } from './areaNameLookup';
+import {
+  SERVICE_RADIUS_KM,
+  areaCoveragePercent,
+  evaluateWardCoverage,
+  metricsFromWards,
+  type WardCoverageResult,
+} from './stationAreaCoverage';
+
+export { SERVICE_RADIUS_KM, areaCoveragePercent } from './stationAreaCoverage';
+export type { AreaCoverageMetrics, WardCoverageResult } from './stationAreaCoverage';
 
 export type CoverageLevel = 'cao' | 'trung_binh' | 'thap';
 export type AreaType = 'HIGHWAY' | 'URBAN' | 'MOUNTAIN';
@@ -435,20 +446,20 @@ export function hasPlottablePosition(lat: number | null, lng: number | null): bo
   return true;
 }
 
-/**
- * Trạm lat/lng số nguyên mà chưa có override huyện → loại khỏi báo cáo độ phủ
- * (tọa độ giả, không tin được; Ops xử lý case-by-case ngoài danh sách này).
- * EXCLUDED_STATION_IDS: loại hẳn theo yêu cầu Ops (address không đủ / không còn dùng).
- */
 const EXCLUDED_STATION_IDS = new Set<string>([
   '1721', // PTA8868E2E_7245 — hỗ trợ từ xa, address chỉ "Hà Nội"
 ]);
 
+/**
+ * Loại khỏi báo cáo độ phủ:
+ * - EXCLUDED_STATION_IDS (Ops)
+ * - Quick Service
+ * - Không có tọa độ hợp lệ (null / ngoài VN / lat·lng số nguyên giả)
+ */
 function shouldIncludeStationInCoverage(row: DbStationRow): boolean {
   if (EXCLUDED_STATION_IDS.has(String(row.id))) return false;
   if (isQuickServicePartner(row)) return false;
-  if (!isIntegerLatLng(row.latitude, row.longitude)) return true;
-  return Boolean(STATION_ADMIN_OVERRIDES[String(row.id)]?.districtCode);
+  return hasPlottablePosition(row.latitude, row.longitude);
 }
 
 function partnerLabel(row: DbStationRow): string {
@@ -652,7 +663,9 @@ function toMapPoint(row: DbStationRow, mode: AddressSchemaMode): MapStationPoint
 }
 
 export function getMapStationPoints(mode: AddressSchemaMode): MapStationPoint[] {
-  return DB_STATIONS.filter(shouldIncludeStationInCoverage).map((row) => toMapPoint(row, mode));
+  // Giữ toàn bộ trạm snapshot + bổ sung mỗi xe INTERNAL (temp_rescue_station) như 1 trạm nội bộ.
+  const merged = [...DB_STATIONS, ...INTERNAL_VEHICLE_STATIONS];
+  return merged.filter(shouldIncludeStationInCoverage).map((row) => toMapPoint(row, mode));
 }
 
 export function getProvinceCenters(mode: AddressSchemaMode): Record<string, [number, number]> {
@@ -975,11 +988,19 @@ export interface HierarchyStationStats {
 export interface PrecinctHierarchyNode extends HierarchyStationStats {
   code: string;
   name: string;
+  /** % độ phủ xã: 100 | 0 | null (không có centroid). */
+  cr: number | null;
+  nearestKm: number | null;
+  hasCentroid: boolean;
 }
 
 export interface DistrictHierarchyNode extends HierarchyStationStats {
   code: string;
   name: string;
+  wardTotal: number;
+  wardCovered: number;
+  cr: number | null;
+  level: CoverageLevel | null;
   precincts: PrecinctHierarchyNode[];
 }
 
@@ -987,6 +1008,8 @@ export interface ProvinceHierarchyNode extends HierarchyStationStats {
   provinceId: string;
   code: string;
   name: string;
+  wardTotal: number;
+  wardCovered: number;
   cr: number;
   level: CoverageLevel;
   districts: DistrictHierarchyNode[];
@@ -1003,19 +1026,68 @@ function addStationStat(stats: HierarchyStationStats, station: MapStationPoint) 
   else stats.noContract += 1;
 }
 
-function sortStatsDesc<T extends HierarchyStationStats & { name: string }>(items: T[]): T[] {
+function sortByCoverageThenStations<T extends { cr: number | null; total: number; name: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => {
+    const aCr = a.cr ?? -1;
+    const bCr = b.cr ?? -1;
+    if (aCr !== bCr) return aCr - bCr;
     if (b.total !== a.total) return b.total - a.total;
     return a.name.localeCompare(b.name, 'vi');
   });
 }
 
-/** Cây 3 cấp tỉnh → huyện → xã/phường theo mode địa chỉ. */
+function provinceDefsForMode(mode: AddressSchemaMode): ProvinceDef[] {
+  return mode === 'old' ? OLD_PROVINCES.map(areaToProvinceDef) : PROVINCE_DEFS;
+}
+
+function buildCodeToProvinceId(mode: AddressSchemaMode): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const def of provinceDefsForMode(mode)) {
+    map.set(def.code.toUpperCase(), def.id);
+    for (const alias of def.aliases) map.set(alias.trim().toUpperCase(), def.id);
+  }
+  for (const row of AREA_PROVINCES) {
+    const code = row.code.toUpperCase();
+    if (map.has(code)) continue;
+    const hit = provinceDefsForMode(mode).find(
+      (d) =>
+        d.code.toUpperCase() === code ||
+        d.aliases.some((a) => a.trim().toUpperCase() === code),
+    );
+    if (hit) map.set(code, hit.id);
+  }
+  if (mode === 'new') {
+    for (const [v1, both] of Object.entries(V1_TO_BOTH_PROVINCE)) {
+      const id = map.get(both.toUpperCase());
+      if (id) map.set(v1.toUpperCase(), id);
+    }
+  }
+  return map;
+}
+
+/**
+ * Cây 3 cấp tỉnh → huyện → xã/phường + % độ phủ địa bàn.
+ * @param stations — trạm sau lọc (đếm số trạm trên cây)
+ * @param coverageStations — tập trạm để tìm trạm gần nhất (thường = lọc loại/đối tác, không theo tỉnh)
+ */
 export function buildProvinceHierarchy(
   mode: AddressSchemaMode,
   provinceRows: ProvinceCoverageRow[],
   stations: MapStationPoint[],
+  coverageStations: MapStationPoint[] = stations,
 ): ProvinceHierarchyNode[] {
+  const codeToId = buildCodeToProvinceId(mode);
+  const wardResults = evaluateWardCoverage(mode, coverageStations, SERVICE_RADIUS_KM);
+
+  const wardsByProvince = new Map<string, WardCoverageResult[]>();
+  for (const ward of wardResults) {
+    const provinceId = codeToId.get(ward.provinceCode.toUpperCase());
+    if (!provinceId) continue;
+    const list = wardsByProvince.get(provinceId) ?? [];
+    list.push(ward);
+    wardsByProvince.set(provinceId, list);
+  }
+
   const byProvince = new Map<string, MapStationPoint[]>();
   for (const station of stations) {
     if (station.provinceId === UNASSIGNED_PROVINCE_ID) continue;
@@ -1026,42 +1098,89 @@ export function buildProvinceHierarchy(
 
   const nodes: ProvinceHierarchyNode[] = provinceRows.map((row) => {
     const provinceStations = byProvince.get(row.id) ?? [];
-    const districtMap = new Map<string, MapStationPoint[]>();
+    const provinceWards = wardsByProvince.get(row.id) ?? [];
+    const provinceMetrics = metricsFromWards(provinceWards);
+
+    type DistBucket = {
+      districtCode: string | null;
+      stations: MapStationPoint[];
+      wards: WardCoverageResult[];
+    };
+    const districtMap = new Map<string, DistBucket>();
+
+    const ensureDistrict = (dKey: string, districtCode: string | null): DistBucket => {
+      let bucket = districtMap.get(dKey);
+      if (!bucket) {
+        bucket = { districtCode, stations: [], wards: [] };
+        districtMap.set(dKey, bucket);
+      }
+      return bucket;
+    };
+
     for (const station of provinceStations) {
       const dKey = station.districtCode || '__none__';
-      const list = districtMap.get(dKey) ?? [];
-      list.push(station);
-      districtMap.set(dKey, list);
+      ensureDistrict(dKey, station.districtCode).stations.push(station);
+    }
+    for (const ward of provinceWards) {
+      ensureDistrict(ward.districtCode, ward.districtCode).wards.push(ward);
     }
 
-    const districts: DistrictHierarchyNode[] = [...districtMap.entries()].map(([dKey, dStations]) => {
-      const districtCode = dKey === '__none__' ? null : dKey;
-      const precinctMap = new Map<string, MapStationPoint[]>();
-      for (const station of dStations) {
+    const districts: DistrictHierarchyNode[] = [...districtMap.entries()].map(([, bucket]) => {
+      const districtCode = bucket.districtCode;
+      type PrecBucket = {
+        precinctCode: string | null;
+        name: string;
+        stations: MapStationPoint[];
+        ward: WardCoverageResult | null;
+      };
+      const precinctMap = new Map<string, PrecBucket>();
+
+      const ensurePrecinct = (pKey: string, precinctCode: string | null, name: string): PrecBucket => {
+        let pb = precinctMap.get(pKey);
+        if (!pb) {
+          pb = { precinctCode, name, stations: [], ward: null };
+          precinctMap.set(pKey, pb);
+        }
+        return pb;
+      };
+
+      for (const station of bucket.stations) {
         const pKey = station.precinctCode || '__none__';
-        const list = precinctMap.get(pKey) ?? [];
-        list.push(station);
-        precinctMap.set(pKey, list);
+        const name = precinctDisplayName(mode, row.code, districtCode, station.precinctCode);
+        ensurePrecinct(pKey, station.precinctCode, name).stations.push(station);
+      }
+      for (const ward of bucket.wards) {
+        const pb = ensurePrecinct(ward.precinctCode, ward.precinctCode, ward.name);
+        pb.ward = ward;
+        if (!pb.name || pb.name.startsWith('Mã ')) pb.name = ward.name;
       }
 
-      const precincts: PrecinctHierarchyNode[] = [...precinctMap.entries()].map(([pKey, pStations]) => {
-        const precinctCode = pKey === '__none__' ? null : pKey;
+      const precincts: PrecinctHierarchyNode[] = [...precinctMap.values()].map((pb) => {
         const stats = emptyStats();
-        pStations.forEach((s) => addStationStat(stats, s));
+        pb.stations.forEach((s) => addStationStat(stats, s));
+        const covered = pb.ward?.covered ?? null;
         return {
-          code: precinctCode ?? '—',
-          name: precinctDisplayName(mode, row.code, districtCode, precinctCode),
+          code: pb.precinctCode ?? '—',
+          name: pb.name,
           ...stats,
+          cr: covered == null ? null : covered ? 100 : 0,
+          nearestKm: pb.ward?.nearestKm ?? null,
+          hasCentroid: pb.ward != null,
         };
       });
 
       const dStats = emptyStats();
-      dStations.forEach((s) => addStationStat(dStats, s));
+      bucket.stations.forEach((s) => addStationStat(dStats, s));
+      const dMetrics = metricsFromWards(bucket.wards);
       return {
         code: districtCode ?? '—',
         name: districtDisplayName(mode, row.code, districtCode),
         ...dStats,
-        precincts: sortStatsDesc(precincts),
+        wardTotal: dMetrics.wardTotal,
+        wardCovered: dMetrics.wardCovered,
+        cr: dMetrics.wardTotal > 0 ? dMetrics.cr : null,
+        level: dMetrics.wardTotal > 0 ? resolveCoverageLevelFromPercent(dMetrics.cr) : null,
+        precincts: sortByCoverageThenStations(precincts),
       };
     });
 
@@ -1072,13 +1191,38 @@ export function buildProvinceHierarchy(
       code: row.code,
       name: row.name,
       ...pStats,
-      cr: stationCoveragePercent(pStats.total, TARGET_STATIONS_PER_PROVINCE),
-      level: resolveCoverageLevelFromStations(pStats.total, TARGET_STATIONS_PER_PROVINCE),
-      districts: sortStatsDesc(districts),
+      wardTotal: provinceMetrics.wardTotal,
+      wardCovered: provinceMetrics.wardCovered,
+      cr: provinceMetrics.cr,
+      level: resolveCoverageLevelFromPercent(provinceMetrics.cr),
+      districts: sortByCoverageThenStations(districts),
     };
   });
 
-  return sortStatsDesc(nodes);
+  return sortByCoverageThenStations(nodes);
+}
+
+/** % độ phủ theo tỉnh — dùng KPI / sidebar (trạm gần nhất từ coverageStations). */
+export function getProvinceAreaCoverageMap(
+  mode: AddressSchemaMode,
+  coverageStations: MapStationPoint[],
+): Map<string, { wardTotal: number; wardCovered: number; cr: number; level: CoverageLevel }> {
+  const codeToId = buildCodeToProvinceId(mode);
+  const wards = evaluateWardCoverage(mode, coverageStations, SERVICE_RADIUS_KM);
+  const byProvince = new Map<string, WardCoverageResult[]>();
+  for (const ward of wards) {
+    const provinceId = codeToId.get(ward.provinceCode.toUpperCase());
+    if (!provinceId) continue;
+    const list = byProvince.get(provinceId) ?? [];
+    list.push(ward);
+    byProvince.set(provinceId, list);
+  }
+  const out = new Map<string, { wardTotal: number; wardCovered: number; cr: number; level: CoverageLevel }>();
+  for (const [provinceId, list] of byProvince) {
+    const m = metricsFromWards(list);
+    out.set(provinceId, { ...m, level: resolveCoverageLevelFromPercent(m.cr) });
+  }
+  return out;
 }
 
 /** Mặc định địa chỉ mới — tương thích import cũ (init sau V1_AREA_BY_PROVINCE). */
@@ -1132,14 +1276,18 @@ export function coveragePercent(covered: number, orders: number): number | null 
   return Math.round((covered / orders) * 1000) / 10;
 }
 
-/**
- * Mục tiêu số trạm active / tỉnh để đạt 100% mật độ (cấu hình sẵn).
- * Chọn 50 theo snapshot prod (~median 33, mean ~40 trên 34 tỉnh):
- * Cao ≥ 40 trạm · Trung bình ≥ 25 · Thấp < 25.
- */
+/** Mức độ phủ theo % xã được phủ (Cao ≥80 · TB ≥50 · Thấp <50). */
+export function resolveCoverageLevelFromPercent(pct: number): CoverageLevel {
+  if (pct <= 0) return 'thap';
+  if (pct >= 80) return 'cao';
+  if (pct >= 50) return 'trung_binh';
+  return 'thap';
+}
+
+/** @deprecated Giữ tương thích — dùng resolveCoverageLevelFromPercent. */
 export const TARGET_STATIONS_PER_PROVINCE = 50;
 
-/** Preview: % mật độ = số trạm / mục tiêu cấu hình (trần 100%). */
+/** @deprecated Thay bằng areaCoveragePercent / độ phủ xã. */
 export function stationCoveragePercent(
   stations: number,
   targetStations: number = TARGET_STATIONS_PER_PROVINCE,
@@ -1148,24 +1296,21 @@ export function stationCoveragePercent(
   return Math.min(100, Math.round((stations / targetStations) * 1000) / 10);
 }
 
+/** @deprecated Thay bằng resolveCoverageLevelFromPercent. */
 export function resolveCoverageLevelFromStations(
   stations: number,
   targetStations: number = TARGET_STATIONS_PER_PROVINCE,
 ): CoverageLevel {
   if (targetStations <= 0 || stations <= 0) return 'thap';
   const pct = (stations / targetStations) * 100;
-  if (pct >= 80) return 'cao';
-  if (pct >= 50) return 'trung_binh';
-  return 'thap';
+  return resolveCoverageLevelFromPercent(pct);
 }
 
 /** Giữ API cũ cho mock đơn — chỉ còn 3 mức. */
 export function resolveCoverageLevel(orders: number, covered: number): CoverageLevel {
   if (orders === 0) return 'thap';
   const cr = (covered / orders) * 100;
-  if (cr >= 80) return 'cao';
-  if (cr >= 50) return 'trung_binh';
-  return 'thap';
+  return resolveCoverageLevelFromPercent(cr);
 }
 
 export function formatCoverage(value: number | null): string {

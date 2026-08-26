@@ -24,10 +24,13 @@ import {
   PARTNER_OPTIONS,
   REGION_OPTIONS,
   STATION_TYPE_OPTIONS,
+  SERVICE_RADIUS_KM,
+  areaCoveragePercent,
   buildProvinceHierarchy,
   coveragePercent,
   formatCoverage,
   getMapStationPoints,
+  getProvinceAreaCoverageMap,
   getProvinceCenters,
   getProvinceCoverageRows,
   matchesProvinceRegion,
@@ -36,9 +39,6 @@ import {
   precinctFilterKey,
   districtDisplayName,
   precinctDisplayName,
-  resolveCoverageLevelFromStations,
-  stationCoveragePercent,
-  TARGET_STATIONS_PER_PROVINCE,
   NEARBY_RADIUS_KM,
   haversineKm,
   averageStationCenter,
@@ -102,27 +102,29 @@ const FitVietnamBounds: React.FC<{ resetKey: string }> = ({ resetKey }) => {
   return null;
 };
 
-const FlyToProvince: React.FC<{ center: [number, number] | null; fitRadiusKm?: number | null }> = ({
-  center,
-  fitRadiusKm = null,
-}) => {
+const FlyToArea: React.FC<{
+  center: [number, number] | null;
+  points?: Array<[number, number]>;
+  includeRadiusKm?: number | null;
+}> = ({ center, points = [], includeRadiusKm = null }) => {
   const map = useMap();
   useEffect(() => {
-    if (!center) return;
-    if (fitRadiusKm != null && fitRadiusKm > 0) {
-      const dLat = fitRadiusKm / 111;
-      const dLng = fitRadiusKm / (111 * Math.max(0.2, Math.cos((center[0] * Math.PI) / 180)));
-      map.fitBounds(
-        [
-          [center[0] - dLat, center[1] - dLng],
-          [center[0] + dLat, center[1] + dLng],
-        ],
-        { padding: [36, 36], maxZoom: 11, animate: true },
-      );
+    const latLngs: L.LatLngExpression[] = [...points];
+    if (center && includeRadiusKm != null && includeRadiusKm > 0) {
+      const dLat = includeRadiusKm / 111;
+      const dLng = includeRadiusKm / (111 * Math.max(0.2, Math.cos((center[0] * Math.PI) / 180)));
+      latLngs.push([center[0] - dLat, center[1] - dLng], [center[0] + dLat, center[1] + dLng]);
+    }
+    if (latLngs.length >= 2) {
+      map.fitBounds(L.latLngBounds(latLngs), { padding: [40, 40], maxZoom: 11, animate: true });
       return;
     }
-    map.flyTo(center, 9, { duration: 0.45 });
-  }, [center, fitRadiusKm, map]);
+    if (latLngs.length === 1) {
+      map.flyTo(latLngs[0], 10, { duration: 0.45 });
+      return;
+    }
+    if (center) map.flyTo(center, 9, { duration: 0.45 });
+  }, [center, points, includeRadiusKm, map]);
   return null;
 };
 
@@ -146,6 +148,8 @@ interface ViewRow {
   covered: number;
   avgKm: number | null;
   uncovered: number;
+  wardTotal: number;
+  wardCovered: number;
   cr: number;
   level: CoverageLevel;
 }
@@ -245,11 +249,20 @@ const StationCoverageReport: React.FC = () => {
     return map;
   }, [filteredStations]);
 
+  const provinceAreaCoverage = useMemo(
+    () => getProvinceAreaCoverageMap(addressSchema, attributeFilteredStations),
+    [addressSchema, attributeFilteredStations],
+  );
+
   const buildViewRow = useCallback(
     (row: ProvinceCoverageRow): ViewRow => {
       const stats = stationStatsByProvince.get(row.id) ?? { total: 0, internal: 0, withContract: 0, noContract: 0 };
-      const cr = stationCoveragePercent(stats.total, TARGET_STATIONS_PER_PROVINCE);
-      const level = resolveCoverageLevelFromStations(stats.total, TARGET_STATIONS_PER_PROVINCE);
+      const coverage = provinceAreaCoverage.get(row.id) ?? {
+        wardTotal: 0,
+        wardCovered: 0,
+        cr: 0,
+        level: 'thap' as CoverageLevel,
+      };
       return {
         row: { ...row, stations: stats.total },
         stations: stats.total,
@@ -260,31 +273,89 @@ const StationCoverageReport: React.FC = () => {
         covered: row.covered90,
         avgKm: row.avgKm90,
         uncovered: Math.max(0, row.orders90 - row.covered90),
-        cr,
-        level,
+        wardTotal: coverage.wardTotal,
+        wardCovered: coverage.wardCovered,
+        cr: coverage.cr,
+        level: coverage.level,
       };
     },
-    [stationStatsByProvince],
+    [stationStatsByProvince, provinceAreaCoverage],
   );
 
   const rowsForMap: ViewRow[] = useMemo(() => {
+    // Khi lọc huyện/xã: chỉ giữ các tỉnh có trong key lọc (vd HNO|TLI → chỉ Hà Nội),
+    // tránh sidebar "Tất cả tỉnh" với 63 tỉnh trong khi đang xem 1 huyện.
+    const provinceCodesFromAdmin = new Set<string>();
+    for (const key of districtFilterKeys) {
+      const code = key.split('|')[0]?.trim().toUpperCase();
+      if (code && code !== '__NONE__') provinceCodesFromAdmin.add(code);
+    }
+    for (const key of precinctFilterKeys) {
+      const code = key.split('|')[0]?.trim().toUpperCase();
+      if (code && code !== '__NONE__') provinceCodesFromAdmin.add(code);
+    }
+
     return provinceCoverageRows
       .filter((row) => matchesProvinceRegion(row, region))
       .filter((row) => matchesProvinceFilter(row.id))
+      .filter((row) => {
+        if (provinceCodesFromAdmin.size === 0) return true;
+        return provinceCodesFromAdmin.has(row.code.toUpperCase());
+      })
       .map(buildViewRow)
       .sort((a, b) => {
         if (b.stations !== a.stations) return b.stations - a.stations;
         return a.row.name.localeCompare(b.row.name, 'vi');
       });
-  }, [region, matchesProvinceFilter, buildViewRow, provinceCoverageRows]);
+  }, [
+    region,
+    matchesProvinceFilter,
+    buildViewRow,
+    provinceCoverageRows,
+    districtFilterKeys,
+    precinctFilterKeys,
+  ]);
+
+  const provinceIdByCode = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of provinceCoverageRows) map.set(row.code.toUpperCase(), row.id);
+    return map;
+  }, [provinceCoverageRows]);
+
+  /** Tỉnh suy ra từ lọc đúng 1 huyện hoặc 1 xã (key province|district|...). */
+  const provinceIdFromAdminFilter = useMemo(() => {
+    const key =
+      precinctFilterKeys.length === 1
+        ? precinctFilterKeys[0]
+        : addressSchema === 'old' && districtFilterKeys.length === 1
+          ? districtFilterKeys[0]
+          : null;
+    if (!key) return null;
+    const code = key.split('|')[0]?.trim().toUpperCase();
+    if (!code) return null;
+    return provinceIdByCode.get(code) ?? null;
+  }, [precinctFilterKeys, districtFilterKeys, addressSchema, provinceIdByCode]);
+
+  /** Click tỉnh / lọc 1 tỉnh / lọc 1 huyện|xã → xem chi tiết tỉnh đó. */
+  const effectiveFocusedId =
+    focusedId ??
+    (provinceFilterIds.length === 1 ? provinceFilterIds[0] : null) ??
+    provinceIdFromAdminFilter;
+  const selectedFromAdminFilter =
+    focusedId == null &&
+    (provinceFilterIds.length === 1 ||
+      districtFilterKeys.length === 1 ||
+      precinctFilterKeys.length === 1);
 
   const viewRows: ViewRow[] = useMemo(() => {
-    const source = focusedId ? rowsForMap.filter((item) => item.row.id === focusedId) : rowsForMap;
+    const source = effectiveFocusedId
+      ? rowsForMap.filter((item) => item.row.id === effectiveFocusedId)
+      : rowsForMap;
     return [...source].sort((a, b) => {
       if (b.stations !== a.stations) return b.stations - a.stations;
       return a.row.name.localeCompare(b.row.name, 'vi');
     });
-  }, [rowsForMap, focusedId]);
+  }, [rowsForMap, effectiveFocusedId]);
 
   const hierarchyRows = useMemo(
     () =>
@@ -292,8 +363,9 @@ const StationCoverageReport: React.FC = () => {
         addressSchema,
         provinceCoverageRows.filter((row) => matchesProvinceRegion(row, region)).filter((row) => matchesProvinceFilter(row.id)),
         filteredStations,
+        attributeFilteredStations,
       ),
-    [addressSchema, provinceCoverageRows, region, matchesProvinceFilter, filteredStations],
+    [addressSchema, provinceCoverageRows, region, matchesProvinceFilter, filteredStations, attributeFilteredStations],
   );
 
   const [expandedProvinces, setExpandedProvinces] = useState<Set<string>>(new Set());
@@ -412,7 +484,9 @@ const StationCoverageReport: React.FC = () => {
   }, [precinctOptions]);
 
   const visibleIds = useMemo(() => new Set(rowsForMap.map((item) => item.row.id)), [rowsForMap]);
-  const selected = focusedId ? (rowsForMap.find((item) => item.row.id === focusedId) ?? null) : null;
+  const selected = effectiveFocusedId
+    ? (rowsForMap.find((item) => item.row.id === effectiveFocusedId) ?? null)
+    : null;
 
   /**
    * Khi search/chọn đúng 1 area (xã > huyện > tỉnh/focus) → lấy tâm điểm
@@ -497,27 +571,31 @@ const StationCoverageReport: React.FC = () => {
   const selectedCenter = searchAreaFocus?.center ?? null;
 
   const kpis = useMemo(() => {
-    const source = focusedId ? viewRows : rowsForMap;
+    const source = effectiveFocusedId ? viewRows : rowsForMap;
     const totalStations = source.reduce((sum, item) => sum + item.stations, 0);
     const withStation = source.filter((item) => item.stations >= 1).length;
     const lowProvinces = source.filter((item) => item.level === 'thap').length;
     const presenceCr = source.length === 0 ? null : coveragePercent(withStation, source.length);
-    const avgDensity =
-      source.length === 0
-        ? null
-        : Math.round(
-            (source.reduce((sum, item) => sum + item.cr, 0) / source.length) * 10,
-          ) / 10;
+    const wardTotal = source.reduce((sum, item) => sum + item.wardTotal, 0);
+    const wardCovered = source.reduce((sum, item) => sum + item.wardCovered, 0);
+    const nationalCr = wardTotal === 0 ? null : areaCoveragePercent(wardCovered, wardTotal);
     return {
       totalOrders: source.reduce((sum, item) => sum + item.orders, 0),
       totalCovered: source.reduce((sum, item) => sum + item.covered, 0),
       totalStations,
       withStation,
       lowProvinces,
-      nationalCr: avgDensity,
+      nationalCr,
       presenceCr,
+      wardTotal,
+      wardCovered,
     };
-  }, [viewRows, rowsForMap, focusedId]);
+  }, [viewRows, rowsForMap, effectiveFocusedId]);
+
+  const filteredStationIdSet = useMemo(
+    () => new Set(filteredStations.map((station) => station.id)),
+    [filteredStations],
+  );
 
   const visibleStations = useMemo(() => {
     const byId = new Map<string, MapStationPoint>();
@@ -525,29 +603,35 @@ const StationCoverageReport: React.FC = () => {
       if (!station.hasValidPosition) continue;
       if (station.provinceId === UNASSIGNED_PROVINCE_ID) continue;
       if (!visibleIds.has(station.provinceId)) continue;
-      if (focusedId && station.provinceId !== focusedId) continue;
+      if (effectiveFocusedId && station.provinceId !== effectiveFocusedId) continue;
       byId.set(station.id, station);
     }
-    // Bổ sung trạm trong bán kính 30km quanh tâm area đã search (có thể ngoài tỉnh đang lọc)
+    // Khi chọn 1 khu vực: thêm marker các trạm trong bán kính 30km (kể cả ngoài tỉnh/huyện lọc).
+    // KPI / Trạm active vẫn chỉ đếm filteredStations.
     for (const station of nearbyStations) {
       byId.set(station.id, station);
     }
     return [...byId.values()];
-  }, [filteredStations, visibleIds, focusedId, nearbyStations]);
+  }, [filteredStations, visibleIds, effectiveFocusedId, nearbyStations]);
 
   const drillStations = useMemo(() => {
     return filteredStations.filter((station) => {
       if (station.provinceId === UNASSIGNED_PROVINCE_ID) return false;
       if (!visibleIds.has(station.provinceId)) return false;
-      if (focusedId && station.provinceId !== focusedId) return false;
+      if (effectiveFocusedId && station.provinceId !== effectiveFocusedId) return false;
       return true;
     });
-  }, [filteredStations, visibleIds, focusedId]);
+  }, [filteredStations, visibleIds, effectiveFocusedId]);
+
+  const mapFitPoints = useMemo(
+    () => visibleStations.map((station) => station.position),
+    [visibleStations],
+  );
 
   const provinceStyle = useCallback(
     (feature?: GeoJSON.Feature) => {
       const id = feature?.properties?.id as string | undefined;
-      const isSelected = id === focusedId;
+      const isSelected = id === effectiveFocusedId;
       const inFilter = id ? visibleIds.has(id) : false;
       if (mapMode === 'heatmap') {
         return {
@@ -564,7 +648,7 @@ const StationCoverageReport: React.FC = () => {
         weight: isSelected ? 2.5 : 1,
       };
     },
-    [visibleIds, focusedId, mapMode],
+    [visibleIds, effectiveFocusedId, mapMode],
   );
 
   const onEachProvince = useCallback(
@@ -605,8 +689,11 @@ const StationCoverageReport: React.FC = () => {
       'Nội bộ',
       'Đối tác có HĐ',
       'Đối tác không HĐ',
-      `% mật độ (mục tiêu ${TARGET_STATIONS_PER_PROVINCE})`,
+      'Xã phủ',
+      'Tổng xã',
+      `% độ phủ (R=${SERVICE_RADIUS_KM}km)`,
       'Mức',
+      'Km tới trạm gần nhất',
     ];
     const lines: string[] = [];
     for (const province of hierarchyRows) {
@@ -623,8 +710,11 @@ const StationCoverageReport: React.FC = () => {
           province.internal,
           province.withContract,
           province.noContract,
+          province.wardCovered,
+          province.wardTotal,
           province.cr.toFixed(1),
           LEVEL_META[province.level].label,
+          '',
         ].join(','),
       );
       for (const district of province.districts) {
@@ -641,7 +731,10 @@ const StationCoverageReport: React.FC = () => {
             district.internal,
             district.withContract,
             district.noContract,
-            '',
+            district.wardCovered,
+            district.wardTotal,
+            district.cr == null ? '' : district.cr.toFixed(1),
+            district.level ? LEVEL_META[district.level].label : '',
             '',
           ].join(','),
         );
@@ -659,8 +752,11 @@ const StationCoverageReport: React.FC = () => {
               precinct.internal,
               precinct.withContract,
               precinct.noContract,
+              precinct.cr === 100 ? 1 : precinct.cr === 0 ? 0 : '',
+              precinct.hasCentroid ? 1 : '',
+              precinct.cr == null ? '' : precinct.cr.toFixed(1),
               '',
-              '',
+              precinct.nearestKm == null ? '' : precinct.nearestKm.toFixed(2),
             ].join(','),
           );
         }
@@ -674,7 +770,7 @@ const StationCoverageReport: React.FC = () => {
     a.download = 'do-phu-tram-theo-tinh.csv';
     a.click();
     URL.revokeObjectURL(url);
-    setExportNote(`Đã xuất ${hierarchyRows.length} tỉnh · 3 cấp địa chỉ (CSV mở bằng Excel).`);
+    setExportNote(`Đã xuất ${hierarchyRows.length} tỉnh · độ phủ xã (R=${SERVICE_RADIUS_KM}km).`);
   };
 
   const nationalFillPoints = useMemo(() => buildNationalHeatFill(visibleIds), [visibleIds]);
@@ -926,10 +1022,11 @@ const StationCoverageReport: React.FC = () => {
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                {selectedCenter ? (
-                  <FlyToProvince
+                {selectedCenter || mapFitPoints.length > 0 ? (
+                  <FlyToArea
                     center={selectedCenter}
-                    fitRadiusKm={searchAreaFocus ? NEARBY_RADIUS_KM : null}
+                    points={mapFitPoints}
+                    includeRadiusKm={searchAreaFocus ? NEARBY_RADIUS_KM : null}
                   />
                 ) : (
                   <FitVietnamBounds resetKey={`${region}`} />
@@ -963,7 +1060,7 @@ const StationCoverageReport: React.FC = () => {
                     <Marker
                       key={station.id}
                       position={station.position}
-                      icon={iconForStation(station.stationType, station.provinceId === focusedId)}
+                      icon={iconForStation(station.stationType, station.provinceId === effectiveFocusedId)}
                       eventHandlers={{
                         click: () => setFocusedId(station.provinceId),
                       }}
@@ -975,6 +1072,11 @@ const StationCoverageReport: React.FC = () => {
                             {stationTypeLabel(station.stationType)}
                             {nearbyDistanceById.has(station.id)
                               ? ` · ${nearbyDistanceById.get(station.id)!.toFixed(1)} km`
+                              : ''}
+                            {searchAreaFocus &&
+                            nearbyDistanceById.has(station.id) &&
+                            !filteredStationIdSet.has(station.id)
+                              ? ' · ngoài khu vực lọc'
                               : ''}
                           </p>
                           <p className="mt-0.5 text-[11px] leading-snug text-white/75">{station.partner}</p>
@@ -1000,7 +1102,8 @@ const StationCoverageReport: React.FC = () => {
                     {searchAreaFocus.label}
                   </p>
                   <p className="mt-0.5 text-[10px] text-emerald-700">
-                    {nearbyStations.length} trạm trong vòng {NEARBY_RADIUS_KM} km quanh tâm
+                    {nearbyStations.length} trạm trong vòng {NEARBY_RADIUS_KM} km (hiện trên map; KPI chỉ đếm
+                    trong khu vực lọc)
                   </p>
                 </div>
               )}
@@ -1101,8 +1204,20 @@ const StationCoverageReport: React.FC = () => {
             drillStations={drillStations}
             nearbyStations={nearbyStations}
             searchAreaLabel={searchAreaFocus?.label ?? null}
+            filterSummaryTitle={
+              provinceFilterIds.length > 1
+                ? `${provinceFilterIds.length} tỉnh đang lọc`
+                : 'Tất cả tỉnh'
+            }
             onSelectProvince={setFocusedId}
-            onClose={() => setFocusedId(null)}
+            onClose={() => {
+              setFocusedId(null);
+              if (selectedFromAdminFilter) {
+                setProvinceFilterIds([]);
+                setDistrictFilterKeys([]);
+                setPrecinctFilterKeys([]);
+              }
+            }}
           />
         </div>
       )}
@@ -1112,7 +1227,7 @@ const StationCoverageReport: React.FC = () => {
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             <KpiChip label="Tỉnh có trạm" value={formatCoverage(kpis.presenceCr)} emphasis />
             <KpiChip label="Trạm active" value={formatNumber(kpis.totalStations)} />
-            <KpiChip label={`% mật độ TB (/${TARGET_STATIONS_PER_PROVINCE})`} value={formatCoverage(kpis.nationalCr)} />
+            <KpiChip label={`% độ phủ (R=${SERVICE_RADIUS_KM}km)`} value={formatCoverage(kpis.nationalCr)} />
             <KpiChip
               label="Tỉnh mức thấp"
               value={formatNumber(kpis.lowProvinces)}
@@ -1123,8 +1238,8 @@ const StationCoverageReport: React.FC = () => {
           <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
             <div className="border-b border-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500">
               {addressSchema === 'new'
-                ? 'Địa chỉ mới · 34 tỉnh (sau sáp nhập) · huyện/xã chuẩn hóa chung với địa chỉ cũ'
-                : 'Địa chỉ cũ · 63 tỉnh → Huyện → Xã/Phường · sắp xếp theo số trạm'}
+                ? `Địa chỉ mới · 34 tỉnh · % độ phủ = xã có trạm gần nhất < ${SERVICE_RADIUS_KM}km (kể cả ngoài huyện/tỉnh) / tổng xã`
+                : `Địa chỉ cũ · 63 tỉnh → Huyện → Xã · % độ phủ = xã có trạm gần nhất < ${SERVICE_RADIUS_KM}km (kể cả ngoài huyện) / tổng xã`}
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-xs">
@@ -1135,7 +1250,7 @@ const StationCoverageReport: React.FC = () => {
                     <th className="px-4 py-2.5 text-right">Nội bộ</th>
                     <th className="px-4 py-2.5 text-right">Có HĐ</th>
                     <th className="px-4 py-2.5 text-right">Không HĐ</th>
-                    <th className="px-4 py-2.5 text-right">% mật độ</th>
+                    <th className="px-4 py-2.5 text-right">% độ phủ</th>
                     <th className="px-4 py-2.5">Mức</th>
                     <th className="px-4 py-2.5" />
                   </tr>
@@ -1155,7 +1270,9 @@ const StationCoverageReport: React.FC = () => {
                               {provinceOpen ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
                               <span>
                                 <span className="block font-bold text-gray-800">{province.name}</span>
-                                <span className="text-[10px] text-gray-400">{province.code} · Tỉnh</span>
+                                <span className="text-[10px] text-gray-400">
+                                  {province.code} · Tỉnh · {province.wardCovered}/{province.wardTotal} xã phủ
+                                </span>
                               </span>
                             </button>
                           </td>
@@ -1201,7 +1318,15 @@ const StationCoverageReport: React.FC = () => {
                                       {districtOpen ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
                                       <span>
                                         <span className="block font-semibold text-gray-700">{district.name}</span>
-                                        <span className="text-[10px] text-gray-400">{district.code} · Huyện</span>
+                                        <span className="text-[10px] text-gray-400">
+                                          {district.code} · Huyện
+                                          {district.wardTotal > 0
+                                            ? ` · ${district.wardCovered}/${district.wardTotal} xã phủ`
+                                            : ''}
+                                          {district.total === 0 && (district.cr ?? 0) > 0
+                                            ? ' · phủ bởi trạm ngoài huyện'
+                                            : ''}
+                                        </span>
                                       </span>
                                     </button>
                                   </td>
@@ -1209,8 +1334,22 @@ const StationCoverageReport: React.FC = () => {
                                   <td className="px-4 py-2 text-right text-gray-700">{formatNumber(district.internal)}</td>
                                   <td className="px-4 py-2 text-right text-gray-700">{formatNumber(district.withContract)}</td>
                                   <td className="px-4 py-2 text-right text-gray-700">{formatNumber(district.noContract)}</td>
-                                  <td className="px-4 py-2 text-right text-gray-300">—</td>
-                                  <td className="px-4 py-2" />
+                                  <td
+                                    className={`px-4 py-2 text-right font-black ${
+                                      district.level ? LEVEL_META[district.level].text : 'text-gray-300'
+                                    }`}
+                                  >
+                                    {formatCoverage(district.cr)}
+                                  </td>
+                                  <td className="px-4 py-2">
+                                    {district.level ? (
+                                      <span
+                                        className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${LEVEL_META[district.level].badge}`}
+                                      >
+                                        {LEVEL_META[district.level].label}
+                                      </span>
+                                    ) : null}
+                                  </td>
                                   <td className="px-4 py-2" />
                                 </tr>
                                 {districtOpen &&
@@ -1218,13 +1357,30 @@ const StationCoverageReport: React.FC = () => {
                                     <tr key={`${districtKey}::${precinct.code}`} className="border-t border-gray-50 bg-white">
                                       <td className="px-4 py-2 pl-16">
                                         <p className="font-medium text-gray-700">{precinct.name}</p>
-                                        <p className="text-[10px] text-gray-400">{precinct.code} · Xã/Phường</p>
+                                        <p className="text-[10px] text-gray-400">
+                                          {precinct.code} · Xã/Phường
+                                          {precinct.nearestKm != null
+                                            ? ` · ${precinct.nearestKm.toFixed(1)} km`
+                                            : precinct.hasCentroid
+                                              ? ''
+                                              : ' · chưa có centroid'}
+                                        </p>
                                       </td>
                                       <td className="px-4 py-2 text-right font-semibold text-gray-700">{formatNumber(precinct.total)}</td>
                                       <td className="px-4 py-2 text-right text-gray-700">{formatNumber(precinct.internal)}</td>
                                       <td className="px-4 py-2 text-right text-gray-700">{formatNumber(precinct.withContract)}</td>
                                       <td className="px-4 py-2 text-right text-gray-700">{formatNumber(precinct.noContract)}</td>
-                                      <td className="px-4 py-2 text-right text-gray-300">—</td>
+                                      <td
+                                        className={`px-4 py-2 text-right font-black ${
+                                          precinct.cr === 100
+                                            ? 'text-emerald-800'
+                                            : precinct.cr === 0
+                                              ? 'text-orange-700'
+                                              : 'text-gray-300'
+                                        }`}
+                                      >
+                                        {formatCoverage(precinct.cr)}
+                                      </td>
                                       <td className="px-4 py-2" />
                                       <td className="px-4 py-2" />
                                     </tr>
@@ -1260,6 +1416,7 @@ const ProvinceDetailPanel: React.FC<{
   drillStations: CoverageStation[];
   nearbyStations: Array<MapStationPoint & { distanceKm: number }>;
   searchAreaLabel: string | null;
+  filterSummaryTitle: string;
   onSelectProvince: (id: string) => void;
   onClose: () => void;
 }> = ({
@@ -1269,6 +1426,7 @@ const ProvinceDetailPanel: React.FC<{
   drillStations,
   nearbyStations,
   searchAreaLabel,
+  filterSummaryTitle,
   onSelectProvince,
   onClose,
 }) => {
@@ -1317,7 +1475,7 @@ const ProvinceDetailPanel: React.FC<{
     return (
       <aside className="flex w-full flex-col rounded-2xl border border-gray-100 bg-white p-4 shadow-sm xl:w-[340px] xl:shrink-0">
         <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Tổng hợp</p>
-        <h2 className="mt-1 text-base font-black text-gray-900">Tất cả tỉnh</h2>
+        <h2 className="mt-1 text-base font-black text-gray-900">{filterSummaryTitle}</h2>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-sm font-black text-gray-900">{formatCoverage(kpis.presenceCr)}</span>
@@ -1327,13 +1485,13 @@ const ProvinceDetailPanel: React.FC<{
           <MiniStat label="Số tỉnh" value={formatNumber(provinceRows.length)} />
           <MiniStat label="Tỉnh có trạm" value={formatNumber(kpis.withStation)} />
           <MiniStat label="Trạm active" value={formatNumber(kpis.totalStations)} />
-          <MiniStat label={`% mật độ TB (/${TARGET_STATIONS_PER_PROVINCE})`} value={formatCoverage(kpis.nationalCr)} />
+          <MiniStat label={`% độ phủ (R=${SERVICE_RADIUS_KM}km)`} value={formatCoverage(kpis.nationalCr)} />
+          <MiniStat label="Tỉnh mức thấp" value={formatNumber(kpis.lowProvinces)} />
         </dl>
         <dl className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
           <MiniStat label="Nội bộ" value={formatNumber(internalCount)} />
           <MiniStat label="Đối tác có HĐ" value={formatNumber(withContractCount)} />
           <MiniStat label="Đối tác không HĐ" value={formatNumber(noContractCount)} />
-          <MiniStat label="Tỉnh mức thấp" value={formatNumber(kpis.lowProvinces)} />
         </dl>
 
         {nearbyList}
@@ -1383,7 +1541,7 @@ const ProvinceDetailPanel: React.FC<{
           type="button"
           onClick={onClose}
           className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-          aria-label="Xem tất cả tỉnh"
+          aria-label="Xóa chọn tỉnh"
         >
           <X size={16} />
         </button>
@@ -1395,11 +1553,12 @@ const ProvinceDetailPanel: React.FC<{
         <span className="text-sm font-black text-gray-900">{formatCoverage(selected.cr)}</span>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-        <MiniStat label="Trạm nội tỉnh" value={formatNumber(selected.stations)} />
+        <MiniStat label="Trạm active" value={formatNumber(selected.stations)} />
+        <MiniStat label="Xã được phủ" value={`${selected.wardCovered}/${selected.wardTotal}`} />
         <MiniStat label="Nội bộ" value={formatNumber(selected.internalStations)} />
         <MiniStat label="Đối tác có HĐ" value={formatNumber(selected.withContractStations)} />
         <MiniStat label="Đối tác không HĐ" value={formatNumber(selected.noContractStations)} />
-        <MiniStat label={`% mật độ (/${TARGET_STATIONS_PER_PROVINCE})`} value={formatCoverage(selected.cr)} />
+        <MiniStat label={`% độ phủ (R=${SERVICE_RADIUS_KM}km)`} value={formatCoverage(selected.cr)} />
       </dl>
       {selected.stations === 0 && (
         <p className="mt-2 text-[11px] text-amber-700">Chưa có trạm active khớp bộ lọc tại tỉnh này.</p>
