@@ -122,13 +122,13 @@ export const AREA_TYPE_OPTIONS: { id: AreaType | 'all'; label: string }[] = [
 
 export const STATION_TYPE_OPTIONS: { id: StationType | 'all'; label: string }[] = [
   { id: 'all', label: 'Tất cả loại trạm' },
-  { id: 'rescue_internal', label: 'Trạm nội bộ (Carpla)' },
+  { id: 'rescue_internal', label: 'Trạm nội bộ VETC' },
   { id: 'rescue_quick', label: 'Quick Service' },
   { id: 'rescue_external', label: 'Trạm bên ngoài' },
 ];
 
 export function stationTypeLabel(type: StationType): string {
-  if (type === 'rescue_internal') return 'Trạm nội bộ (Carpla)';
+  if (type === 'rescue_internal') return 'Trạm nội bộ VETC';
   if (type === 'rescue_quick') return 'Quick Service';
   return 'Trạm bên ngoài';
 }

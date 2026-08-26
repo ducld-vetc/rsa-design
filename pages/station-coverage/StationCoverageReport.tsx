@@ -46,11 +46,13 @@ import {
   type StationType,
 } from './stationCoverageData';
 import StationHeatLayer, { buildNationalHeatFill, type HeatPoint } from './StationHeatLayer';
+import vetcMarkUrl from './assets/vetc-mark.png';
 
 const MARKER_SIZE = 28;
 const MARKER_SIZE_SELECTED = 32;
 
-const CARPLA_MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="100%" height="100%" style="display:block"><circle cx="16" cy="16" r="15.2" fill="#111"/><circle cx="16" cy="16" r="13.4" fill="#F5D000"/><path d="M22.6 11a8.2 8.2 0 1 0 0 10" fill="none" stroke="#111" stroke-width="4.4" stroke-linecap="butt"/></svg>`;
+/** Trạm bên ngoài — indigo, tránh trùng xanh lá logo VETC. */
+const EXTERNAL_STATION_BG = '#4F46E5';
 
 const makeStationIcon = (bg: string, glyph: string, selected: boolean) => {
   const size = selected ? MARKER_SIZE_SELECTED : MARKER_SIZE;
@@ -62,10 +64,10 @@ const makeStationIcon = (bg: string, glyph: string, selected: boolean) => {
   });
 };
 
-const carplaIcon = (selected: boolean) => {
+const vetcIcon = (selected: boolean) => {
   const size = selected ? MARKER_SIZE_SELECTED : MARKER_SIZE;
   return L.divIcon({
-    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;box-sizing:border-box;box-shadow:0 2px 8px rgba(0,0,0,0.35);line-height:0;${selected ? 'outline:2px solid #111;outline-offset:0;' : ''}">${CARPLA_MARK_SVG}</div>`,
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;box-sizing:border-box;box-shadow:0 2px 8px rgba(0,0,0,0.35);line-height:0;background:#00A651;${selected ? 'outline:2px solid #111;outline-offset:0;' : ''}"><img src="${vetcMarkUrl}" alt="" width="${size}" height="${size}" style="display:block;width:100%;height:100%;object-fit:cover" /></div>`,
     className: '',
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
@@ -76,9 +78,9 @@ const EXTERNAL_GLYPH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="no
 const QUICK_GLYPH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" style="display:block"><path d="M13 2 3 14h8l-1 8 10-12h-8l1-8z"/></svg>`;
 
 const iconForStation = (type: StationType, selected: boolean) => {
-  if (type === 'rescue_internal') return carplaIcon(selected);
+  if (type === 'rescue_internal') return vetcIcon(selected);
   if (type === 'rescue_quick') return makeStationIcon('#D97706', QUICK_GLYPH, selected);
-  return makeStationIcon('#059669', EXTERNAL_GLYPH, selected);
+  return makeStationIcon(EXTERNAL_STATION_BG, EXTERNAL_GLYPH, selected);
 };
 
 const FitVietnamBounds: React.FC<{ resetKey: string }> = ({ resetKey }) => {
@@ -367,7 +369,7 @@ const StationCoverageReport: React.FC = () => {
       'Xã/Phường',
       'Mã xã',
       'Số trạm',
-      'Nội bộ',
+      'Nội bộ VETC',
       'Quick Service',
       'Bên ngoài',
       `% mật độ (mục tiêu ${TARGET_STATIONS_PER_PROVINCE})`,
@@ -685,11 +687,10 @@ const StationCoverageReport: React.FC = () => {
                   <>
                     <p className="text-[9px] font-black uppercase tracking-wide text-gray-400">Loại trạm</p>
                     <div className="flex items-center gap-2">
-                      <span
-                        className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full shadow-sm"
-                        dangerouslySetInnerHTML={{ __html: CARPLA_MARK_SVG }}
-                      />
-                      <span className="text-[10px] font-semibold text-gray-600">Trạm nội bộ (Carpla)</span>
+                      <span className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full shadow-sm">
+                        <img src={vetcMarkUrl} alt="" className="h-full w-full object-cover" />
+                      </span>
+                      <span className="text-[10px] font-semibold text-gray-600">Trạm nội bộ VETC</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#D97706] shadow-sm">
@@ -698,7 +699,10 @@ const StationCoverageReport: React.FC = () => {
                       <span className="text-[10px] font-semibold text-gray-600">Quick Service</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#059669] shadow-sm">
+                      <span
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full shadow-sm"
+                        style={{ background: EXTERNAL_STATION_BG }}
+                      >
                         <span dangerouslySetInnerHTML={{ __html: EXTERNAL_GLYPH }} />
                       </span>
                       <span className="text-[10px] font-semibold text-gray-600">Trạm bên ngoài</span>
@@ -781,7 +785,7 @@ const StationCoverageReport: React.FC = () => {
                   <tr>
                     <th className="px-4 py-2.5">Đơn vị hành chính</th>
                     <th className="px-4 py-2.5 text-right">Trạm</th>
-                    <th className="px-4 py-2.5 text-right">Nội bộ</th>
+                    <th className="px-4 py-2.5 text-right">Nội bộ VETC</th>
                     <th className="px-4 py-2.5 text-right">QS</th>
                     <th className="px-4 py-2.5 text-right">Bên ngoài</th>
                     <th className="px-4 py-2.5 text-right">% mật độ</th>
@@ -935,7 +939,7 @@ const ProvinceDetailPanel: React.FC<{
           <MiniStat label={`% mật độ TB (/${TARGET_STATIONS_PER_PROVINCE})`} value={formatCoverage(kpis.nationalCr)} />
         </dl>
         <dl className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-          <MiniStat label="Nội bộ (Carpla)" value={formatNumber(internalCount)} />
+          <MiniStat label="Nội bộ VETC" value={formatNumber(internalCount)} />
           <MiniStat label="Quick Service" value={formatNumber(quickCount)} />
           <MiniStat label="Bên ngoài" value={formatNumber(externalCount)} />
           <MiniStat label="Tỉnh mức thấp" value={formatNumber(kpis.lowProvinces)} />
@@ -995,7 +999,7 @@ const ProvinceDetailPanel: React.FC<{
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
         <MiniStat label="Trạm nội tỉnh" value={formatNumber(selected.stations)} />
-        <MiniStat label="Nội bộ" value={formatNumber(selected.internalStations)} />
+        <MiniStat label="Nội bộ VETC" value={formatNumber(selected.internalStations)} />
         <MiniStat label="Quick Service" value={formatNumber(selected.quickStations)} />
         <MiniStat label="Bên ngoài" value={formatNumber(selected.externalStations)} />
         <MiniStat label={`% mật độ (/${TARGET_STATIONS_PER_PROVINCE})`} value={formatCoverage(selected.cr)} />
