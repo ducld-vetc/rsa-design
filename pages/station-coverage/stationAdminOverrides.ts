@@ -256,9 +256,9 @@ export const STATION_ADMIN_OVERRIDES: Record<string, StationAdminOverride> = {
     "precinctCode": "QTAN"
   },
   "52": {
-    "provinceCode": "HNO",
-    "districtCode": "HMA",
-    "precinctCode": "VHUN"
+    "provinceCode": "NAN",
+    "districtCode": "VIN",
+    "precinctCode": "QBAU"
   },
   "53": {
     "provinceCode": "KHO",
@@ -3211,13 +3211,13 @@ export const STATION_ADMIN_OVERRIDES: Record<string, StationAdminOverride> = {
     "precinctCode": "TTHN"
   },
   "762": {
-    "provinceCode": "NAN",
-    "districtCode": "HNG",
+    "provinceCode": "CTH",
+    "districtCode": "NKI",
     "precinctCode": "HLOI"
   },
   "763": {
-    "provinceCode": "TQU",
-    "districtCode": "YSO",
+    "provinceCode": "CTH",
+    "districtCode": "NKI",
     "precinctCode": "HLOI"
   },
   "845": {

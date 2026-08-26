@@ -12,6 +12,10 @@ import {
   List,
   RotateCcw,
   Filter,
+  Maximize2,
+  Minimize2,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react';
 import AppSelect from '../../shared/AppSelect';
 import AppMultiSelect from '../../shared/AppMultiSelect';
@@ -28,6 +32,8 @@ import {
   areaCoveragePercent,
   buildProvinceHierarchy,
   coveragePercent,
+  evaluateWardCoverage,
+  filterWardsByAdminKeys,
   formatCoverage,
   getMapStationPoints,
   getProvinceAreaCoverageMap,
@@ -35,10 +41,12 @@ import {
   getProvinceCoverageRows,
   matchesProvinceRegion,
   matchesStationTypeFilter,
+  metricsFromWards,
   districtFilterKey,
   precinctFilterKey,
   districtDisplayName,
   precinctDisplayName,
+  resolveCoverageLevelFromPercent,
   NEARBY_RADIUS_KM,
   haversineKm,
   averageStationCenter,
@@ -170,12 +178,35 @@ const StationCoverageReport: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'list'>('overview');
   const [mapMode, setMapMode] = useState<MapDisplayMode>('stations');
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const moreFiltersRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
 
   const handleMapReady = useCallback((map: L.Map) => {
     mapRef.current = map;
   }, []);
+
+  useEffect(() => {
+    if (!mapFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMapFullscreen(false);
+    };
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [mapFullscreen]);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      mapRef.current?.invalidateSize({ animate: false });
+    }, 180);
+    return () => window.clearTimeout(id);
+  }, [mapFullscreen, sidebarOpen, activeTab]);
 
   const mapStationPoints = useMemo(() => getMapStationPoints(addressSchema), [addressSchema]);
   const provinceCoverageRows = useMemo(
@@ -488,6 +519,76 @@ const StationCoverageReport: React.FC = () => {
     ? (rowsForMap.find((item) => item.row.id === effectiveFocusedId) ?? null)
     : null;
 
+  /** Độ phủ / tiêu đề khu vực — thu hẹp theo huyện/xã đang lọc (không lấy cả tỉnh). */
+  const areaDetail = useMemo(() => {
+    if (!selected) return null;
+
+    const provinceLabel = selected.row.name;
+    const provinceCode = selected.row.code;
+
+    const scopedNeeded = precinctFilterKeys.length > 0 || districtFilterKeys.length > 0;
+    const scopedWards = scopedNeeded
+      ? filterWardsByAdminKeys(evaluateWardCoverage(addressSchema, attributeFilteredStations), {
+          precinctKeys: precinctFilterKeys,
+          districtKeys: precinctFilterKeys.length > 0 ? undefined : districtFilterKeys,
+          provinceCodes: [provinceCode],
+        })
+      : null;
+    const scopedMetrics = scopedWards ? metricsFromWards(scopedWards) : null;
+
+    const wardCovered = scopedMetrics?.wardCovered ?? selected.wardCovered;
+    const wardTotal = scopedMetrics?.wardTotal ?? selected.wardTotal;
+    const cr = scopedMetrics ? scopedMetrics.cr : selected.cr;
+    const level = scopedMetrics ? resolveCoverageLevelFromPercent(scopedMetrics.cr) : selected.level;
+
+    let title = provinceLabel;
+    let subtitle = provinceCode;
+    let levelHint: 'province' | 'district' | 'precinct' = 'province';
+
+    if (precinctFilterKeys.length === 1) {
+      const key = precinctFilterKeys[0];
+      const [, distCode, precCode] = key.split('|');
+      const precinctName =
+        precinctOptions.find((opt) => opt.value === key)?.label?.split(' · ')[0] ??
+        precinctDisplayName(addressSchema, provinceCode, distCode === '__none__' ? null : distCode, precCode === '__none__' ? null : precCode);
+      const districtName = districtDisplayName(
+        addressSchema,
+        provinceCode,
+        distCode === '__none__' ? null : distCode,
+      );
+      title = precinctName;
+      subtitle = `${districtName} · ${provinceLabel} · ${provinceCode}`;
+      levelHint = 'precinct';
+    } else if (precinctFilterKeys.length > 1) {
+      title = `${precinctFilterKeys.length} phường/xã`;
+      subtitle = `${provinceLabel} · ${provinceCode}`;
+      levelHint = 'precinct';
+    } else if (addressSchema === 'old' && districtFilterKeys.length === 1) {
+      const key = districtFilterKeys[0];
+      const [, distCode] = key.split('|');
+      const districtName =
+        districtOptions.find((opt) => opt.value === key)?.label ??
+        districtDisplayName(addressSchema, provinceCode, distCode === '__none__' ? null : distCode);
+      title = districtName;
+      subtitle = `${provinceLabel} · ${provinceCode}`;
+      levelHint = 'district';
+    } else if (addressSchema === 'old' && districtFilterKeys.length > 1) {
+      title = `${districtFilterKeys.length} quận/huyện`;
+      subtitle = `${provinceLabel} · ${provinceCode}`;
+      levelHint = 'district';
+    }
+
+    return { title, subtitle, wardCovered, wardTotal, cr, level, levelHint };
+  }, [
+    selected,
+    addressSchema,
+    attributeFilteredStations,
+    precinctFilterKeys,
+    districtFilterKeys,
+    precinctOptions,
+    districtOptions,
+  ]);
+
   /**
    * Khi search/chọn đúng 1 area (xã > huyện > tỉnh/focus) → lấy tâm điểm
    * để vẽ bán kính 30km và liệt kê trạm lân cận.
@@ -498,9 +599,19 @@ const StationCoverageReport: React.FC = () => {
       const inArea = mapStationPoints.filter(
         (s) => precinctFilterKey(s.provinceCode, s.districtCode, s.precinctCode) === key,
       );
+      const fromStations =
+        averageStationCenter(inArea.filter((s) => s.hasValidPosition)) ?? averageStationCenter(inArea);
       const center =
-        averageStationCenter(inArea.filter((s) => s.hasValidPosition)) ??
-        averageStationCenter(inArea);
+        fromStations ??
+        (() => {
+          const wards = filterWardsByAdminKeys(evaluateWardCoverage(addressSchema, []), {
+            precinctKeys: [key],
+          });
+          if (wards.length === 0) return null;
+          const lat = wards.reduce((sum, w) => sum + w.lat, 0) / wards.length;
+          const lng = wards.reduce((sum, w) => sum + w.lng, 0) / wards.length;
+          return [lat, lng] as [number, number];
+        })();
       if (!center) return null;
       const label = precinctOptions.find((opt) => opt.value === key)?.label ?? 'Phường/Xã đã chọn';
       return { center, label, level: 'precinct' as const };
@@ -510,9 +621,19 @@ const StationCoverageReport: React.FC = () => {
       const inArea = mapStationPoints.filter(
         (s) => districtFilterKey(s.provinceCode, s.districtCode) === key,
       );
+      const fromStations =
+        averageStationCenter(inArea.filter((s) => s.hasValidPosition)) ?? averageStationCenter(inArea);
       const center =
-        averageStationCenter(inArea.filter((s) => s.hasValidPosition)) ??
-        averageStationCenter(inArea);
+        fromStations ??
+        (() => {
+          const wards = filterWardsByAdminKeys(evaluateWardCoverage(addressSchema, []), {
+            districtKeys: [key],
+          });
+          if (wards.length === 0) return null;
+          const lat = wards.reduce((sum, w) => sum + w.lat, 0) / wards.length;
+          const lng = wards.reduce((sum, w) => sum + w.lng, 0) / wards.length;
+          return [lat, lng] as [number, number];
+        })();
       if (!center) return null;
       const label = districtOptions.find((opt) => opt.value === key)?.label ?? 'Quận/Huyện đã chọn';
       return { center, label, level: 'district' as const };
@@ -997,17 +1118,27 @@ const StationCoverageReport: React.FC = () => {
       )}
 
       {activeTab === 'overview' && (
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
-          <div className="min-w-0 xl:flex-1">
+        <div
+          className={
+            mapFullscreen
+              ? 'fixed inset-0 z-[80] flex bg-white'
+              : 'flex flex-col gap-4 xl:flex-row xl:items-stretch'
+          }
+        >
+          <div className={`min-w-0 ${mapFullscreen ? 'relative flex-1' : 'xl:flex-1'}`}>
             <div
-              className="rsa-dashboard-map relative z-0 isolate overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
-              style={{ minHeight: 'calc(100vh - 260px)' }}
+              className={`rsa-dashboard-map relative z-0 isolate overflow-hidden bg-white ${
+                mapFullscreen
+                  ? 'h-full rounded-none border-0 shadow-none'
+                  : 'rounded-2xl border border-gray-100 shadow-sm'
+              }`}
+              style={mapFullscreen ? { height: '100%' } : { minHeight: 'calc(100vh - 260px)' }}
             >
               <MapContainer
                 center={[16.2, 106.5]}
                 zoom={6}
                 className="absolute inset-0 z-0 h-full w-full"
-                style={{ minHeight: 'calc(100vh - 260px)' }}
+                style={mapFullscreen ? { height: '100%' } : { minHeight: 'calc(100vh - 260px)' }}
                 scrollWheelZoom
                 zoomAnimation
                 fadeAnimation
@@ -1127,6 +1258,29 @@ const StationCoverageReport: React.FC = () => {
                 </div>
               </div>
 
+              <div className="absolute right-4 top-4 z-20 flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen((prev) => !prev)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white/95 px-2.5 text-[11px] font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+                  aria-label={sidebarOpen ? 'Ẩn bảng chi tiết' : 'Hiện bảng chi tiết'}
+                  title={sidebarOpen ? 'Ẩn bảng chi tiết' : 'Hiện bảng chi tiết'}
+                >
+                  {sidebarOpen ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}
+                  <span className="hidden sm:inline">{sidebarOpen ? 'Ẩn bảng' : 'Hiện bảng'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMapFullscreen((prev) => !prev)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white/95 px-2.5 text-[11px] font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+                  aria-label={mapFullscreen ? 'Thu nhỏ bản đồ' : 'Xem bản đồ toàn màn hình'}
+                  title={mapFullscreen ? 'Thu nhỏ (Esc)' : 'Toàn màn hình'}
+                >
+                  {mapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                  <span className="hidden sm:inline">{mapFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}</span>
+                </button>
+              </div>
+
               <div className="pointer-events-none absolute bottom-4 left-4 z-20 space-y-1.5 rounded-xl border border-gray-200 bg-white/95 px-3 py-2.5 shadow-sm">
                 {mapMode === 'stations' ? (
                   <>
@@ -1197,28 +1351,44 @@ const StationCoverageReport: React.FC = () => {
             </div>
           </div>
 
-          <ProvinceDetailPanel
-            selected={selected}
-            provinceRows={rowsForMap}
-            kpis={kpis}
-            drillStations={drillStations}
-            nearbyStations={nearbyStations}
-            searchAreaLabel={searchAreaFocus?.label ?? null}
-            filterSummaryTitle={
-              provinceFilterIds.length > 1
-                ? `${provinceFilterIds.length} tỉnh đang lọc`
-                : 'Tất cả tỉnh'
-            }
-            onSelectProvince={setFocusedId}
-            onClose={() => {
-              setFocusedId(null);
-              if (selectedFromAdminFilter) {
-                setProvinceFilterIds([]);
-                setDistrictFilterKeys([]);
-                setPrecinctFilterKeys([]);
+          {sidebarOpen && (
+            <div
+              className={
+                mapFullscreen
+                  ? 'absolute right-0 top-0 z-[90] flex h-full w-full max-w-[360px] border-l border-gray-100 bg-white/95 shadow-xl backdrop-blur-sm sm:w-[360px]'
+                  : 'w-full xl:w-auto xl:shrink-0'
               }
-            }}
-          />
+            >
+              <ProvinceDetailPanel
+                selected={selected}
+                areaDetail={areaDetail}
+                provinceRows={rowsForMap}
+                kpis={kpis}
+                drillStations={drillStations}
+                nearbyStations={nearbyStations}
+                searchAreaLabel={searchAreaFocus?.label ?? null}
+                filterSummaryTitle={
+                  provinceFilterIds.length > 1
+                    ? `${provinceFilterIds.length} tỉnh đang lọc`
+                    : 'Tất cả tỉnh'
+                }
+                onSelectProvince={setFocusedId}
+                onClose={() => {
+                  setFocusedId(null);
+                  if (selectedFromAdminFilter) {
+                    setProvinceFilterIds([]);
+                    setDistrictFilterKeys([]);
+                    setPrecinctFilterKeys([]);
+                  }
+                }}
+                className={
+                  mapFullscreen
+                    ? '!h-full !w-full !max-w-none !rounded-none !border-0 !shadow-none overflow-y-auto'
+                    : undefined
+                }
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -1403,6 +1573,15 @@ const StationCoverageReport: React.FC = () => {
 
 const ProvinceDetailPanel: React.FC<{
   selected: ViewRow | null;
+  areaDetail: {
+    title: string;
+    subtitle: string;
+    wardCovered: number;
+    wardTotal: number;
+    cr: number;
+    level: CoverageLevel;
+    levelHint: 'province' | 'district' | 'precinct';
+  } | null;
   provinceRows: ViewRow[];
   kpis: {
     totalOrders: number;
@@ -1419,8 +1598,10 @@ const ProvinceDetailPanel: React.FC<{
   filterSummaryTitle: string;
   onSelectProvince: (id: string) => void;
   onClose: () => void;
+  className?: string;
 }> = ({
   selected,
+  areaDetail,
   provinceRows,
   kpis,
   drillStations,
@@ -1429,6 +1610,7 @@ const ProvinceDetailPanel: React.FC<{
   filterSummaryTitle,
   onSelectProvince,
   onClose,
+  className,
 }) => {
   const internalCount = drillStations.filter((station) => station.stationType === 'rescue_internal').length;
   const withContractCount = drillStations.filter((station) => station.stationType === 'partner_with_contract').length;
@@ -1437,6 +1619,11 @@ const ProvinceDetailPanel: React.FC<{
     if (b.stations !== a.stations) return b.stations - a.stations;
     return a.row.name.localeCompare(b.row.name, 'vi');
   });
+
+  const coverageLevel = areaDetail?.level ?? selected?.level ?? 'thap';
+  const coverageCr = areaDetail?.cr ?? selected?.cr ?? null;
+  const wardCovered = areaDetail?.wardCovered ?? selected?.wardCovered ?? 0;
+  const wardTotal = areaDetail?.wardTotal ?? selected?.wardTotal ?? 0;
 
   const nearbyList = (
     <>
@@ -1473,7 +1660,7 @@ const ProvinceDetailPanel: React.FC<{
 
   if (!selected) {
     return (
-      <aside className="flex w-full flex-col rounded-2xl border border-gray-100 bg-white p-4 shadow-sm xl:w-[340px] xl:shrink-0">
+      <aside className={`flex w-full flex-col rounded-2xl border border-gray-100 bg-white p-4 shadow-sm xl:w-[340px] xl:shrink-0 ${className ?? ''}`}>
         <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Tổng hợp</p>
         <h2 className="mt-1 text-base font-black text-gray-900">{filterSummaryTitle}</h2>
 
@@ -1528,45 +1715,53 @@ const ProvinceDetailPanel: React.FC<{
   }
 
   return (
-    <aside className="flex w-full flex-col rounded-2xl border border-gray-100 bg-white p-4 shadow-sm xl:w-[340px] xl:shrink-0">
+    <aside className={`flex w-full flex-col rounded-2xl border border-gray-100 bg-white p-4 shadow-sm xl:w-[340px] xl:shrink-0 ${className ?? ''}`}>
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Chi tiết tỉnh</p>
+          <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">Chi tiết khu vực</p>
           <h2 className="mt-1 text-base font-black text-gray-900">
-            {selected.row.name}{' '}
-            <span className="text-xs font-bold text-gray-400">{selected.row.code}</span>
+            {areaDetail?.title ?? selected.row.name}
           </h2>
+          <p className="mt-0.5 text-[11px] font-semibold text-gray-500">
+            {areaDetail?.subtitle ?? selected.row.code}
+          </p>
         </div>
         <button
           type="button"
           onClick={onClose}
           className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-          aria-label="Xóa chọn tỉnh"
+          aria-label="Xóa chọn khu vực"
         >
           <X size={16} />
         </button>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase ${LEVEL_META[selected.level].badge}`}>
-          {LEVEL_META[selected.level].label}
+        <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase ${LEVEL_META[coverageLevel].badge}`}>
+          {LEVEL_META[coverageLevel].label}
         </span>
-        <span className="text-sm font-black text-gray-900">{formatCoverage(selected.cr)}</span>
+        <span className="text-sm font-black text-gray-900">{formatCoverage(coverageCr)}</span>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-        <MiniStat label="Trạm active" value={formatNumber(selected.stations)} />
-        <MiniStat label="Xã được phủ" value={`${selected.wardCovered}/${selected.wardTotal}`} />
-        <MiniStat label="Nội bộ" value={formatNumber(selected.internalStations)} />
-        <MiniStat label="Đối tác có HĐ" value={formatNumber(selected.withContractStations)} />
-        <MiniStat label="Đối tác không HĐ" value={formatNumber(selected.noContractStations)} />
-        <MiniStat label={`% độ phủ (R=${SERVICE_RADIUS_KM}km)`} value={formatCoverage(selected.cr)} />
+        <MiniStat label="Trạm active" value={formatNumber(drillStations.length)} />
+        <MiniStat label="Xã được phủ" value={`${wardCovered}/${wardTotal}`} />
+        <MiniStat label="Nội bộ" value={formatNumber(internalCount)} />
+        <MiniStat label="Đối tác có HĐ" value={formatNumber(withContractCount)} />
+        <MiniStat label="Đối tác không HĐ" value={formatNumber(noContractCount)} />
+        <MiniStat label={`% độ phủ (R=${SERVICE_RADIUS_KM}km)`} value={formatCoverage(coverageCr)} />
       </dl>
-      {selected.stations === 0 && (
-        <p className="mt-2 text-[11px] text-amber-700">Chưa có trạm active khớp bộ lọc tại tỉnh này.</p>
+      {drillStations.length === 0 && (
+        <p className="mt-2 text-[11px] text-amber-700">Chưa có trạm active khớp bộ lọc tại khu vực này.</p>
       )}
 
       {nearbyList}
 
-      <h3 className="mt-4 text-[11px] font-black uppercase tracking-wider text-gray-400">Trạm trong tỉnh (lọc)</h3>
+      <h3 className="mt-4 text-[11px] font-black uppercase tracking-wider text-gray-400">
+        {areaDetail?.levelHint === 'precinct'
+          ? 'Trạm trong xã/phường (lọc)'
+          : areaDetail?.levelHint === 'district'
+            ? 'Trạm trong huyện (lọc)'
+            : 'Trạm trong tỉnh (lọc)'}
+      </h3>
       <ul className="mt-2 max-h-[22vh] space-y-2 overflow-y-auto">
         {drillStations.length === 0 && <li className="text-[11px] text-gray-400">Không có trạm khớp bộ lọc.</li>}
         {drillStations.map((station) => (

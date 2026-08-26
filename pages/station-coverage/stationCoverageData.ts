@@ -21,7 +21,7 @@ import {
   type WardCoverageResult,
 } from './stationAreaCoverage';
 
-export { SERVICE_RADIUS_KM, areaCoveragePercent } from './stationAreaCoverage';
+export { SERVICE_RADIUS_KM, areaCoveragePercent, evaluateWardCoverage, metricsFromWards } from './stationAreaCoverage';
 export type { AreaCoverageMetrics, WardCoverageResult } from './stationAreaCoverage';
 
 export type CoverageLevel = 'cao' | 'trung_binh' | 'thap';
@@ -1200,6 +1200,31 @@ export function buildProvinceHierarchy(
   });
 
   return sortByCoverageThenStations(nodes);
+}
+
+/** Lọc xã theo key huyện/xã (cùng format districtFilterKey / precinctFilterKey). */
+export function filterWardsByAdminKeys(
+  wards: WardCoverageResult[],
+  opts: { districtKeys?: string[]; precinctKeys?: string[]; provinceCodes?: string[] },
+): WardCoverageResult[] {
+  const precinctSet = opts.precinctKeys?.length ? new Set(opts.precinctKeys) : null;
+  const districtSet = opts.districtKeys?.length ? new Set(opts.districtKeys) : null;
+  const provinceSet = opts.provinceCodes?.length
+    ? new Set(opts.provinceCodes.map((c) => c.trim().toUpperCase()))
+    : null;
+
+  return wards.filter((ward) => {
+    if (provinceSet && !provinceSet.has(ward.provinceCode.toUpperCase())) return false;
+    if (precinctSet) {
+      return precinctSet.has(
+        precinctFilterKey(ward.provinceCode, ward.districtCode, ward.precinctCode),
+      );
+    }
+    if (districtSet) {
+      return districtSet.has(districtFilterKey(ward.provinceCode, ward.districtCode));
+    }
+    return true;
+  });
 }
 
 /** % độ phủ theo tỉnh — dùng KPI / sidebar (trạm gần nhất từ coverageStations). */
