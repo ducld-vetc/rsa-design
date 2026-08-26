@@ -644,7 +644,7 @@ const StationCoverageReport: React.FC = () => {
                       }}
                     >
                       <Tooltip direction="top" offset={[0, -14]} opacity={1} className="station-name-tooltip">
-                        <div className="w-full min-w-0 max-w-[296px]">
+                        <div className="min-w-0 max-w-[296px]">
                           <p className="text-[13px] font-bold leading-snug text-white">{station.name}</p>
                           <p className="mt-1 text-[11px] font-medium leading-snug text-white/80">
                             {stationTypeLabel(station.stationType)}
@@ -655,7 +655,7 @@ const StationCoverageReport: React.FC = () => {
                             {station.provinceSource === 'address' ? ' (suy từ địa chỉ)' : ''}
                           </p>
                           {station.address ? (
-                            <p className="mt-1 line-clamp-3 text-[11px] leading-snug text-white/65">{station.address}</p>
+                            <p className="mt-1 break-words text-[11px] leading-snug text-white/65">{station.address}</p>
                           ) : null}
                         </div>
                       </Tooltip>
