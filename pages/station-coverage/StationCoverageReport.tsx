@@ -49,6 +49,7 @@ import {
   districtDisplayName,
   precinctDisplayName,
   resolveCoverageLevelFromPercent,
+  resolveAdminAreaCenter,
   NEARBY_RADIUS_KM,
   haversineKm,
   averageStationCenter,
@@ -567,50 +568,50 @@ const StationCoverageReport: React.FC = () => {
   ]);
 
   /**
-   * Khi search/chọn đúng 1 area (xã > huyện > tỉnh/focus) → lấy tâm điểm
-   * để vẽ bán kính 30km và liệt kê trạm lân cận.
+   * Khi search/chọn đúng 1 area (xã > huyện > tỉnh/focus) → tâm điểm + vòng 30km.
+   * Ưu tiên centroid master để vẫn vẽ vòng khi khu vực không có trạm.
    */
   const searchAreaFocus = useMemo(() => {
     if (precinctFilterKeys.length === 1) {
       const key = precinctFilterKeys[0];
+      const provCode = key.split('|')[0]?.toUpperCase();
+      const provinceId = provinceCoverageRows.find((r) => r.code.toUpperCase() === provCode)?.id;
+      const provinceFallback =
+        (provinceId && provinceCenters[provinceId]) ||
+        (effectiveFocusedId && provinceCenters[effectiveFocusedId]) ||
+        null;
       const inArea = mapStationPoints.filter(
         (s) => precinctFilterKey(s.provinceCode, s.districtCode, s.precinctCode) === key,
       );
+      const fromCentroid = resolveAdminAreaCenter(addressSchema, {
+        precinctKey: key,
+        provinceCenterFallback: provinceFallback,
+      });
       const fromStations =
         averageStationCenter(inArea.filter((s) => s.hasValidPosition)) ?? averageStationCenter(inArea);
-      const center =
-        fromStations ??
-        (() => {
-          const wards = filterWardsByAdminKeys(evaluateWardCoverage(addressSchema, []), {
-            precinctKeys: [key],
-          });
-          if (wards.length === 0) return null;
-          const lat = wards.reduce((sum, w) => sum + w.lat, 0) / wards.length;
-          const lng = wards.reduce((sum, w) => sum + w.lng, 0) / wards.length;
-          return [lat, lng] as [number, number];
-        })();
+      const center = fromCentroid ?? fromStations ?? provinceFallback;
       if (!center) return null;
       const label = precinctOptions.find((opt) => opt.value === key)?.label ?? 'Phường/Xã đã chọn';
       return { center, label, level: 'precinct' as const };
     }
     if (addressSchema === 'old' && districtFilterKeys.length === 1) {
       const key = districtFilterKeys[0];
+      const provCode = key.split('|')[0]?.toUpperCase();
+      const provinceId = provinceCoverageRows.find((r) => r.code.toUpperCase() === provCode)?.id;
+      const provinceFallback =
+        (provinceId && provinceCenters[provinceId]) ||
+        (effectiveFocusedId && provinceCenters[effectiveFocusedId]) ||
+        null;
       const inArea = mapStationPoints.filter(
         (s) => districtFilterKey(s.provinceCode, s.districtCode) === key,
       );
+      const fromCentroid = resolveAdminAreaCenter(addressSchema, {
+        districtKey: key,
+        provinceCenterFallback: provinceFallback,
+      });
       const fromStations =
         averageStationCenter(inArea.filter((s) => s.hasValidPosition)) ?? averageStationCenter(inArea);
-      const center =
-        fromStations ??
-        (() => {
-          const wards = filterWardsByAdminKeys(evaluateWardCoverage(addressSchema, []), {
-            districtKeys: [key],
-          });
-          if (wards.length === 0) return null;
-          const lat = wards.reduce((sum, w) => sum + w.lat, 0) / wards.length;
-          const lng = wards.reduce((sum, w) => sum + w.lng, 0) / wards.length;
-          return [lat, lng] as [number, number];
-        })();
+      const center = fromCentroid ?? fromStations ?? provinceFallback;
       if (!center) return null;
       const label = districtOptions.find((opt) => opt.value === key)?.label ?? 'Quận/Huyện đã chọn';
       return { center, label, level: 'district' as const };
@@ -645,6 +646,7 @@ const StationCoverageReport: React.FC = () => {
     provincesByName,
     rowsForMap,
     provinceCoverageRows,
+    effectiveFocusedId,
   ]);
 
   const nearbyStations = useMemo(() => {
@@ -1240,8 +1242,9 @@ const StationCoverageReport: React.FC = () => {
                     {searchAreaFocus.label}
                   </p>
                   <p className="mt-0.5 text-[10px] text-emerald-700">
-                    {nearbyStations.length} trạm trong vòng {NEARBY_RADIUS_KM} km (hiện trên map; KPI chỉ đếm
-                    trong khu vực lọc)
+                    {nearbyStations.length === 0
+                      ? `Chưa có trạm trong vòng ${NEARBY_RADIUS_KM} km — vẫn hiển thị vùng phủ quanh tâm khu vực`
+                      : `${nearbyStations.length} trạm trong vòng ${NEARBY_RADIUS_KM} km (hiện trên map; KPI gộp trong + ngoài khu vực lọc)`}
                   </p>
                 </div>
               )}

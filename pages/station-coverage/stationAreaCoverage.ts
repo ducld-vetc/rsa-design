@@ -8,6 +8,7 @@
  * → regenerate: python script ghi wardCentroidsV1.json (chỉ xã có tọa độ + mã RSA huyện/xã).
  */
 import wardCentroidsV1 from './wardCentroidsV1.json';
+import districtCentroidsV1 from './districtCentroidsV1.json';
 import {
   AREA_PROVINCES,
   NEW_PROVINCE_CODES,
@@ -28,6 +29,24 @@ export type WardCentroidRow = {
 };
 
 const WARDS = wardCentroidsV1 as WardCentroidRow[];
+
+type DistrictCentroidRow = { p: string; d: string; n: string; lat: number; lng: number };
+const DISTRICTS = districtCentroidsV1 as DistrictCentroidRow[];
+
+const DISTRICT_CENTER_BY_KEY = new Map(
+  DISTRICTS.map((row) => [`${row.p.toUpperCase()}|${row.d.toUpperCase()}`, [row.lat, row.lng] as [number, number]]),
+);
+
+const PROVINCE_CENTER_BY_CODE = (() => {
+  const map = new Map<string, [number, number]>();
+  for (const row of AREA_PROVINCES) {
+    map.set(row.code.toUpperCase(), row.center);
+  }
+  for (const row of OLD_PROVINCES) {
+    if (!map.has(row.code.toUpperCase())) map.set(row.code.toUpperCase(), row.center);
+  }
+  return map;
+})();
 
 /** Snapshot xã V1 có centroid — dùng droplist / tâm khu vực. */
 export function getWardCentroidRows(): ReadonlyArray<WardCentroidRow> {
@@ -207,4 +226,77 @@ export function computeProvinceAreaCoverage(
 
 export function wardCoverageKey(provinceCode: string, districtCode: string, precinctCode: string): string {
   return `${provinceCode}|${districtCode}|${precinctCode}`;
+}
+
+/**
+ * Tâm khu vực để vẽ vòng 30km (kể cả khi không có trạm).
+ * Thứ tự: centroid xã → centroid huyện (geo) → tâm tỉnh master.
+ */
+export function resolveAdminAreaCenter(
+  mode: AddressSchemaMode,
+  opts: {
+    precinctKey?: string | null;
+    districtKey?: string | null;
+    /** Fallback tâm tỉnh khi huyện/xã không có geo (vd. mã RSA lịch sử). */
+    provinceCenterFallback?: [number, number] | null;
+  },
+): [number, number] | null {
+  const precinctKey = opts.precinctKey?.trim() || null;
+  const districtKey = opts.districtKey?.trim() || null;
+  if (!precinctKey && !districtKey) return null;
+
+  const matchedWards = WARDS.filter((ward) => {
+    const displayProv = wardDisplayProvinceCode(mode, ward.p);
+    const rawProv = ward.p.toUpperCase();
+    if (precinctKey) {
+      const a = `${displayProv}|${ward.d}|${ward.c}`;
+      const b = `${rawProv}|${ward.d}|${ward.c}`;
+      return a === precinctKey || b === precinctKey;
+    }
+    const a = `${displayProv}|${ward.d}`;
+    const b = `${rawProv}|${ward.d}`;
+    return a === districtKey || b === districtKey;
+  });
+  if (matchedWards.length > 0) {
+    const lat = matchedWards.reduce((sum, w) => sum + w.lat, 0) / matchedWards.length;
+    const lng = matchedWards.reduce((sum, w) => sum + w.lng, 0) / matchedWards.length;
+    return [lat, lng];
+  }
+
+  // District-level geo (GSO) — không có xã trong snapshot
+  const dKeyRaw = (districtKey ?? precinctKey?.split('|').slice(0, 2).join('|')) || '';
+  if (dKeyRaw) {
+    const [provPart, distPart] = dKeyRaw.split('|');
+    if (provPart && distPart) {
+      const candidates = [
+        `${provPart.toUpperCase()}|${distPart.toUpperCase()}`,
+        // mode mới: key có thể là BOTH trong khi geo là V1
+        ...Object.entries(V1_TO_BOTH_PROVINCE)
+          .filter(([, both]) => both.toUpperCase() === provPart.toUpperCase())
+          .map(([v1]) => `${v1.toUpperCase()}|${distPart.toUpperCase()}`),
+      ];
+      // BOTH → cũng thử chính mã V1 nếu trùng
+      if (NEW_PROVINCE_CODES.has(provPart.toUpperCase())) {
+        candidates.push(`${provPart.toUpperCase()}|${distPart.toUpperCase()}`);
+      }
+      for (const cand of candidates) {
+        const hit = DISTRICT_CENTER_BY_KEY.get(cand);
+        if (hit) return hit;
+      }
+    }
+  }
+
+  // Tâm tỉnh từ key
+  const provFromKey = (precinctKey ?? districtKey)?.split('|')[0]?.toUpperCase();
+  if (provFromKey) {
+    const both = wardDisplayProvinceCode(mode, provFromKey);
+    const center =
+      PROVINCE_CENTER_BY_CODE.get(provFromKey) ??
+      PROVINCE_CENTER_BY_CODE.get(both) ??
+      opts.provinceCenterFallback ??
+      null;
+    if (center) return center;
+  }
+
+  return opts.provinceCenterFallback ?? null;
 }

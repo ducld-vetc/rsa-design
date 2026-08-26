@@ -28,6 +28,7 @@ export {
   evaluateWardCoverage,
   getWardCentroidRows,
   metricsFromWards,
+  resolveAdminAreaCenter,
 } from './stationAreaCoverage';
 export type { AreaCoverageMetrics, WardCoverageResult, WardCentroidRow } from './stationAreaCoverage';
 
