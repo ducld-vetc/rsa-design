@@ -16,6 +16,7 @@ import {
   Minimize2,
   PanelRightClose,
   PanelRightOpen,
+  Info,
 } from 'lucide-react';
 import AppSelect from '../../shared/AppSelect';
 import AppMultiSelect from '../../shared/AppMultiSelect';
@@ -36,6 +37,7 @@ import {
   filterWardsByAdminKeys,
   formatCoverage,
   getMapStationPoints,
+  getMasterAdminFilterOptions,
   getProvinceAreaCoverageMap,
   getProvinceCenters,
   getProvinceCoverageRows,
@@ -442,61 +444,36 @@ const StationCoverageReport: React.FC = () => {
     [region, provinceCoverageRows],
   );
 
-  /** Trạm trong vùng/tỉnh đã chọn — dùng để build option huyện/xã (cascade). */
-  const stationsForAdminOptions = useMemo(() => {
-    const regionProvinceIds = new Set(
-      provinceCoverageRows.filter((row) => matchesProvinceRegion(row, region)).map((row) => row.id),
-    );
-    return mapStationPoints.filter((station) => {
-      if (station.provinceId === UNASSIGNED_PROVINCE_ID) return false;
-      if (!regionProvinceIds.has(station.provinceId)) return false;
-      if (provinceFilterIds.length > 0 && !provinceFilterSet.has(station.provinceId)) return false;
-      return true;
-    });
-  }, [mapStationPoints, provinceFilterIds.length, provinceFilterSet, provinceCoverageRows, region]);
+  /** Droplist huyện/xã từ master area — không phụ thuộc trạm đã gán. */
+  const masterAdminOptions = useMemo(() => {
+    const provinceCodes =
+      provinceFilterIds.length > 0
+        ? provinceCoverageRows
+            .filter((row) => provinceFilterSet.has(row.id))
+            .map((row) => row.code)
+        : provinceCoverageRows
+            .filter((row) => matchesProvinceRegion(row, region))
+            .map((row) => row.code);
+    return getMasterAdminFilterOptions(addressSchema, { provinceCodes });
+  }, [addressSchema, provinceFilterIds, provinceFilterSet, provinceCoverageRows, region]);
 
-  const provinceNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const row of provinceCoverageRows) map.set(row.id, row.name);
-    return map;
-  }, [provinceCoverageRows]);
-
-  const districtOptions = useMemo(() => {
-    const byKey = new Map<string, string>();
-    for (const station of stationsForAdminOptions) {
-      const key = districtFilterKey(station.provinceCode, station.districtCode);
-      if (byKey.has(key)) continue;
-      const districtName = districtDisplayName(addressSchema, station.provinceCode, station.districtCode);
-      const provinceName = provinceNameById.get(station.provinceId) ?? station.provinceCode;
-      byKey.set(key, `${districtName} (${provinceName})`);
-    }
-    return [...byKey.entries()]
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
-  }, [stationsForAdminOptions, addressSchema, provinceNameById]);
+  const districtOptions = useMemo(
+    () => masterAdminOptions.districts.map(({ value, label }) => ({ value, label })),
+    [masterAdminOptions],
+  );
 
   const precinctOptions = useMemo(() => {
-    const byKey = new Map<string, string>();
-    for (const station of stationsForAdminOptions) {
-      if (districtFilterKeys.length > 0) {
-        const dKey = districtFilterKey(station.provinceCode, station.districtCode);
-        if (!districtFilterSet.has(dKey)) continue;
-      }
-      const key = precinctFilterKey(station.provinceCode, station.districtCode, station.precinctCode);
-      if (byKey.has(key)) continue;
-      const precinctName = precinctDisplayName(
-        addressSchema,
-        station.provinceCode,
-        station.districtCode,
-        station.precinctCode,
-      );
-      const districtName = districtDisplayName(addressSchema, station.provinceCode, station.districtCode);
-      byKey.set(key, `${precinctName} · ${districtName}`);
+    if (districtFilterKeys.length === 0) {
+      return masterAdminOptions.precincts.map(({ value, label }) => ({ value, label }));
     }
-    return [...byKey.entries()]
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
-  }, [stationsForAdminOptions, districtFilterKeys.length, districtFilterSet, addressSchema]);
+    const provinceCodes = Array.from(
+      new Set(masterAdminOptions.districts.map((d) => d.provinceCode)),
+    );
+    return getMasterAdminFilterOptions(addressSchema, {
+      provinceCodes,
+      districtKeys: districtFilterKeys,
+    }).precincts.map(({ value, label }) => ({ value, label }));
+  }, [addressSchema, districtFilterKeys, masterAdminOptions]);
 
   useEffect(() => {
     const validDistrict = new Set(districtOptions.map((opt) => opt.value));
@@ -743,6 +720,36 @@ const StationCoverageReport: React.FC = () => {
       return true;
     });
   }, [filteredStations, visibleIds, effectiveFocusedId]);
+
+  /**
+   * Khi chọn 1 khu vực (có bán kính 30km): KPI trạm = trong khu vực ∪ trong bán kính.
+   * Tooltip tách số trong / ngoài đơn vị hành chính.
+   */
+  const stationKpiStats = useMemo(() => {
+    const inAreaIds = new Set(drillStations.map((s) => s.id));
+    if (!searchAreaFocus) {
+      return {
+        stations: drillStations,
+        total: drillStations.length,
+        inArea: drillStations.length,
+        outsideRadius: 0,
+        hint: undefined as string | undefined,
+      };
+    }
+    const byId = new Map<string, MapStationPoint>();
+    for (const s of drillStations) byId.set(s.id, s);
+    for (const s of nearbyStations) byId.set(s.id, s);
+    const stations = [...byId.values()];
+    const inArea = stations.filter((s) => inAreaIds.has(s.id)).length;
+    const outsideRadius = stations.length - inArea;
+    return {
+      stations,
+      total: stations.length,
+      inArea,
+      outsideRadius,
+      hint: `${inArea} trong khu vực lọc · ${outsideRadius} ngoài khu vực (≤${NEARBY_RADIUS_KM}km)`,
+    };
+  }, [searchAreaFocus, drillStations, nearbyStations]);
 
   const mapFitPoints = useMemo(
     () => visibleStations.map((station) => station.position),
@@ -1258,11 +1265,16 @@ const StationCoverageReport: React.FC = () => {
                 </div>
               </div>
 
-              <div className="absolute right-4 top-4 z-20 flex items-center gap-1.5">
+              <div
+                className="absolute top-4 z-[100] flex items-center gap-1.5"
+                style={{
+                  right: mapFullscreen && sidebarOpen ? 376 : 16,
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => setSidebarOpen((prev) => !prev)}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white/95 px-2.5 text-[11px] font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-[11px] font-bold text-gray-700 shadow-md hover:bg-gray-50"
                   aria-label={sidebarOpen ? 'Ẩn bảng chi tiết' : 'Hiện bảng chi tiết'}
                   title={sidebarOpen ? 'Ẩn bảng chi tiết' : 'Hiện bảng chi tiết'}
                 >
@@ -1272,7 +1284,7 @@ const StationCoverageReport: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setMapFullscreen((prev) => !prev)}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white/95 px-2.5 text-[11px] font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-[11px] font-bold text-gray-700 shadow-md hover:bg-gray-50"
                   aria-label={mapFullscreen ? 'Thu nhỏ bản đồ' : 'Xem bản đồ toàn màn hình'}
                   title={mapFullscreen ? 'Thu nhỏ (Esc)' : 'Toàn màn hình'}
                 >
@@ -1355,7 +1367,7 @@ const StationCoverageReport: React.FC = () => {
             <div
               className={
                 mapFullscreen
-                  ? 'absolute right-0 top-0 z-[90] flex h-full w-full max-w-[360px] border-l border-gray-100 bg-white/95 shadow-xl backdrop-blur-sm sm:w-[360px]'
+                  ? 'absolute right-0 top-0 z-[90] flex h-full w-full max-w-[360px] border-l border-gray-100 bg-white/95 pt-14 shadow-xl backdrop-blur-sm sm:w-[360px]'
                   : 'w-full xl:w-auto xl:shrink-0'
               }
             >
@@ -1365,6 +1377,7 @@ const StationCoverageReport: React.FC = () => {
                 provinceRows={rowsForMap}
                 kpis={kpis}
                 drillStations={drillStations}
+                stationKpiStats={stationKpiStats}
                 nearbyStations={nearbyStations}
                 searchAreaLabel={searchAreaFocus?.label ?? null}
                 filterSummaryTitle={
@@ -1593,6 +1606,13 @@ const ProvinceDetailPanel: React.FC<{
     presenceCr: number | null;
   };
   drillStations: CoverageStation[];
+  stationKpiStats: {
+    stations: MapStationPoint[];
+    total: number;
+    inArea: number;
+    outsideRadius: number;
+    hint?: string;
+  };
   nearbyStations: Array<MapStationPoint & { distanceKm: number }>;
   searchAreaLabel: string | null;
   filterSummaryTitle: string;
@@ -1605,6 +1625,7 @@ const ProvinceDetailPanel: React.FC<{
   provinceRows,
   kpis,
   drillStations,
+  stationKpiStats,
   nearbyStations,
   searchAreaLabel,
   filterSummaryTitle,
@@ -1612,9 +1633,10 @@ const ProvinceDetailPanel: React.FC<{
   onClose,
   className,
 }) => {
-  const internalCount = drillStations.filter((station) => station.stationType === 'rescue_internal').length;
-  const withContractCount = drillStations.filter((station) => station.stationType === 'partner_with_contract').length;
-  const noContractCount = drillStations.filter((station) => station.stationType === 'partner_no_contract').length;
+  const kpiStations = stationKpiStats.stations;
+  const internalCount = kpiStations.filter((station) => station.stationType === 'rescue_internal').length;
+  const withContractCount = kpiStations.filter((station) => station.stationType === 'partner_with_contract').length;
+  const noContractCount = kpiStations.filter((station) => station.stationType === 'partner_no_contract').length;
   const provinceList = [...provinceRows].sort((a, b) => {
     if (b.stations !== a.stations) return b.stations - a.stations;
     return a.row.name.localeCompare(b.row.name, 'vi');
@@ -1671,12 +1693,20 @@ const ProvinceDetailPanel: React.FC<{
         <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
           <MiniStat label="Số tỉnh" value={formatNumber(provinceRows.length)} />
           <MiniStat label="Tỉnh có trạm" value={formatNumber(kpis.withStation)} />
-          <MiniStat label="Trạm active" value={formatNumber(kpis.totalStations)} />
+          <MiniStat
+            label="Trạm active"
+            value={formatNumber(searchAreaLabel ? stationKpiStats.total : kpis.totalStations)}
+            hint={searchAreaLabel ? stationKpiStats.hint : undefined}
+          />
           <MiniStat label={`% độ phủ (R=${SERVICE_RADIUS_KM}km)`} value={formatCoverage(kpis.nationalCr)} />
           <MiniStat label="Tỉnh mức thấp" value={formatNumber(kpis.lowProvinces)} />
         </dl>
         <dl className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-          <MiniStat label="Nội bộ" value={formatNumber(internalCount)} />
+          <MiniStat
+            label="Nội bộ"
+            value={formatNumber(internalCount)}
+            hint={searchAreaLabel ? stationKpiStats.hint : undefined}
+          />
           <MiniStat label="Đối tác có HĐ" value={formatNumber(withContractCount)} />
           <MiniStat label="Đối tác không HĐ" value={formatNumber(noContractCount)} />
         </dl>
@@ -1742,14 +1772,28 @@ const ProvinceDetailPanel: React.FC<{
         <span className="text-sm font-black text-gray-900">{formatCoverage(coverageCr)}</span>
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-        <MiniStat label="Trạm active" value={formatNumber(drillStations.length)} />
+        <MiniStat
+          label="Trạm active"
+          value={formatNumber(stationKpiStats.total)}
+          hint={stationKpiStats.hint}
+        />
         <MiniStat label="Xã được phủ" value={`${wardCovered}/${wardTotal}`} />
-        <MiniStat label="Nội bộ" value={formatNumber(internalCount)} />
+        <MiniStat
+          label="Nội bộ"
+          value={formatNumber(internalCount)}
+          hint={stationKpiStats.hint}
+        />
         <MiniStat label="Đối tác có HĐ" value={formatNumber(withContractCount)} />
         <MiniStat label="Đối tác không HĐ" value={formatNumber(noContractCount)} />
         <MiniStat label={`% độ phủ (R=${SERVICE_RADIUS_KM}km)`} value={formatCoverage(coverageCr)} />
       </dl>
-      {drillStations.length === 0 && (
+      {stationKpiStats.hint && (
+        <p className="mt-2 text-[10px] leading-snug text-gray-500" title={stationKpiStats.hint}>
+          <Info size={11} className="mr-1 inline-block align-[-2px] text-gray-400" />
+          {stationKpiStats.hint}
+        </p>
+      )}
+      {stationKpiStats.total === 0 && (
         <p className="mt-2 text-[11px] text-amber-700">Chưa có trạm active khớp bộ lọc tại khu vực này.</p>
       )}
 
@@ -1792,9 +1836,12 @@ const KpiChip: React.FC<{
   </div>
 );
 
-const MiniStat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="rounded-lg bg-gray-50 px-2.5 py-2">
-    <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">{label}</p>
+const MiniStat: React.FC<{ label: string; value: string; hint?: string }> = ({ label, value, hint }) => (
+  <div className="rounded-lg bg-gray-50 px-2.5 py-2" title={hint}>
+    <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">
+      <span>{label}</span>
+      {hint ? <Info size={10} className="shrink-0 text-gray-400" aria-label={hint} /> : null}
+    </p>
     <p className="mt-0.5 font-black text-gray-800">{value}</p>
   </div>
 );

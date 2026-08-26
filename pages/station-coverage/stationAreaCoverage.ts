@@ -18,7 +18,7 @@ import {
 
 export const SERVICE_RADIUS_KM = 30;
 
-type WardCentroidRow = {
+export type WardCentroidRow = {
   p: string;
   d: string;
   c: string;
@@ -28,6 +28,11 @@ type WardCentroidRow = {
 };
 
 const WARDS = wardCentroidsV1 as WardCentroidRow[];
+
+/** Snapshot xã V1 có centroid — dùng droplist / tâm khu vực. */
+export function getWardCentroidRows(): ReadonlyArray<WardCentroidRow> {
+  return WARDS;
+}
 
 export interface AreaCoverageMetrics {
   wardTotal: number;

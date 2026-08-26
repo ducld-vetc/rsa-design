@@ -17,12 +17,19 @@ import {
   SERVICE_RADIUS_KM,
   areaCoveragePercent,
   evaluateWardCoverage,
+  getWardCentroidRows,
   metricsFromWards,
   type WardCoverageResult,
 } from './stationAreaCoverage';
 
-export { SERVICE_RADIUS_KM, areaCoveragePercent, evaluateWardCoverage, metricsFromWards } from './stationAreaCoverage';
-export type { AreaCoverageMetrics, WardCoverageResult } from './stationAreaCoverage';
+export {
+  SERVICE_RADIUS_KM,
+  areaCoveragePercent,
+  evaluateWardCoverage,
+  getWardCentroidRows,
+  metricsFromWards,
+} from './stationAreaCoverage';
+export type { AreaCoverageMetrics, WardCoverageResult, WardCentroidRow } from './stationAreaCoverage';
 
 export type CoverageLevel = 'cao' | 'trung_binh' | 'thap';
 export type AreaType = 'HIGHWAY' | 'URBAN' | 'MOUNTAIN';
@@ -976,6 +983,111 @@ export function precinctDisplayName(
     if (v2Name) return v2Name;
   }
   return `Mã ${precinctCode}`;
+}
+
+/**
+ * Droplist huyện/xã từ master area (V1) + centroid xã — không phụ thuộc trạm đã gán.
+ * Key cùng format districtFilterKey / precinctFilterKey; mode mới map mã tỉnh → BOTH.
+ */
+export function getMasterAdminFilterOptions(
+  mode: AddressSchemaMode,
+  opts?: { provinceCodes?: string[]; districtKeys?: string[] },
+): {
+  districts: Array<{ value: string; label: string; provinceCode: string; districtCode: string }>;
+  precincts: Array<{
+    value: string;
+    label: string;
+    provinceCode: string;
+    districtCode: string;
+    precinctCode: string;
+  }>;
+} {
+  const provinceFilter = opts?.provinceCodes?.length
+    ? new Set(opts.provinceCodes.map((c) => c.trim().toUpperCase()))
+    : null;
+  const districtFilter = opts?.districtKeys?.length ? new Set(opts.districtKeys) : null;
+
+  const displayProvince = (v1: string) =>
+    mode === 'new' ? toBothProvinceCode(v1) : v1.trim().toUpperCase();
+
+  const districtNames = new Map<string, string>(); // displayProv|dist → name
+  const precinctNames = new Map<string, string>(); // displayProv|dist|prec → name
+
+  for (const [key, name] of Object.entries(AREA_NAME_LOOKUP)) {
+    const [schema, prov, dist, prec] = key.split('|');
+    if (schema !== 'V1' || !prov || !dist) continue;
+    if (isV2DummyDistrict(dist)) continue;
+    const pCode = displayProvince(prov);
+    if (provinceFilter && !provinceFilter.has(pCode) && !provinceFilter.has(prov.toUpperCase())) continue;
+    const dKey = `${pCode}|${dist}`;
+    if (!prec) {
+      if (!districtNames.has(dKey) || name.length > (districtNames.get(dKey)?.length ?? 0)) {
+        districtNames.set(dKey, name);
+      }
+    } else {
+      const pKey = `${pCode}|${dist}|${prec}`;
+      if (!precinctNames.has(pKey)) precinctNames.set(pKey, name);
+      if (!districtNames.has(dKey)) {
+        const dName = lookupAreaName('old', prov, dist, null);
+        if (dName && !/không quận huyện/i.test(dName)) districtNames.set(dKey, dName);
+      }
+    }
+  }
+
+  for (const ward of getWardCentroidRows()) {
+    const pCode = displayProvince(ward.p);
+    if (provinceFilter && !provinceFilter.has(pCode) && !provinceFilter.has(ward.p.toUpperCase())) continue;
+    const dKey = `${pCode}|${ward.d}`;
+    if (!districtNames.has(dKey)) {
+      const dName = lookupAreaName('old', ward.p, ward.d, null);
+      districtNames.set(dKey, dName && !/không quận huyện/i.test(dName) ? dName : `Mã ${ward.d}`);
+    }
+    const pKey = `${pCode}|${ward.d}|${ward.c}`;
+    if (!precinctNames.has(pKey)) precinctNames.set(pKey, ward.n);
+  }
+
+  const provinceName = (code: string) => {
+    const row =
+      (mode === 'old' ? OLD_PROVINCES : AREA_PROVINCES.filter((p) => p.schemaVersion === 'BOTH' || p.kind === 'kept')).find(
+        (p) => p.code.toUpperCase() === code,
+      ) ?? AREA_PROVINCES.find((p) => p.code.toUpperCase() === code);
+    return row?.name ?? code;
+  };
+
+  const districts = [...districtNames.entries()]
+    .map(([dKey, name]) => {
+      const [provinceCode, districtCode] = dKey.split('|');
+      return {
+        value: districtFilterKey(provinceCode, districtCode),
+        label: `${name} (${provinceName(provinceCode)})`,
+        provinceCode,
+        districtCode,
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+
+  const precincts = [...precinctNames.entries()]
+    .filter(([pKey]) => {
+      if (!districtFilter) return true;
+      const [provinceCode, districtCode] = pKey.split('|');
+      return districtFilter.has(districtFilterKey(provinceCode, districtCode));
+    })
+    .map(([pKey, name]) => {
+      const [provinceCode, districtCode, precinctCode] = pKey.split('|');
+      const districtName =
+        districtNames.get(`${provinceCode}|${districtCode}`) ??
+        districtDisplayName(mode, provinceCode, districtCode);
+      return {
+        value: precinctFilterKey(provinceCode, districtCode, precinctCode),
+        label: `${name} · ${districtName}`,
+        provinceCode,
+        districtCode,
+        precinctCode,
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+
+  return { districts, precincts };
 }
 
 export interface HierarchyStationStats {
