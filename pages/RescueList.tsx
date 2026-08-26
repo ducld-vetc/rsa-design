@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Timer, CheckCircle2, XCircle, Clock, ChevronRight, AlertCircle, Edit3, ArrowLeft, Maximize2, Search, X, Compass, MessageSquareQuote, RotateCcw, Bell } from 'lucide-react';
+import { Timer, CheckCircle2, XCircle, Clock, ChevronRight, AlertCircle, Edit3, ArrowLeft, Maximize2, Search, X, Compass, MessageSquareQuote, RotateCcw, Bell, UserCog, AlertTriangle, ChevronDown } from 'lucide-react';
 import { RescueUnit, FormData } from '../types';
 import NotificationModal, { NotificationRecipient } from '../components/NotificationModal';
 import { OverloadBadge } from '../shared/OrderAlertBadges';
@@ -12,6 +12,48 @@ interface RescueListProps {
   onBack: () => void;
   onExpandSearch: () => void;
 }
+
+interface UnitDriver {
+  id: string;
+  name: string;
+  phone: string;
+  busy?: boolean;
+  busyOrderCode?: string;
+}
+
+const UNIT_DRIVERS: Record<string, UnitDriver[]> = {
+  '1': [
+    { id: '1-1', name: 'LÊ VŨ LONG', phone: '1900998865', busy: true, busyOrderCode: 'RSA-260426-001' },
+    { id: '1-2', name: 'TRẦN THỊ MAI', phone: '0912000111' },
+    { id: '1-3', name: 'PHẠM VĂN NAM', phone: '0912333444', busy: true, busyOrderCode: 'RSA-260426-008' },
+  ],
+  '2': [
+    { id: '2-1', name: 'HÀ VĂN TUẤN', phone: '0912345678' },
+    { id: '2-2', name: 'NGUYỄN VĂN PHÚC', phone: '0912555666' },
+    { id: '2-3', name: 'LÊ MINH TUẤN', phone: '0912777888' },
+  ],
+  '3': [
+    { id: '3-1', name: 'NGUYỄN ANH DŨNG', phone: '0988888888', busy: true, busyOrderCode: 'RSA-260426-012' },
+    { id: '3-2', name: 'VŨ THỊ HƯƠNG', phone: '0988000111' },
+    { id: '3-3', name: 'ĐỖ VĂN KHÁNH', phone: '0988222333' },
+  ],
+  '4': [
+    { id: '4-1', name: 'TRẦN VĂN B', phone: '0909090909' },
+    { id: '4-2', name: 'NGUYỄN THỊ LAN', phone: '0909111222' },
+  ],
+};
+
+const applyDriverToUnit = (unit: RescueUnit, driver: UnitDriver): RescueUnit => ({
+  ...unit,
+  contact1: `${driver.name} - ${driver.phone}`,
+  driverBusy: Boolean(driver.busy),
+  busyOrderCode: driver.busy ? driver.busyOrderCode : undefined,
+});
+
+const findDriverOfUnit = (unit: RescueUnit): UnitDriver | undefined => {
+  const drivers = UNIT_DRIVERS[unit.id] || [];
+  return drivers.find((d) => unit.contact1.includes(d.phone) || unit.contact1.includes(d.name)) || drivers[0];
+};
 
 const mockUnits: RescueUnit[] = [
   {
@@ -25,7 +67,9 @@ const mockUnits: RescueUnit[] = [
     contact1: 'LÊ VŨ LONG - 1900998865',
     contact2: 'Mr. Hoàn - 936499296',
     vehicleType: '<= 1.4 tấn',
-    overloaded: true
+    overloaded: true,
+    driverBusy: true,
+    busyOrderCode: 'RSA-260426-001'
   },
   {
     id: '2',
@@ -50,7 +94,9 @@ const mockUnits: RescueUnit[] = [
     contact1: 'NGUYỄN ANH DŨNG - 0988888888',
     contact2: 'CSKH - 0988111222',
     vehicleType: '<= 1.4 tấn',
-    overloaded: true
+    overloaded: true,
+    driverBusy: true,
+    busyOrderCode: 'RSA-260426-012'
   },
   {
     id: '4',
@@ -65,6 +111,113 @@ const mockUnits: RescueUnit[] = [
     vehicleType: '<= 1.4 tấn'
   }
 ];
+
+const ChangeDriverModal: React.FC<{
+  unit: RescueUnit;
+  drivers: UnitDriver[];
+  onClose: () => void;
+  onConfirm: (driver: UnitDriver) => void;
+}> = ({ unit, drivers, onClose, onConfirm }) => {
+  const currentDriver = findDriverOfUnit(unit);
+  const [selectedDriverId, setSelectedDriverId] = useState('');
+  const selectedDriver = drivers.find((d) => d.id === selectedDriverId);
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+        <div className="bg-vetc-green p-4 flex items-center justify-between text-white">
+          <div className="flex items-center space-x-3">
+            <UserCog size={20} />
+            <h3 className="font-bold text-sm uppercase tracking-wider">Thay đổi tài xế</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-full transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <p className="text-xs text-gray-500">
+            Đơn vị: <span className="font-bold text-gray-800">{unit.name}</span>
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="flex flex-col space-y-2">
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Tài xế hiện tại</label>
+                <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 text-xs font-bold text-gray-400">
+                  {currentDriver?.name || unit.contact1}
+                </div>
+              </div>
+              <div className="flex flex-col space-y-2">
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">SĐT tài xế hiện tại</label>
+                <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 text-xs font-bold text-gray-400">
+                  {currentDriver?.phone || '—'}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex flex-col space-y-2">
+                <label className="text-[11px] font-bold text-gray-700 uppercase tracking-widest">
+                  Tài xế mới <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedDriverId}
+                    onChange={(e) => setSelectedDriverId(e.target.value)}
+                    className="w-full border-2 border-gray-100 rounded-lg px-4 py-3 text-xs font-bold outline-none focus:border-vetc-green focus:ring-4 focus:ring-green-50/50 transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="">Chọn tài xế...</option>
+                    {drivers
+                      .filter((d) => d.id !== currentDriver?.id)
+                      .map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}{d.busy ? ' (Đang trong chuyến)' : ''}
+                        </option>
+                      ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-4 top-4 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+              <div className="flex flex-col space-y-2">
+                <label className="text-[11px] font-bold text-gray-700 uppercase tracking-widest">SĐT tài xế mới</label>
+                <div className="bg-gray-50 border border-gray-100 rounded-lg px-4 py-3 text-xs font-bold text-gray-700">
+                  {selectedDriver?.phone || '—'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {selectedDriver?.busy && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800">
+                Tài xế <span className="font-bold">{selectedDriver.name}</span> đang trong chuyến khác
+                {selectedDriver.busyOrderCode ? ` (mã đơn ${selectedDriver.busyOrderCode})` : ''}. Bạn vẫn có thể chọn.
+              </p>
+            </div>
+          )}
+
+          <div className="flex space-x-3 pt-1">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-3 rounded-xl border border-gray-200 font-bold text-gray-500 hover:bg-gray-50 transition-colors"
+            >
+              Đóng
+            </button>
+            <button
+              disabled={!selectedDriver}
+              onClick={() => selectedDriver && onConfirm(selectedDriver)}
+              className="flex-1 bg-vetc-green text-white px-4 py-3 rounded-xl font-bold shadow-lg hover:bg-green-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+            >
+              Xác nhận thay đổi
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Mock notification data - replace with API data in production
 
@@ -94,8 +247,10 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
   const [isRangeModalOpen, setIsRangeModalOpen] = useState(false);
   const [searchRange, setSearchRange] = useState('20');
   const [unitNotes, setUnitNotes] = useState<Record<string, string>>({});
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [unitToConfirm, setUnitToConfirm] = useState<RescueUnit | null>(null);
+  const [units, setUnits] = useState<RescueUnit[]>(mockUnits);
+  const [busyWarningUnit, setBusyWarningUnit] = useState<RescueUnit | null>(null);
+  const [changeDriverUnit, setChangeDriverUnit] = useState<RescueUnit | null>(null);
+  const [selectAfterDriverChange, setSelectAfterDriverChange] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [notificationUnitId, setNotificationUnitId] = useState<string | null>(null);
 
@@ -108,22 +263,54 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
     return data.station.station === unit.name;
   };
 
-  const handleSelectClick = (unit: RescueUnit) => {
-    setUnitToConfirm(unit);
-    setIsConfirmModalOpen(true);
+  const updateUnit = (updated: RescueUnit) => {
+    setUnits((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+    return updated;
   };
 
-  const handleConfirmSelect = () => {
-    if (unitToConfirm) {
-      onSelect(unitToConfirm);
+  const handleSelectClick = (unit: RescueUnit) => {
+    if (unit.status === 'Rejected') return;
+    if (unit.driverBusy) {
+      setBusyWarningUnit(unit);
+      return;
     }
-    setIsConfirmModalOpen(false);
+    onSelect(unit);
   };
+
+  const handleConfirmBusySelect = () => {
+    if (busyWarningUnit) {
+      onSelect(busyWarningUnit);
+    }
+    setBusyWarningUnit(null);
+  };
+
+  const handleOpenChangeDriver = (unit: RescueUnit, thenSelect: boolean) => {
+    setChangeDriverUnit(unit);
+    setSelectAfterDriverChange(thenSelect);
+    setBusyWarningUnit(null);
+  };
+
+  const handleConfirmChangeDriver = (driver: UnitDriver) => {
+    if (!changeDriverUnit) return;
+    const updated = updateUnit(applyDriverToUnit(changeDriverUnit, driver));
+    const shouldSelect = selectAfterDriverChange;
+    setChangeDriverUnit(null);
+    setSelectAfterDriverChange(false);
+    if (!shouldSelect) return;
+    if (updated.driverBusy) {
+      setBusyWarningUnit(updated);
+      return;
+    }
+    onSelect(updated);
+  };
+
+  const unitsRef = React.useRef(units);
+  unitsRef.current = units;
 
   useEffect(() => {
     if (timeLeft <= 0) {
-      // Auto-select first accepted unit
-      const firstAccepted = mockUnits.find(u => u.status === 'Accepted') || mockUnits[0];
+      const list = unitsRef.current;
+      const firstAccepted = list.find(u => u.status === 'Accepted') || list[0];
       onSelect(firstAccepted);
       return;
     }
@@ -147,7 +334,7 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
   const handleResend = (id: string) => {
     // Logic gửi lại yêu cầu cứu hộ
     console.log(`Resending request to unit ${id}`);
-    alert(`Đã gửi lại yêu cầu cứu hộ cho đơn vị: ${mockUnits.find(u => u.id === id)?.name}`);
+    alert(`Đã gửi lại yêu cầu cứu hộ cho đơn vị: ${units.find(u => u.id === id)?.name}`);
   };
 
   const getStatusBadge = (status: string) => {
@@ -224,7 +411,7 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {mockUnits.map((unit) => (
+            {units.map((unit) => (
               <tr key={unit.id} className={`hover:bg-gray-50 transition-colors ${unit.status === 'Rejected' ? 'opacity-60 bg-gray-50/50' : ''}`}>
                 <td className="px-4 py-4">
                   <div className="font-bold text-gray-900">{unit.address}</div>
@@ -232,7 +419,13 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
                   <div className="text-[11px] text-gray-500">{unit.contact2}</div>
                 </td>
                 <td className="px-4 py-4">
-                  {unit.contact1}
+                  <div className="font-medium text-gray-900">{unit.contact1}</div>
+                  {unit.driverBusy && (
+                    <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
+                      <AlertTriangle size={10} />
+                      <span>Đang trong chuyến{unit.busyOrderCode ? ` · ${unit.busyOrderCode}` : ''}</span>
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-4">
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -287,6 +480,15 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
                     >
                       <RotateCcw size={16} className="group-active:rotate-180 transition-transform duration-300" />
                     </button>
+                    {unit.status !== 'Rejected' && (
+                      <button
+                        onClick={() => handleOpenChangeDriver(unit, false)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all group flex items-center justify-center"
+                        title="Thay đổi tài xế"
+                      >
+                        <UserCog size={16} className="group-hover:scale-110 transition-transform" />
+                      </button>
+                    )}
                     {isSelected(unit) ? (
                       <div className="inline-flex items-center justify-center space-x-1 w-[120px] whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold bg-gray-100 text-gray-500 border border-gray-200">
                         <CheckCircle2 size={14} className="text-vetc-green" />
@@ -297,8 +499,8 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
                         disabled={unit.status === 'Rejected'}
                         onClick={() => handleSelectClick(unit)}
                         className={`inline-flex items-center justify-center space-x-1 w-[120px] whitespace-nowrap px-4 py-1.5 rounded-lg text-sm font-bold transition-all
-                          ${unit.status === 'Rejected' 
-                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                          ${unit.status === 'Rejected'
+                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                             : 'bg-vetc-green text-white hover:bg-green-700 hover:shadow-md'}`}
                       >
                         <span>Chọn</span>
@@ -378,60 +580,106 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
         </div>
       )}
 
-      {/* Confirmation Modal */}
-      {isConfirmModalOpen && unitToConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+      {/* Busy driver warning modal */}
+      {busyWarningUnit && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
-            <div className="p-6 text-center space-y-4">
-              <div className="w-16 h-16 bg-green-100 text-vetc-green rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle2 size={32} />
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-4 flex items-center justify-between text-white">
+              <div className="flex items-center space-x-3">
+                <div className="bg-white/20 p-2 rounded-full">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Cảnh báo tài xế đang trong chuyến</h3>
+                  <p className="text-xs text-white/80">Tài xế hiện tại đang thực hiện đơn cứu hộ khác</p>
+                </div>
               </div>
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold text-gray-900">Xác nhận chọn trạm</h3>
-                <p className="text-sm text-gray-500">
-                  Bạn có chắc chắn muốn chọn đơn vị <span className="font-bold text-gray-800">{unitToConfirm.name}</span> để thực hiện cứu hộ cho đơn hàng này?
+              <button
+                onClick={() => setBusyWarningUnit(null)}
+                className="p-1.5 hover:bg-white/20 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  Tài xế <span className="font-bold text-gray-900">{busyWarningUnit.contact1.split(' - ')[0]}</span> của đơn vị <span className="font-bold text-gray-900">{busyWarningUnit.name}</span> đang trong chuyến khác
+                  {busyWarningUnit.busyOrderCode ? (
+                    <> (mã đơn <span className="font-black text-amber-800">{busyWarningUnit.busyOrderCode}</span>)</>
+                  ) : null}.
+                </p>
+                <p className="text-sm text-gray-600">
+                  Nếu xác nhận, hệ thống vẫn chọn đơn vị và tài xế này cho đơn hiện tại. Bạn cũng có thể đổi sang tài xế khác của cùng đơn vị.
                 </p>
               </div>
-              
-              <div className="bg-gray-50 p-4 rounded-xl text-left space-y-2 border border-gray-100">
-                 <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Đối tác:</span>
-                    <span className="font-bold text-gray-700">{unitToConfirm.partner}</span>
-                 </div>
-                 <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Khoảng cách:</span>
-                    <span className="font-bold text-gray-700">{unitToConfirm.distance} km</span>
-                 </div>
-                 <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Thời gian:</span>
-                    <span className="font-bold text-gray-700">{unitToConfirm.time} phút</span>
-                 </div>
-              </div>
 
-              <div className="flex space-x-3 pt-2">
-                <button 
-                  onClick={() => setIsConfirmModalOpen(false)}
+              <div className="bg-gray-50 p-4 rounded-xl text-left space-y-2 border border-gray-100">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">Tài xế:</span>
+                  <span className="font-bold text-gray-700">{busyWarningUnit.contact1}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">Khoảng cách:</span>
+                  <span className="font-bold text-gray-700">{busyWarningUnit.distance} km</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">Thời gian:</span>
+                  <span className="font-bold text-gray-700">{busyWarningUnit.time} phút</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 pb-5 space-y-3">
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setBusyWarningUnit(null)}
                   className="flex-1 px-4 py-3 rounded-xl border border-gray-200 font-bold text-gray-500 hover:bg-gray-50 transition-colors"
                 >
                   Hủy bỏ
                 </button>
-                <button 
-                  onClick={handleConfirmSelect}
+                <button
+                  onClick={handleConfirmBusySelect}
                   className="flex-1 bg-vetc-green text-white px-4 py-3 rounded-xl font-bold shadow-lg hover:bg-green-700 active:scale-95 transition-all"
                 >
                   Xác nhận
                 </button>
               </div>
+              <button
+                onClick={() => handleOpenChangeDriver(busyWarningUnit, true)}
+                className="w-full inline-flex items-center justify-center space-x-2 px-4 py-3 rounded-xl border-2 border-blue-500 text-blue-600 font-bold hover:bg-blue-50 transition-colors"
+              >
+                <UserCog size={16} />
+                <span>Thay đổi tài xế</span>
+              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {changeDriverUnit && (
+        <ChangeDriverModal
+          unit={changeDriverUnit}
+          drivers={UNIT_DRIVERS[changeDriverUnit.id] || []}
+          onClose={() => {
+            const pendingUnit = changeDriverUnit;
+            const shouldReshowWarning = selectAfterDriverChange;
+            setChangeDriverUnit(null);
+            setSelectAfterDriverChange(false);
+            if (shouldReshowWarning && pendingUnit) {
+              setBusyWarningUnit(pendingUnit);
+            }
+          }}
+          onConfirm={handleConfirmChangeDriver}
+        />
       )}
 
       {/* Notification Modal */}
       <NotificationModal
         isOpen={isNotificationModalOpen && !!notificationUnitId}
         onClose={() => setIsNotificationModalOpen(false)}
-        unitName={mockUnits.find(u => u.id === notificationUnitId)?.name}
+        unitName={units.find(u => u.id === notificationUnitId)?.name}
         recipients={notificationUnitId ? (mockNotifications[notificationUnitId] || []) : []}
       />
     </div>

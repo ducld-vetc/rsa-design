@@ -42,6 +42,8 @@ export interface RescueUnit {
   contact2: string;
   vehicleType: string;
   overloaded?: boolean;
+  driverBusy?: boolean;
+  busyOrderCode?: string;
 }
 
 export interface StationInfo {
