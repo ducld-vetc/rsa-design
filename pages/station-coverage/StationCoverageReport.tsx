@@ -11,6 +11,7 @@ import {
   Map as MapIcon,
   List,
   RotateCcw,
+  Filter,
 } from 'lucide-react';
 import AppSelect from '../../shared/AppSelect';
 import AppMultiSelect from '../../shared/AppMultiSelect';
@@ -31,6 +32,10 @@ import {
   getProvinceCoverageRows,
   matchesProvinceRegion,
   matchesStationTypeFilter,
+  districtFilterKey,
+  precinctFilterKey,
+  districtDisplayName,
+  precinctDisplayName,
   resolveCoverageLevelFromStations,
   stationCoveragePercent,
   TARGET_STATIONS_PER_PROVINCE,
@@ -123,7 +128,6 @@ interface ViewRow {
   level: CoverageLevel;
 }
 
-const selectWrapClass = 'w-[196px] shrink-0';
 const PARTNER_FILTER_OPTIONS = PARTNER_OPTIONS.slice(1);
 
 const StationCoverageReport: React.FC = () => {
@@ -131,12 +135,16 @@ const StationCoverageReport: React.FC = () => {
   const [region, setRegion] = useState<RegionId | 'all'>('all');
   const [partners, setPartners] = useState<string[]>([]);
   const [areaType, setAreaType] = useState<AreaType | 'all'>('all');
-  const [stationType, setStationType] = useState<StationType | 'all'>('all');
+  const [stationTypes, setStationTypes] = useState<StationType[]>([]);
   const [provinceFilterIds, setProvinceFilterIds] = useState<string[]>([]);
+  const [districtFilterKeys, setDistrictFilterKeys] = useState<string[]>([]);
+  const [precinctFilterKeys, setPrecinctFilterKeys] = useState<string[]>([]);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'list'>('list');
   const [mapMode, setMapMode] = useState<MapDisplayMode>('stations');
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const moreFiltersRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
 
   const handleMapReady = useCallback((map: L.Map) => {
@@ -152,6 +160,8 @@ const StationCoverageReport: React.FC = () => {
 
   const provinceFilterSet = useMemo(() => new Set(provinceFilterIds), [provinceFilterIds]);
   const partnerFilterSet = useMemo(() => new Set(partners), [partners]);
+  const districtFilterSet = useMemo(() => new Set(districtFilterKeys), [districtFilterKeys]);
+  const precinctFilterSet = useMemo(() => new Set(precinctFilterKeys), [precinctFilterKeys]);
 
   const matchesProvinceFilter = useCallback(
     (provinceId: string) => provinceFilterIds.length === 0 || provinceFilterSet.has(provinceId),
@@ -161,11 +171,34 @@ const StationCoverageReport: React.FC = () => {
   const filteredStations = useMemo(() => {
     return mapStationPoints.filter((station) => {
       if (areaType !== 'all' && station.areaType !== areaType) return false;
-      if (!matchesStationTypeFilter(station.stationType, stationType)) return false;
+      if (!matchesStationTypeFilter(station.stationType, stationTypes)) return false;
       if (partners.length > 0 && !partnerFilterSet.has(station.partner)) return false;
+      if (provinceFilterIds.length > 0 && !provinceFilterSet.has(station.provinceId)) return false;
+      // Địa chỉ mới: không lọc theo quận/huyện (bộ lọc đã ẩn)
+      if (addressSchema === 'old' && districtFilterKeys.length > 0) {
+        const key = districtFilterKey(station.provinceCode, station.districtCode);
+        if (!districtFilterSet.has(key)) return false;
+      }
+      if (precinctFilterKeys.length > 0) {
+        const key = precinctFilterKey(station.provinceCode, station.districtCode, station.precinctCode);
+        if (!precinctFilterSet.has(key)) return false;
+      }
       return true;
     });
-  }, [areaType, mapStationPoints, partners.length, partnerFilterSet, stationType]);
+  }, [
+    addressSchema,
+    areaType,
+    mapStationPoints,
+    partners.length,
+    partnerFilterSet,
+    stationTypes,
+    provinceFilterIds.length,
+    provinceFilterSet,
+    districtFilterKeys.length,
+    districtFilterSet,
+    precinctFilterKeys.length,
+    precinctFilterSet,
+  ]);
 
   const stationStatsByProvince = useMemo(() => {
     const map = new Map<string, { total: number; internal: number; quick: number; external: number }>();
@@ -237,7 +270,16 @@ const StationCoverageReport: React.FC = () => {
   useEffect(() => {
     setExpandedProvinces(new Set());
     setExpandedDistricts(new Set());
-  }, [addressSchema, region, provinceFilterIds, stationType, partners, areaType]);
+  }, [
+    addressSchema,
+    region,
+    provinceFilterIds,
+    districtFilterKeys,
+    precinctFilterKeys,
+    stationTypes,
+    partners,
+    areaType,
+  ]);
 
   const toggleProvinceExpand = (id: string) => {
     setExpandedProvinces((prev) => {
@@ -264,6 +306,78 @@ const StationCoverageReport: React.FC = () => {
         .sort((a, b) => a.name.localeCompare(b.name, 'vi')),
     [region, provinceCoverageRows],
   );
+
+  /** Trạm trong vùng/tỉnh đã chọn — dùng để build option huyện/xã (cascade). */
+  const stationsForAdminOptions = useMemo(() => {
+    const regionProvinceIds = new Set(
+      provinceCoverageRows.filter((row) => matchesProvinceRegion(row, region)).map((row) => row.id),
+    );
+    return mapStationPoints.filter((station) => {
+      if (station.provinceId === UNASSIGNED_PROVINCE_ID) return false;
+      if (!regionProvinceIds.has(station.provinceId)) return false;
+      if (provinceFilterIds.length > 0 && !provinceFilterSet.has(station.provinceId)) return false;
+      return true;
+    });
+  }, [mapStationPoints, provinceFilterIds.length, provinceFilterSet, provinceCoverageRows, region]);
+
+  const provinceNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of provinceCoverageRows) map.set(row.id, row.name);
+    return map;
+  }, [provinceCoverageRows]);
+
+  const districtOptions = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const station of stationsForAdminOptions) {
+      const key = districtFilterKey(station.provinceCode, station.districtCode);
+      if (byKey.has(key)) continue;
+      const districtName = districtDisplayName(addressSchema, station.provinceCode, station.districtCode);
+      const provinceName = provinceNameById.get(station.provinceId) ?? station.provinceCode;
+      byKey.set(key, `${districtName} (${provinceName})`);
+    }
+    return [...byKey.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  }, [stationsForAdminOptions, addressSchema, provinceNameById]);
+
+  const precinctOptions = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const station of stationsForAdminOptions) {
+      if (districtFilterKeys.length > 0) {
+        const dKey = districtFilterKey(station.provinceCode, station.districtCode);
+        if (!districtFilterSet.has(dKey)) continue;
+      }
+      const key = precinctFilterKey(station.provinceCode, station.districtCode, station.precinctCode);
+      if (byKey.has(key)) continue;
+      const precinctName = precinctDisplayName(
+        addressSchema,
+        station.provinceCode,
+        station.districtCode,
+        station.precinctCode,
+      );
+      const districtName = districtDisplayName(addressSchema, station.provinceCode, station.districtCode);
+      byKey.set(key, `${precinctName} · ${districtName}`);
+    }
+    return [...byKey.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  }, [stationsForAdminOptions, districtFilterKeys.length, districtFilterSet, addressSchema]);
+
+  useEffect(() => {
+    const validDistrict = new Set(districtOptions.map((opt) => opt.value));
+    setDistrictFilterKeys((prev) => {
+      const next = prev.filter((key) => validDistrict.has(key));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [districtOptions]);
+
+  useEffect(() => {
+    const validPrecinct = new Set(precinctOptions.map((opt) => opt.value));
+    setPrecinctFilterKeys((prev) => {
+      const next = prev.filter((key) => validPrecinct.has(key));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [precinctOptions]);
 
   const visibleIds = useMemo(() => new Set(rowsForMap.map((item) => item.row.id)), [rowsForMap]);
   const selected = focusedId ? (rowsForMap.find((item) => item.row.id === focusedId) ?? null) : null;
@@ -451,29 +565,51 @@ const StationCoverageReport: React.FC = () => {
     return [...nationalFillPoints, ...hot];
   }, [nationalFillPoints, visibleStations]);
 
+  const moreFilterCount =
+    (region !== 'all' ? 1 : 0) + (partners.length > 0 ? 1 : 0) + (areaType !== 'all' ? 1 : 0);
+
   const hasActiveFilters =
     provinceFilterIds.length > 0 ||
+    (addressSchema === 'old' && districtFilterKeys.length > 0) ||
+    precinctFilterKeys.length > 0 ||
     focusedId != null ||
-    region !== 'all' ||
-    partners.length > 0 ||
-    areaType !== 'all' ||
-    stationType !== 'all' ||
+    moreFilterCount > 0 ||
+    stationTypes.length > 0 ||
     addressSchema !== 'new';
 
   const resetFilters = () => {
     setProvinceFilterIds([]);
+    setDistrictFilterKeys([]);
+    setPrecinctFilterKeys([]);
     setFocusedId(null);
     setRegion('all');
     setPartners([]);
     setAreaType('all');
-    setStationType('all');
+    setStationTypes([]);
     setAddressSchema('new');
+    setMoreFiltersOpen(false);
   };
 
   useEffect(() => {
     setProvinceFilterIds([]);
+    setDistrictFilterKeys([]);
+    setPrecinctFilterKeys([]);
     setFocusedId(null);
   }, [addressSchema]);
+
+  useEffect(() => {
+    if (!moreFiltersOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (moreFiltersRef.current?.contains(target)) return;
+      // AppSelect (Radix) portal ra body — không đóng panel khi tương tác dropdown
+      if (target.closest('[data-radix-select-content], [data-radix-popper-content-wrapper]')) return;
+      setMoreFiltersOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [moreFiltersOpen]);
 
   return (
     <div className="space-y-4">
@@ -530,7 +666,7 @@ const StationCoverageReport: React.FC = () => {
               </button>
             ))}
           </div>
-          <div className="w-[200px] shrink-0">
+          <div className="w-[180px] shrink-0">
             <AppMultiSelect
               values={provinceFilterIds}
               placeholder="Tất cả tỉnh"
@@ -544,35 +680,88 @@ const StationCoverageReport: React.FC = () => {
               }}
             />
           </div>
-          <div className={selectWrapClass}>
-            <AppSelect
-              value={stationType}
-              options={STATION_TYPE_OPTIONS.map((opt) => ({ value: opt.id, label: opt.label }))}
-              onChange={(value) => setStationType(value as StationType | 'all')}
-            />
-          </div>
-          <div className={selectWrapClass}>
-            <AppSelect
-              value={region}
-              options={REGION_OPTIONS.map((opt) => ({ value: opt.id, label: opt.label }))}
-              onChange={(value) => setRegion(value as RegionId | 'all')}
-            />
-          </div>
-          <div className="w-[220px] shrink-0">
+          {addressSchema === 'old' && (
+            <div className="w-[200px] shrink-0">
+              <AppMultiSelect
+                values={districtFilterKeys}
+                placeholder="Tất cả quận/huyện"
+                searchPlaceholder="Tìm quận/huyện..."
+                options={districtOptions}
+                onChange={setDistrictFilterKeys}
+              />
+            </div>
+          )}
+          <div className="w-[200px] shrink-0">
             <AppMultiSelect
-              values={partners}
-              placeholder="Tất cả đối tác"
-              searchPlaceholder="Tìm đối tác..."
-              options={PARTNER_FILTER_OPTIONS.map((opt) => ({ value: opt, label: opt }))}
-              onChange={setPartners}
+              values={precinctFilterKeys}
+              placeholder="Tất cả phường/xã"
+              searchPlaceholder="Tìm phường/xã..."
+              options={precinctOptions}
+              onChange={setPrecinctFilterKeys}
             />
           </div>
-          <div className={selectWrapClass}>
-            <AppSelect
-              value={areaType}
-              options={AREA_TYPE_OPTIONS.map((opt) => ({ value: opt.id, label: opt.label }))}
-              onChange={(value) => setAreaType(value as AreaType | 'all')}
+          <div className="w-[180px] shrink-0">
+            <AppMultiSelect
+              values={stationTypes}
+              placeholder="Tất cả loại trạm"
+              searchPlaceholder="Tìm loại trạm..."
+              options={STATION_TYPE_OPTIONS.filter((opt) => opt.id !== 'all').map((opt) => ({
+                value: opt.id,
+                label: opt.label,
+              }))}
+              onChange={(values) => setStationTypes(values as StationType[])}
             />
+          </div>
+          <div className="relative shrink-0" ref={moreFiltersRef}>
+            <button
+              type="button"
+              aria-expanded={moreFiltersOpen}
+              onClick={() => setMoreFiltersOpen((prev) => !prev)}
+              className={`inline-flex h-[34px] items-center gap-1.5 rounded border bg-white px-3 text-sm outline-none transition-colors hover:bg-gray-50 ${
+                moreFilterCount > 0 ? 'border-[#00A859] text-[#00A859]' : 'text-gray-700'
+              }`}
+            >
+              <Filter size={14} />
+              Bộ lọc
+              {moreFilterCount > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#00A859] px-1.5 text-[10px] font-bold text-white">
+                  {moreFilterCount}
+                </span>
+              )}
+            </button>
+            {moreFiltersOpen && (
+              <div className="absolute right-0 z-40 mt-1.5 w-[280px] rounded-xl border border-gray-200 bg-white p-3 shadow-lg">
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-gray-500">Bộ lọc thêm</p>
+                <div className="space-y-2.5">
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold text-gray-600">Miền</label>
+                    <AppSelect
+                      value={region}
+                      options={REGION_OPTIONS.map((opt) => ({ value: opt.id, label: opt.label }))}
+                      onChange={(value) => setRegion(value as RegionId | 'all')}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold text-gray-600">Đối tác</label>
+                    <AppMultiSelect
+                      values={partners}
+                      placeholder="Tất cả đối tác"
+                      searchPlaceholder="Tìm đối tác..."
+                      options={PARTNER_FILTER_OPTIONS.map((opt) => ({ value: opt, label: opt }))}
+                      onChange={setPartners}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold text-gray-600">Loại khu vực</label>
+                    <AppSelect
+                      value={areaType}
+                      options={AREA_TYPE_OPTIONS.map((opt) => ({ value: opt.id, label: opt.label }))}
+                      onChange={(value) => setAreaType(value as AreaType | 'all')}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <button
             type="button"

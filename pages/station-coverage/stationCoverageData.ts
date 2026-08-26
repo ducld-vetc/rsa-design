@@ -133,9 +133,27 @@ export function stationTypeLabel(type: StationType): string {
   return 'Trạm bên ngoài';
 }
 
-export function matchesStationTypeFilter(type: StationType, filter: StationType | 'all'): boolean {
+export function matchesStationTypeFilter(
+  type: StationType,
+  filter: StationType | StationType[] | 'all',
+): boolean {
   if (filter === 'all') return true;
+  if (Array.isArray(filter)) return filter.length === 0 || filter.includes(type);
   return type === filter;
+}
+
+/** Key lọc huyện: provinceCode|districtCode */
+export function districtFilterKey(provinceCode: string, districtCode: string | null | undefined): string {
+  return `${provinceCode}|${districtCode?.trim() || '__none__'}`;
+}
+
+/** Key lọc xã: provinceCode|districtCode|precinctCode */
+export function precinctFilterKey(
+  provinceCode: string,
+  districtCode: string | null | undefined,
+  precinctCode: string | null | undefined,
+): string {
+  return `${provinceCode}|${districtCode?.trim() || '__none__'}|${precinctCode?.trim() || '__none__'}`;
 }
 
 export const COVERAGE_RADIUS_M: Record<AreaType, number> = {
@@ -868,7 +886,7 @@ function remapOldAdminFromAddress(
   };
 }
 
-function districtDisplayName(
+export function districtDisplayName(
   mode: AddressSchemaMode,
   provinceCode: string,
   districtCode: string | null,
@@ -887,7 +905,7 @@ function districtDisplayName(
   return `Mã ${districtCode}`;
 }
 
-function precinctDisplayName(
+export function precinctDisplayName(
   mode: AddressSchemaMode,
   provinceCode: string,
   districtCode: string | null,
