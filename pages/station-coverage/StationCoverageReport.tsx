@@ -103,7 +103,7 @@ const makeStationIcon = (bg: string, glyph: string, selected: boolean) => {
   const size = selected ? MARKER_SIZE_SELECTED : MARKER_SIZE;
   return L.divIcon({
     html: `<div style="width:${size}px;height:${size}px;background:${bg};border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;box-sizing:border-box;box-shadow:0 2px 8px rgba(0,0,0,0.35);${selected ? 'outline:2px solid #111;outline-offset:0;' : ''}">${glyph}</div>`,
-    className: '',
+    className: 'rsa-station-marker',
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
@@ -111,9 +111,10 @@ const makeStationIcon = (bg: string, glyph: string, selected: boolean) => {
 
 const vetcIcon = (selected: boolean) => {
   const size = selected ? MARKER_SIZE_SELECTED : MARKER_SIZE;
+  // Dùng URL đã resolve bởi Vite; asset phải là PNG thật (không phải JPEG đổi đuôi).
   return L.divIcon({
-    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;box-sizing:border-box;box-shadow:0 2px 8px rgba(0,0,0,0.35);line-height:0;background:#00A651;${selected ? 'outline:2px solid #111;outline-offset:0;' : ''}"><img src="${vetcMarkUrl}" alt="" width="${size}" height="${size}" style="display:block;width:100%;height:100%;object-fit:cover" /></div>`,
-    className: '',
+    html: `<div class="rsa-internal-marker" style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;box-sizing:border-box;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);line-height:0;background:#00A651;${selected ? 'outline:2px solid #111;outline-offset:0;' : ''}"><img src="${vetcMarkUrl}" alt="" draggable="false" width="${size}" height="${size}" style="display:block;width:100%;height:100%;object-fit:cover;border:0" /></div>`,
+    className: 'rsa-station-marker',
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
@@ -122,10 +123,17 @@ const vetcIcon = (selected: boolean) => {
 const CONTRACT_GLYPH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" style="display:block"><path d="M9 12l2 2 4-4"/><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>`;
 const NO_CONTRACT_GLYPH = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" style="display:block"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9.5 15.5 14.5 10.5M14.5 15.5 9.5 10.5"/></svg>`;
 
+const ICON_INTERNAL = vetcIcon(false);
+const ICON_INTERNAL_SELECTED = vetcIcon(true);
+const ICON_CONTRACT = makeStationIcon(CONTRACT_STATION_BG, CONTRACT_GLYPH, false);
+const ICON_CONTRACT_SELECTED = makeStationIcon(CONTRACT_STATION_BG, CONTRACT_GLYPH, true);
+const ICON_NO_CONTRACT = makeStationIcon(NO_CONTRACT_STATION_BG, NO_CONTRACT_GLYPH, false);
+const ICON_NO_CONTRACT_SELECTED = makeStationIcon(NO_CONTRACT_STATION_BG, NO_CONTRACT_GLYPH, true);
+
 const iconForStation = (type: StationType, selected: boolean) => {
-  if (type === 'rescue_internal') return vetcIcon(selected);
-  if (type === 'partner_with_contract') return makeStationIcon(CONTRACT_STATION_BG, CONTRACT_GLYPH, selected);
-  return makeStationIcon(NO_CONTRACT_STATION_BG, NO_CONTRACT_GLYPH, selected);
+  if (type === 'rescue_internal') return selected ? ICON_INTERNAL_SELECTED : ICON_INTERNAL;
+  if (type === 'partner_with_contract') return selected ? ICON_CONTRACT_SELECTED : ICON_CONTRACT;
+  return selected ? ICON_NO_CONTRACT_SELECTED : ICON_NO_CONTRACT;
 };
 
 const FitDefaultView: React.FC<{ resetKey: string; region: RegionId | 'all' }> = ({
@@ -133,7 +141,11 @@ const FitDefaultView: React.FC<{ resetKey: string; region: RegionId | 'all' }> =
   region,
 }) => {
   const map = useMap();
+  const lastKeyRef = useRef<string | null>(null);
   useEffect(() => {
+    const key = `${resetKey}|${region}`;
+    if (lastKeyRef.current === key) return;
+    lastKeyRef.current = key;
     // Mặc định / miền Bắc: focus Hà Nội. Trung/Nam: fit vùng tương ứng.
     if (region === 'trung' || region === 'nam') {
       map.fitBounds(boundsForRegion(region), { padding: [16, 16], maxZoom: 8, animate: false });
@@ -141,39 +153,6 @@ const FitDefaultView: React.FC<{ resetKey: string; region: RegionId | 'all' }> =
     }
     map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: false });
   }, [map, resetKey, region]);
-  return null;
-};
-
-const FlyToArea: React.FC<{
-  center: [number, number] | null;
-  points?: Array<[number, number]>;
-  includeRadiusKm?: number | null;
-}> = ({ center, points = [], includeRadiusKm = null }) => {
-  const map = useMap();
-  useEffect(() => {
-    // Khi có vòng bán kính (chọn 1 khu vực): luôn fit theo vòng đó — không fit cả đám marker
-    // (tránh map không zoom in / nhìn polygon tỉnh bị rối).
-    if (center && includeRadiusKm != null && includeRadiusKm > 0) {
-      const dLat = includeRadiusKm / 111;
-      const dLng = includeRadiusKm / (111 * Math.max(0.2, Math.cos((center[0] * Math.PI) / 180)));
-      const bounds = L.latLngBounds(
-        [center[0] - dLat, center[1] - dLng],
-        [center[0] + dLat, center[1] + dLng],
-      );
-      map.fitBounds(bounds, { padding: [36, 36], maxZoom: 11, animate: true });
-      return;
-    }
-    const latLngs: L.LatLngExpression[] = [...points];
-    if (latLngs.length >= 2) {
-      map.fitBounds(L.latLngBounds(latLngs), { padding: [40, 40], maxZoom: 11, animate: true });
-      return;
-    }
-    if (latLngs.length === 1) {
-      map.flyTo(latLngs[0], 10, { duration: 0.45 });
-      return;
-    }
-    if (center) map.flyTo(center, 9, { duration: 0.45 });
-  }, [center, points, includeRadiusKm, map]);
   return null;
 };
 
@@ -225,12 +204,34 @@ const StationCoverageReport: React.FC = () => {
   const mapRef = useRef<L.Map | null>(null);
   const mapShellRef = useRef<HTMLDivElement>(null);
   const sidebarPanelRef = useRef<HTMLDivElement>(null);
+  /** Đã fly cho focusKey này chưa — sống ở parent, không mất khi child remount / zoom. */
+  const lastFlewFocusKeyRef = useRef<string | null>(null);
+  const searchAreaFocusRef = useRef<{
+    center: [number, number];
+    label: string;
+    level: string;
+  } | null>(null);
   const [mapSyncedHeight, setMapSyncedHeight] = useState<number | null>(null);
   const [hoveredStationId, setHoveredStationId] = useState<string | null>(null);
 
   const handleMapReady = useCallback((map: L.Map) => {
     mapRef.current = map;
+    // Map mount muộn hơn lần chọn: bay 1 lần nếu chưa bay cho focus hiện tại.
+    const focus = searchAreaFocusRef.current;
+    if (!focus?.center) return;
+    const [lat, lng] = focus.center;
+    const key = `${focus.level}|${focus.label}|${lat.toFixed(5)},${lng.toFixed(5)}`;
+    if (lastFlewFocusKeyRef.current === key) return;
+    lastFlewFocusKeyRef.current = key;
+    const dLat = NEARBY_RADIUS_KM / 111;
+    const dLng = NEARBY_RADIUS_KM / (111 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)));
+    map.fitBounds(L.latLngBounds([lat - dLat, lng - dLng], [lat + dLat, lng + dLng]), {
+      padding: [36, 36],
+      maxZoom: 11,
+      animate: true,
+    });
   }, []);
+
 
   useEffect(() => {
     if (!mapFullscreen) return;
@@ -750,6 +751,34 @@ const StationCoverageReport: React.FC = () => {
   }, [nearbyStations]);
 
   const selectedCenter = searchAreaFocus?.center ?? null;
+  searchAreaFocusRef.current = searchAreaFocus;
+
+  /** Key ổn định theo lần chọn khu vực — chỉ fly khi key đổi (chọn/lọc mới). */
+  const mapFocusKey = useMemo(() => {
+    if (!searchAreaFocus) return '';
+    const [lat, lng] = searchAreaFocus.center;
+    return `${searchAreaFocus.level}|${searchAreaFocus.label}|${lat.toFixed(5)},${lng.toFixed(5)}`;
+  }, [searchAreaFocus]);
+
+  /** Fly 1 lần duy nhất khi chọn/lọc khu vực — không phụ thuộc zoom/pan/re-render. */
+  useEffect(() => {
+    if (!mapFocusKey) {
+      lastFlewFocusKeyRef.current = null;
+      return;
+    }
+    if (lastFlewFocusKeyRef.current === mapFocusKey) return;
+
+    const map = mapRef.current;
+    const focus = searchAreaFocusRef.current;
+    if (!map || !focus?.center) return;
+
+    lastFlewFocusKeyRef.current = mapFocusKey;
+    const [lat, lng] = focus.center;
+    const dLat = NEARBY_RADIUS_KM / 111;
+    const dLng = NEARBY_RADIUS_KM / (111 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)));
+    const bounds = L.latLngBounds([lat - dLat, lng - dLng], [lat + dLat, lng + dLng]);
+    map.fitBounds(bounds, { padding: [36, 36], maxZoom: 11, animate: true });
+  }, [mapFocusKey]);
 
   const kpis = useMemo(() => {
     const source = effectiveFocusedId ? viewRows : rowsForMap;
@@ -833,11 +862,6 @@ const StationCoverageReport: React.FC = () => {
       hint: `${inArea} trong khu vực đang chọn · ${outsideRadius} trong khu vực lân cận (<=${NEARBY_RADIUS_KM}km)`,
     };
   }, [searchAreaFocus, drillStations, nearbyStations]);
-
-  const mapFitPoints = useMemo(
-    () => visibleStations.map((station) => station.position),
-    [visibleStations],
-  );
 
   const provinceBoundaries = useMemo(
     () => getVietnamProvinceBoundaries(addressSchema),
@@ -1255,14 +1279,8 @@ const StationCoverageReport: React.FC = () => {
                   maxZoom={14}
                   maxNativeZoom={14}
                 />
-                {/* Chỉ fly khi đã chọn khu vực — tránh fit toàn quốc vì có sẵn marker lúc vào trang. */}
-                {selectedCenter ? (
-                  <FlyToArea
-                    center={selectedCenter}
-                    points={searchAreaFocus ? [] : mapFitPoints}
-                    includeRadiusKm={searchAreaFocus ? NEARBY_RADIUS_KM : null}
-                  />
-                ) : (
+                {/* Không gắn FlyToArea theo re-render — focus one-shot qua mapFocusKey ở parent. */}
+                {!selectedCenter && (
                   <FitDefaultView resetKey={`${addressSchema}-${region}`} region={region} />
                 )}
                 <MapRefBridge onMap={handleMapReady} />
@@ -1343,22 +1361,6 @@ const StationCoverageReport: React.FC = () => {
                     </Marker>
                   ))}
               </MapContainer>
-
-              {searchAreaFocus && (
-                <div className="pointer-events-none absolute left-4 top-14 z-20 max-w-[280px] rounded-lg border border-emerald-200 bg-emerald-50/95 px-3 py-2 shadow-sm">
-                  <p className="text-[10px] font-black uppercase tracking-wide text-emerald-700">
-                    Bán kính {NEARBY_RADIUS_KM} km
-                  </p>
-                  <p className="mt-0.5 text-[11px] font-semibold leading-snug text-emerald-900">
-                    {searchAreaFocus.label}
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-emerald-700">
-                    {nearbyStations.length === 0
-                      ? `Chưa có trạm trong vòng ${NEARBY_RADIUS_KM} km — vẫn hiển thị vùng phủ quanh tâm khu vực`
-                      : `${nearbyStations.length} trạm trong vòng ${NEARBY_RADIUS_KM} km (hiện trên map; KPI gộp trong + ngoài khu vực lọc)`}
-                  </p>
-                </div>
-              )}
 
               <div className="absolute left-4 top-4 z-20">
                 <div className="flex rounded-lg border border-gray-200 bg-white/95 p-0.5 shadow-sm">
