@@ -4,7 +4,6 @@ import L from 'leaflet';
 import type { GeoJSON as GeoJSONType } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
-  Download,
   X,
   ChevronRight,
   ChevronDown,
@@ -185,6 +184,9 @@ const StationCoverageReport: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const moreFiltersRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const mapShellRef = useRef<HTMLDivElement>(null);
+  const sidebarPanelRef = useRef<HTMLDivElement>(null);
+  const [mapSyncedHeight, setMapSyncedHeight] = useState<number | null>(null);
 
   const handleMapReady = useCallback((map: L.Map) => {
     mapRef.current = map;
@@ -209,6 +211,45 @@ const StationCoverageReport: React.FC = () => {
       mapRef.current?.invalidateSize({ animate: false });
     }, 180);
     return () => window.clearTimeout(id);
+  }, [mapFullscreen, sidebarOpen, activeTab, mapSyncedHeight]);
+
+  useEffect(() => {
+    const el = mapShellRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      mapRef.current?.invalidateSize({ animate: false });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [activeTab, mapFullscreen]);
+
+  /** Chiều cao map bám theo sidebar phải (tối thiểu bằng viewport còn lại). */
+  useEffect(() => {
+    if (mapFullscreen || activeTab !== 'overview' || !sidebarOpen) {
+      setMapSyncedHeight(null);
+      return;
+    }
+    const sidebar = sidebarPanelRef.current;
+    if (!sidebar || typeof ResizeObserver === 'undefined') return;
+
+    const syncHeight = () => {
+      // Chỉ sync khi map || sidebar nằm ngang (xl+)
+      if (window.innerWidth < 1280) {
+        setMapSyncedHeight(null);
+        return;
+      }
+      const sidebarH = Math.ceil(sidebar.getBoundingClientRect().height);
+      const floor = Math.max(480, Math.round(window.innerHeight - 260));
+      setMapSyncedHeight(Math.max(sidebarH, floor));
+    };
+    syncHeight();
+    const ro = new ResizeObserver(syncHeight);
+    ro.observe(sidebar);
+    window.addEventListener('resize', syncHeight);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', syncHeight);
+    };
   }, [mapFullscreen, sidebarOpen, activeTab]);
 
   const mapStationPoints = useMemo(() => getMapStationPoints(addressSchema), [addressSchema]);
@@ -749,7 +790,7 @@ const StationCoverageReport: React.FC = () => {
       total: stations.length,
       inArea,
       outsideRadius,
-      hint: `${inArea} trong khu vực lọc · ${outsideRadius} ngoài khu vực (≤${NEARBY_RADIUS_KM}km)`,
+      hint: `${inArea} trong khu vực đang chọn · ${outsideRadius} trong khu vực lân cận (<=${NEARBY_RADIUS_KM}km)`,
     };
   }, [searchAreaFocus, drillStations, nearbyStations]);
 
@@ -960,16 +1001,6 @@ const StationCoverageReport: React.FC = () => {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <h1 className="text-lg font-black uppercase tracking-wide text-gray-800">Độ phủ trạm cứu hộ theo tỉnh</h1>
-        {activeTab === 'list' && (
-          <button
-            type="button"
-            onClick={handleExport}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#00A859] px-4 text-xs font-bold text-white hover:bg-[#00924e]"
-          >
-            <Download size={14} />
-            Xuất Excel
-          </button>
-        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1131,23 +1162,36 @@ const StationCoverageReport: React.FC = () => {
           className={
             mapFullscreen
               ? 'fixed inset-0 z-[80] flex bg-white'
-              : 'flex flex-col gap-4 xl:flex-row xl:items-stretch'
+              : 'flex min-h-[calc(100vh-260px)] flex-col gap-4 xl:flex-row xl:items-stretch'
           }
         >
-          <div className={`min-w-0 ${mapFullscreen ? 'relative flex-1' : 'xl:flex-1'}`}>
+          <div
+            className={`min-w-0 ${
+              mapFullscreen ? 'relative flex-1' : 'relative xl:flex-1'
+            }`}
+            style={
+              !mapFullscreen && mapSyncedHeight != null
+                ? { height: mapSyncedHeight, minHeight: mapSyncedHeight }
+                : undefined
+            }
+          >
             <div
+              ref={mapShellRef}
               className={`rsa-dashboard-map relative z-0 isolate overflow-hidden bg-white ${
                 mapFullscreen
                   ? 'h-full rounded-none border-0 shadow-none'
-                  : 'rounded-2xl border border-gray-100 shadow-sm'
+                  : 'h-full min-h-[calc(100vh-260px)] rounded-2xl border border-gray-100 shadow-sm'
               }`}
-              style={mapFullscreen ? { height: '100%' } : { minHeight: 'calc(100vh - 260px)' }}
+              style={
+                !mapFullscreen && mapSyncedHeight != null
+                  ? { height: '100%', minHeight: mapSyncedHeight }
+                  : undefined
+              }
             >
               <MapContainer
                 center={[16.2, 106.5]}
                 zoom={6}
                 className="absolute inset-0 z-0 h-full w-full"
-                style={mapFullscreen ? { height: '100%' } : { minHeight: 'calc(100vh - 260px)' }}
                 scrollWheelZoom
                 zoomAnimation
                 fadeAnimation
@@ -1368,10 +1412,11 @@ const StationCoverageReport: React.FC = () => {
 
           {sidebarOpen && (
             <div
+              ref={sidebarPanelRef}
               className={
                 mapFullscreen
                   ? 'absolute right-0 top-0 z-[90] flex h-full w-full max-w-[360px] border-l border-gray-100 bg-white/95 pt-14 shadow-xl backdrop-blur-sm sm:w-[360px]'
-                  : 'w-full xl:w-auto xl:shrink-0'
+                  : 'flex w-full xl:w-auto xl:shrink-0 xl:self-start'
               }
             >
               <ProvinceDetailPanel
@@ -1700,16 +1745,20 @@ const ProvinceDetailPanel: React.FC<{
             label="Trạm active"
             value={formatNumber(searchAreaLabel ? stationKpiStats.total : kpis.totalStations)}
             hint={searchAreaLabel ? stationKpiStats.hint : undefined}
+            detail={
+              searchAreaLabel ? (
+                <StationActiveBreakdown
+                  inArea={stationKpiStats.inArea}
+                  outsideRadius={stationKpiStats.outsideRadius}
+                />
+              ) : undefined
+            }
           />
           <MiniStat label={`% độ phủ (R=${SERVICE_RADIUS_KM}km)`} value={formatCoverage(kpis.nationalCr)} />
           <MiniStat label="Tỉnh mức thấp" value={formatNumber(kpis.lowProvinces)} />
         </dl>
         <dl className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-          <MiniStat
-            label="Nội bộ"
-            value={formatNumber(internalCount)}
-            hint={searchAreaLabel ? stationKpiStats.hint : undefined}
-          />
+          <MiniStat label="Nội bộ" value={formatNumber(internalCount)} />
           <MiniStat label="Đối tác có HĐ" value={formatNumber(withContractCount)} />
           <MiniStat label="Đối tác không HĐ" value={formatNumber(noContractCount)} />
         </dl>
@@ -1768,34 +1817,33 @@ const ProvinceDetailPanel: React.FC<{
           <X size={16} />
         </button>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3">
         <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase ${LEVEL_META[coverageLevel].badge}`}>
           {LEVEL_META[coverageLevel].label}
         </span>
-        <span className="text-sm font-black text-gray-900">{formatCoverage(coverageCr)}</span>
       </div>
-      <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
         <MiniStat
           label="Trạm active"
           value={formatNumber(stationKpiStats.total)}
           hint={stationKpiStats.hint}
+          detail={
+            <StationActiveBreakdown
+              inArea={stationKpiStats.inArea}
+              outsideRadius={stationKpiStats.outsideRadius}
+            />
+          }
         />
-        <MiniStat label="Xã được phủ" value={`${wardCovered}/${wardTotal}`} />
-        <MiniStat
-          label="Nội bộ"
-          value={formatNumber(internalCount)}
-          hint={stationKpiStats.hint}
-        />
-        <MiniStat label="Đối tác có HĐ" value={formatNumber(withContractCount)} />
-        <MiniStat label="Đối tác không HĐ" value={formatNumber(noContractCount)} />
-        <MiniStat label={`% độ phủ (R=${SERVICE_RADIUS_KM}km)`} value={formatCoverage(coverageCr)} />
+        <div className="flex min-h-0 flex-col gap-2">
+          <MiniStat label="Xã được phủ" value={`${wardCovered}/${wardTotal}`} />
+          <MiniStat label={`% độ phủ`} value={formatCoverage(coverageCr)} />
+        </div>
+      </div>
+      <dl className="mt-2 grid grid-cols-3 gap-1.5 text-[11px]">
+        <MiniStat label="Nội bộ" value={formatNumber(internalCount)} compact />
+        <MiniStat label="Có HĐ" value={formatNumber(withContractCount)} compact />
+        <MiniStat label="Không HĐ" value={formatNumber(noContractCount)} compact />
       </dl>
-      {stationKpiStats.hint && (
-        <p className="mt-2 text-[10px] leading-snug text-gray-500" title={stationKpiStats.hint}>
-          <Info size={11} className="mr-1 inline-block align-[-2px] text-gray-400" />
-          {stationKpiStats.hint}
-        </p>
-      )}
       {stationKpiStats.total === 0 && (
         <p className="mt-2 text-[11px] text-amber-700">Chưa có trạm active khớp bộ lọc tại khu vực này.</p>
       )}
@@ -1839,13 +1887,36 @@ const KpiChip: React.FC<{
   </div>
 );
 
-const MiniStat: React.FC<{ label: string; value: string; hint?: string }> = ({ label, value, hint }) => (
-  <div className="rounded-lg bg-gray-50 px-2.5 py-2" title={hint}>
+const MiniStat: React.FC<{
+  label: string;
+  value: string;
+  hint?: string;
+  detail?: React.ReactNode;
+  compact?: boolean;
+}> = ({ label, value, hint, detail, compact }) => (
+  <div className={`rounded-lg bg-gray-50 ${compact ? 'px-2 py-1.5' : 'px-2.5 py-2'}`} title={hint}>
     <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">
-      <span>{label}</span>
+      <span className="truncate">{label}</span>
       {hint ? <Info size={10} className="shrink-0 text-gray-400" aria-label={hint} /> : null}
     </p>
-    <p className="mt-0.5 font-black text-gray-800">{value}</p>
+    <p className={`mt-0.5 font-black text-gray-800 ${compact ? 'text-sm' : ''}`}>{value}</p>
+    {detail}
+  </div>
+);
+
+const StationActiveBreakdown: React.FC<{ inArea: number; outsideRadius: number }> = ({
+  inArea,
+  outsideRadius,
+}) => (
+  <div className="mt-1.5 space-y-1 border-t border-gray-200/80 pt-1.5 text-[9px] font-semibold leading-snug text-gray-500">
+    <p className="flex gap-1">
+      <span className="shrink-0 font-black tabular-nums text-emerald-700">{formatNumber(inArea)}</span>
+      <span>trong khu vực đang chọn</span>
+    </p>
+    <p className="flex gap-1">
+      <span className="shrink-0 font-black tabular-nums text-amber-700">{formatNumber(outsideRadius)}</span>
+      <span>trong khu vực lân cận (&lt;={NEARBY_RADIUS_KM}km)</span>
+    </p>
   </div>
 );
 
