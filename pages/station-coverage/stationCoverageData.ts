@@ -514,15 +514,26 @@ const EXCLUDED_STATION_CODES = new Set<string>([
   'PT9D3243AB_4905',
 ]);
 
+function isExcludedStationOrVehicle(row: DbStationRow): boolean {
+  if (EXCLUDED_STATION_IDS.has(String(row.id))) return true;
+  const code = row.code?.trim() ?? '';
+  if (!code) return false;
+  if (EXCLUDED_STATION_CODES.has(code)) return true;
+  // Xe nội bộ: code = `{rescue_order_code}_{biển số}` (vd PTA8868E2E_7245_30A62388)
+  for (const stationCode of EXCLUDED_STATION_CODES) {
+    if (code.startsWith(`${stationCode}_`)) return true;
+  }
+  return false;
+}
+
 /**
  * Loại khỏi báo cáo độ phủ:
- * - EXCLUDED_STATION_IDS / EXCLUDED_STATION_CODES (Ops)
+ * - EXCLUDED_STATION_IDS / EXCLUDED_STATION_CODES (Ops) + xe BSX gắn trạm đó
  * - Quick Service
  * - Không có tọa độ hợp lệ (null / ngoài VN / lat·lng số nguyên giả)
  */
 function shouldIncludeStationInCoverage(row: DbStationRow): boolean {
-  if (EXCLUDED_STATION_IDS.has(String(row.id))) return false;
-  if (row.code && EXCLUDED_STATION_CODES.has(row.code.trim())) return false;
+  if (isExcludedStationOrVehicle(row)) return false;
   if (isQuickServicePartner(row)) return false;
   return hasPlottablePosition(row.latitude, row.longitude);
 }
