@@ -499,17 +499,30 @@ export function hasPlottablePosition(lat: number | null, lng: number | null): bo
 }
 
 const EXCLUDED_STATION_IDS = new Set<string>([
-  '1721', // PTA8868E2E_7245 — hỗ trợ từ xa, address chỉ "Hà Nội"
+  '1721', // PTA8868E2E_7245 — hỗ trợ từ xa
+  '1383', // PTBE420218_e1f1 — VETC hỗ trợ
+  '1176', // PTFE82670F_11 — Trạm test
+  '373', // PT71CC6C5B_7570 — trạm test
+  '1648', // PT9D3243AB_4905 — Trạm test 01
+]);
+
+const EXCLUDED_STATION_CODES = new Set<string>([
+  'PTA8868E2E_7245',
+  'PTBE420218_e1f1',
+  'PTFE82670F_11',
+  'PT71CC6C5B_7570',
+  'PT9D3243AB_4905',
 ]);
 
 /**
  * Loại khỏi báo cáo độ phủ:
- * - EXCLUDED_STATION_IDS (Ops)
+ * - EXCLUDED_STATION_IDS / EXCLUDED_STATION_CODES (Ops)
  * - Quick Service
  * - Không có tọa độ hợp lệ (null / ngoài VN / lat·lng số nguyên giả)
  */
 function shouldIncludeStationInCoverage(row: DbStationRow): boolean {
   if (EXCLUDED_STATION_IDS.has(String(row.id))) return false;
+  if (row.code && EXCLUDED_STATION_CODES.has(row.code.trim())) return false;
   if (isQuickServicePartner(row)) return false;
   return hasPlottablePosition(row.latitude, row.longitude);
 }
