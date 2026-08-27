@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import AppSelect from '../../shared/AppSelect';
 import AppMultiSelect from '../../shared/AppMultiSelect';
-import { VIETNAM_BOUNDS } from '../rsa-dashboard/vietnamProvinceGeo';
 import { RSA_MAP_TILE_ATTRIBUTION, RSA_MAP_TILE_URL } from './rsaMapTiles';
 import { getVietnamProvinceBoundaries } from './vietnamProvinceBoundaries';
 import {
@@ -47,6 +46,7 @@ import {
   metricsFromWards,
   districtFilterKey,
   precinctFilterKey,
+  expandDistrictFilterKeys,
   districtDisplayName,
   precinctDisplayName,
   resolveCoverageLevelFromPercent,
@@ -69,18 +69,18 @@ import {
 import StationHeatLayer, { buildNationalHeatFill, type HeatPoint } from './StationHeatLayer';
 import vetcMarkUrl from './assets/vetc-mark.png';
 
-/** Focus mặc định / miền Bắc (không đổi maxBounds cả nước). */
+/** Focus mặc định / miền Bắc (chỉ fitBounds khi chọn miền — không khóa pan). */
 const NORTH_VIETNAM_BOUNDS: [[number, number], [number, number]] = [
   [20.05, 102.15],
-  [23.4, 107.65],
+  [23.4, 108.2],
 ];
 const CENTRAL_VIETNAM_BOUNDS: [[number, number], [number, number]] = [
-  [14.6, 105.4],
-  [20.15, 109.5],
+  [14.6, 105.2],
+  [20.15, 110.2],
 ];
 const SOUTH_VIETNAM_BOUNDS: [[number, number], [number, number]] = [
-  [8.4, 104.0],
-  [14.9, 109.55],
+  [8.4, 103.6],
+  [14.9, 110.4],
 ];
 const DEFAULT_MAP_CENTER: [number, number] = [21.0285, 105.8542]; // Hà Nội
 const DEFAULT_MAP_ZOOM = 10;
@@ -302,7 +302,10 @@ const StationCoverageReport: React.FC = () => {
 
   const provinceFilterSet = useMemo(() => new Set(provinceFilterIds), [provinceFilterIds]);
   const partnerFilterSet = useMemo(() => new Set(partners), [partners]);
-  const districtFilterSet = useMemo(() => new Set(districtFilterKeys), [districtFilterKeys]);
+  const districtFilterSet = useMemo(
+    () => expandDistrictFilterKeys(districtFilterKeys),
+    [districtFilterKeys],
+  );
   const precinctFilterSet = useMemo(() => new Set(precinctFilterKeys), [precinctFilterKeys]);
 
   const matchesProvinceFilter = useCallback(
@@ -1268,9 +1271,7 @@ const StationCoverageReport: React.FC = () => {
                 fadeAnimation
                 markerZoomAnimation
                 zoomControl={false}
-                maxBounds={VIETNAM_BOUNDS}
-                maxBoundsViscosity={1}
-                minZoom={5}
+                minZoom={4}
                 maxZoom={14}
               >
                 <TileLayer
@@ -1362,8 +1363,8 @@ const StationCoverageReport: React.FC = () => {
                   ))}
               </MapContainer>
 
-              <div className="absolute left-4 top-4 z-20">
-                <div className="flex rounded-lg border border-gray-200 bg-white/95 p-0.5 shadow-sm">
+              <div className="pointer-events-none absolute left-4 top-4 z-20 w-fit">
+                <div className="pointer-events-auto relative flex rounded-lg border border-gray-200 bg-white/95 p-0.5 shadow-sm">
                   {MAP_MODE_OPTIONS.map((opt) => (
                     <button
                       key={opt.id}
@@ -1378,6 +1379,47 @@ const StationCoverageReport: React.FC = () => {
                       {opt.label}
                     </button>
                   ))}
+                  {mapMode === 'stations' ? (
+                    <div className="absolute left-0 right-0 top-[calc(100%+6px)] space-y-1 rounded-lg border border-gray-200/90 bg-white/90 px-2 py-1.5 shadow-sm backdrop-blur-[2px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full">
+                          <img src={vetcMarkUrl} alt="" className="h-full w-full object-cover" />
+                        </span>
+                        <span className="text-[9px] font-semibold leading-none text-gray-600">Nội bộ</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full [&>span]:scale-[0.55]"
+                          style={{ background: CONTRACT_STATION_BG }}
+                        >
+                          <span dangerouslySetInnerHTML={{ __html: CONTRACT_GLYPH }} />
+                        </span>
+                        <span className="text-[9px] font-semibold leading-none text-gray-600">Có HĐ</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full [&>span]:scale-[0.55]"
+                          style={{ background: NO_CONTRACT_STATION_BG }}
+                        >
+                          <span dangerouslySetInnerHTML={{ __html: NO_CONTRACT_GLYPH }} />
+                        </span>
+                        <span className="text-[9px] font-semibold leading-none text-gray-600">Không HĐ</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="absolute left-0 right-0 top-[calc(100%+6px)] space-y-1 rounded-lg border border-gray-200/90 bg-white/90 px-2 py-1.5 shadow-sm backdrop-blur-[2px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-semibold text-gray-500">Ít</span>
+                        <span
+                          className="h-1.5 min-w-0 flex-1 rounded-full"
+                          style={{
+                            background: 'linear-gradient(90deg,#3B82F6 0%,#38BDF8 28%,#4ADE80 50%,#FACC15 72%,#FB923C 88%,#FB9292 100%)',
+                          }}
+                        />
+                        <span className="text-[9px] font-semibold text-gray-500">Nhiều</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1407,55 +1449,6 @@ const StationCoverageReport: React.FC = () => {
                   {mapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
                   <span className="hidden sm:inline">{mapFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}</span>
                 </button>
-              </div>
-
-              <div className="pointer-events-none absolute bottom-4 left-4 z-20 space-y-1.5 rounded-xl border border-gray-200 bg-white/95 px-3 py-2.5 shadow-sm">
-                {mapMode === 'stations' ? (
-                  <>
-                    <p className="text-[9px] font-black uppercase tracking-wide text-gray-400">Loại trạm</p>
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full shadow-sm">
-                        <img src={vetcMarkUrl} alt="" className="h-full w-full object-cover" />
-                      </span>
-                      <span className="text-[10px] font-semibold text-gray-600">Trạm nội bộ</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full shadow-sm"
-                        style={{ background: CONTRACT_STATION_BG }}
-                      >
-                        <span dangerouslySetInnerHTML={{ __html: CONTRACT_GLYPH }} />
-                      </span>
-                      <span className="text-[10px] font-semibold text-gray-600">Đối tác có HĐ</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-full shadow-sm"
-                        style={{ background: NO_CONTRACT_STATION_BG }}
-                      >
-                        <span dangerouslySetInnerHTML={{ __html: NO_CONTRACT_GLYPH }} />
-                      </span>
-                      <span className="text-[10px] font-semibold text-gray-600">Đối tác không HĐ</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-[9px] font-black uppercase tracking-wide text-gray-400">Mật độ trạm cứu hộ</p>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="h-2.5 w-24 rounded-full"
-                        style={{
-                          background: 'linear-gradient(90deg,#3B82F6 0%,#38BDF8 28%,#4ADE80 50%,#FACC15 72%,#FB923C 88%,#FB9292 100%)',
-                        }}
-                      />
-                    </div>
-                    <div className="flex w-24 justify-between">
-                      <span className="text-[9px] font-semibold text-gray-500">Ít</span>
-                      <span className="text-[9px] font-semibold text-gray-500">Nhiều</span>
-                    </div>
-                    <p className="text-[9px] text-gray-400">Xanh = thưa / chưa có trạm, đỏ = cụm dày</p>
-                  </>
-                )}
               </div>
 
               <div className="absolute bottom-4 right-4 z-20 flex flex-col gap-1">

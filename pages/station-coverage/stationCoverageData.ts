@@ -171,13 +171,53 @@ export function districtFilterKey(provinceCode: string, districtCode: string | n
   return `${provinceCode}|${districtCode?.trim() || '__none__'}`;
 }
 
+/**
+ * Huyện V1 đổi tên/cấp nhưng cùng địa bàn — mã droplist lệch mã centroid xã.
+ * Canonical = mã có ward centroid (để tính % độ phủ).
+ */
+const V1_DISTRICT_CANONICAL: Record<string, string> = {
+  // An Giang: Thị xã Tịnh Biên (TXTB) = H.Tịnh Biên (TBI) — xã gắn TBI
+  'AGI|TXTB': 'AGI|TBI',
+};
+
+const V1_DISTRICT_ALIAS_GROUPS: Record<string, string[]> = {
+  'AGI|TBI': ['AGI|TBI', 'AGI|TXTB'],
+};
+
+/** Nhãn ưu tiên khi gộp alias (hiện thị Thị xã thay vì Huyện cũ). */
+const V1_DISTRICT_PREFERRED_LABEL: Record<string, string> = {
+  'AGI|TBI': 'Thị Xã Tịnh Biên',
+};
+
+export function canonicalizeDistrictFilterKey(key: string): string {
+  return V1_DISTRICT_CANONICAL[key] ?? key;
+}
+
+/** Mọi key cùng nhóm alias — dùng khi lọc trạm / xã. */
+export function expandDistrictFilterKeys(keys: Iterable<string>): Set<string> {
+  const out = new Set<string>();
+  for (const key of keys) {
+    const canon = canonicalizeDistrictFilterKey(key);
+    const group = V1_DISTRICT_ALIAS_GROUPS[canon] ?? [canon];
+    for (const k of group) out.add(k);
+    out.add(key);
+    out.add(canon);
+  }
+  return out;
+}
+
 /** Key lọc xã: provinceCode|districtCode|precinctCode */
 export function precinctFilterKey(
   provinceCode: string,
   districtCode: string | null | undefined,
   precinctCode: string | null | undefined,
 ): string {
-  return `${provinceCode}|${districtCode?.trim() || '__none__'}|${precinctCode?.trim() || '__none__'}`;
+  const raw = `${provinceCode}|${districtCode?.trim() || '__none__'}|${precinctCode?.trim() || '__none__'}`;
+  const distKey = `${provinceCode}|${districtCode?.trim() || '__none__'}`;
+  const canonDist = canonicalizeDistrictFilterKey(distKey);
+  if (canonDist === distKey) return raw;
+  const precinct = precinctCode?.trim() || '__none__';
+  return `${canonDist}|${precinct}`;
 }
 
 export const COVERAGE_RADIUS_M: Record<AreaType, number> = {
@@ -968,6 +1008,9 @@ export function districtDisplayName(
   districtCode: string | null,
 ): string {
   if (!districtCode) return 'Chưa gán huyện';
+  const distKey = `${provinceCode.trim().toUpperCase()}|${districtCode.trim().toUpperCase()}`;
+  const preferred = V1_DISTRICT_PREFERRED_LABEL[canonicalizeDistrictFilterKey(distKey)];
+  if (preferred) return preferred;
   const looked = lookupAreaName(mode, provinceCode, districtCode, null);
   if (looked) {
     // Không hiện nhãn giả V2 ở cả 2 mode (đã chuẩn hóa chung về huyện V1)
@@ -1031,13 +1074,16 @@ export function getMasterAdminFilterOptions(
     if (isV2DummyDistrict(dist)) continue;
     const pCode = displayProvince(prov);
     if (provinceFilter && !provinceFilter.has(pCode) && !provinceFilter.has(prov.toUpperCase())) continue;
-    const dKey = `${pCode}|${dist}`;
+    const rawDKey = `${pCode}|${dist}`;
+    const dKey = canonicalizeDistrictFilterKey(rawDKey);
+    // Bỏ mã huyện alias (vd TXTB) — chỉ giữ canonical (TBI).
+    if (rawDKey !== dKey) continue;
     if (!prec) {
       if (!districtNames.has(dKey) || name.length > (districtNames.get(dKey)?.length ?? 0)) {
         districtNames.set(dKey, name);
       }
     } else {
-      const pKey = `${pCode}|${dist}|${prec}`;
+      const pKey = `${dKey}|${prec}`;
       if (!precinctNames.has(pKey)) precinctNames.set(pKey, name);
       if (!districtNames.has(dKey)) {
         const dName = lookupAreaName('old', prov, dist, null);
@@ -1049,13 +1095,18 @@ export function getMasterAdminFilterOptions(
   for (const ward of getWardCentroidRows()) {
     const pCode = displayProvince(ward.p);
     if (provinceFilter && !provinceFilter.has(pCode) && !provinceFilter.has(ward.p.toUpperCase())) continue;
-    const dKey = `${pCode}|${ward.d}`;
+    const dKey = canonicalizeDistrictFilterKey(`${pCode}|${ward.d}`);
     if (!districtNames.has(dKey)) {
       const dName = lookupAreaName('old', ward.p, ward.d, null);
       districtNames.set(dKey, dName && !/không quận huyện/i.test(dName) ? dName : `Mã ${ward.d}`);
     }
-    const pKey = `${pCode}|${ward.d}|${ward.c}`;
+    const pKey = `${dKey}|${ward.c}`;
     if (!precinctNames.has(pKey)) precinctNames.set(pKey, ward.n);
+  }
+
+  // Nhãn ưu tiên khi gộp alias (vd Thị Xã Tịnh Biên thay vì Huyện).
+  for (const [canonKey, label] of Object.entries(V1_DISTRICT_PREFERRED_LABEL)) {
+    if (districtNames.has(canonKey)) districtNames.set(canonKey, label);
   }
 
   const provinceName = (code: string) => {
@@ -1078,11 +1129,13 @@ export function getMasterAdminFilterOptions(
     })
     .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
 
+  const districtFilterExpanded = districtFilter ? expandDistrictFilterKeys(districtFilter) : null;
+
   const precincts = [...precinctNames.entries()]
     .filter(([pKey]) => {
-      if (!districtFilter) return true;
+      if (!districtFilterExpanded) return true;
       const [provinceCode, districtCode] = pKey.split('|');
-      return districtFilter.has(districtFilterKey(provinceCode, districtCode));
+      return districtFilterExpanded.has(districtFilterKey(provinceCode, districtCode));
     })
     .map(([pKey, name]) => {
       const [provinceCode, districtCode, precinctCode] = pKey.split('|');
@@ -1332,7 +1385,7 @@ export function filterWardsByAdminKeys(
   opts: { districtKeys?: string[]; precinctKeys?: string[]; provinceCodes?: string[] },
 ): WardCoverageResult[] {
   const precinctSet = opts.precinctKeys?.length ? new Set(opts.precinctKeys) : null;
-  const districtSet = opts.districtKeys?.length ? new Set(opts.districtKeys) : null;
+  const districtSet = opts.districtKeys?.length ? expandDistrictFilterKeys(opts.districtKeys) : null;
   const provinceSet = opts.provinceCodes?.length
     ? new Set(opts.provinceCodes.map((c) => c.trim().toUpperCase()))
     : null;
@@ -1340,9 +1393,9 @@ export function filterWardsByAdminKeys(
   return wards.filter((ward) => {
     if (provinceSet && !provinceSet.has(ward.provinceCode.toUpperCase())) return false;
     if (precinctSet) {
-      return precinctSet.has(
-        precinctFilterKey(ward.provinceCode, ward.districtCode, ward.precinctCode),
-      );
+      const raw = `${ward.provinceCode}|${ward.districtCode}|${ward.precinctCode}`;
+      const canon = precinctFilterKey(ward.provinceCode, ward.districtCode, ward.precinctCode);
+      return precinctSet.has(raw) || precinctSet.has(canon);
     }
     if (districtSet) {
       return districtSet.has(districtFilterKey(ward.provinceCode, ward.districtCode));

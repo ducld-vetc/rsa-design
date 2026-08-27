@@ -157,7 +157,8 @@ export const vietnamProvincesGeo = {
   ],
 };
 
+/** Khung pan cả nước — nới thêm biển Đông/Tây để zoom out vẫn kéo xem được bờ biển. */
 export const VIETNAM_BOUNDS: [[number, number], [number, number]] = [
-  [8.35, 102.12],
-  [23.45, 109.55],
+  [7.8, 101.2],
+  [23.9, 111.2],
 ];
