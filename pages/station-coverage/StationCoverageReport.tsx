@@ -19,7 +19,9 @@ import {
 } from 'lucide-react';
 import AppSelect from '../../shared/AppSelect';
 import AppMultiSelect from '../../shared/AppMultiSelect';
-import { vietnamProvincesGeo, VIETNAM_BOUNDS } from '../rsa-dashboard/vietnamProvinceGeo';
+import { VIETNAM_BOUNDS } from '../rsa-dashboard/vietnamProvinceGeo';
+import { RSA_MAP_TILE_ATTRIBUTION, RSA_MAP_TILE_URL } from './rsaMapTiles';
+import { getVietnamProvinceBoundaries } from './vietnamProvinceBoundaries';
 import {
   ADDRESS_SCHEMA_OPTIONS,
   AREA_TYPE_OPTIONS,
@@ -67,6 +69,28 @@ import {
 import StationHeatLayer, { buildNationalHeatFill, type HeatPoint } from './StationHeatLayer';
 import vetcMarkUrl from './assets/vetc-mark.png';
 
+/** Focus mặc định / miền Bắc (không đổi maxBounds cả nước). */
+const NORTH_VIETNAM_BOUNDS: [[number, number], [number, number]] = [
+  [20.05, 102.15],
+  [23.4, 107.65],
+];
+const CENTRAL_VIETNAM_BOUNDS: [[number, number], [number, number]] = [
+  [14.6, 105.4],
+  [20.15, 109.5],
+];
+const SOUTH_VIETNAM_BOUNDS: [[number, number], [number, number]] = [
+  [8.4, 104.0],
+  [14.9, 109.55],
+];
+const DEFAULT_MAP_CENTER: [number, number] = [21.0285, 105.8542]; // Hà Nội
+const DEFAULT_MAP_ZOOM = 10;
+
+const boundsForRegion = (region: RegionId | 'all'): [[number, number], [number, number]] => {
+  if (region === 'trung') return CENTRAL_VIETNAM_BOUNDS;
+  if (region === 'nam') return SOUTH_VIETNAM_BOUNDS;
+  return NORTH_VIETNAM_BOUNDS;
+};
+
 const MARKER_SIZE = 28;
 const MARKER_SIZE_SELECTED = 32;
 
@@ -104,11 +128,19 @@ const iconForStation = (type: StationType, selected: boolean) => {
   return makeStationIcon(NO_CONTRACT_STATION_BG, NO_CONTRACT_GLYPH, selected);
 };
 
-const FitVietnamBounds: React.FC<{ resetKey: string }> = ({ resetKey }) => {
+const FitDefaultView: React.FC<{ resetKey: string; region: RegionId | 'all' }> = ({
+  resetKey,
+  region,
+}) => {
   const map = useMap();
   useEffect(() => {
-    map.fitBounds(VIETNAM_BOUNDS, { padding: [12, 12] });
-  }, [map, resetKey]);
+    // Mặc định / miền Bắc: focus Hà Nội. Trung/Nam: fit vùng tương ứng.
+    if (region === 'trung' || region === 'nam') {
+      map.fitBounds(boundsForRegion(region), { padding: [16, 16], maxZoom: 8, animate: false });
+      return;
+    }
+    map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: false });
+  }, [map, resetKey, region]);
   return null;
 };
 
@@ -119,12 +151,19 @@ const FlyToArea: React.FC<{
 }> = ({ center, points = [], includeRadiusKm = null }) => {
   const map = useMap();
   useEffect(() => {
-    const latLngs: L.LatLngExpression[] = [...points];
+    // Khi có vòng bán kính (chọn 1 khu vực): luôn fit theo vòng đó — không fit cả đám marker
+    // (tránh map không zoom in / nhìn polygon tỉnh bị rối).
     if (center && includeRadiusKm != null && includeRadiusKm > 0) {
       const dLat = includeRadiusKm / 111;
       const dLng = includeRadiusKm / (111 * Math.max(0.2, Math.cos((center[0] * Math.PI) / 180)));
-      latLngs.push([center[0] - dLat, center[1] - dLng], [center[0] + dLat, center[1] + dLng]);
+      const bounds = L.latLngBounds(
+        [center[0] - dLat, center[1] - dLng],
+        [center[0] + dLat, center[1] + dLng],
+      );
+      map.fitBounds(bounds, { padding: [36, 36], maxZoom: 11, animate: true });
+      return;
     }
+    const latLngs: L.LatLngExpression[] = [...points];
     if (latLngs.length >= 2) {
       map.fitBounds(L.latLngBounds(latLngs), { padding: [40, 40], maxZoom: 11, animate: true });
       return;
@@ -187,6 +226,7 @@ const StationCoverageReport: React.FC = () => {
   const mapShellRef = useRef<HTMLDivElement>(null);
   const sidebarPanelRef = useRef<HTMLDivElement>(null);
   const [mapSyncedHeight, setMapSyncedHeight] = useState<number | null>(null);
+  const [hoveredStationId, setHoveredStationId] = useState<string | null>(null);
 
   const handleMapReady = useCallback((map: L.Map) => {
     mapRef.current = map;
@@ -799,6 +839,11 @@ const StationCoverageReport: React.FC = () => {
     [visibleStations],
   );
 
+  const provinceBoundaries = useMemo(
+    () => getVietnamProvinceBoundaries(addressSchema),
+    [addressSchema],
+  );
+
   const provinceStyle = useCallback(
     (feature?: GeoJSON.Feature) => {
       const id = feature?.properties?.id as string | undefined;
@@ -806,17 +851,19 @@ const StationCoverageReport: React.FC = () => {
       const inFilter = id ? visibleIds.has(id) : false;
       if (mapMode === 'heatmap') {
         return {
-          fillColor: '#3B82F6',
+          fillColor: '#94A3B8',
           fillOpacity: 0,
-          color: isSelected ? '#111827' : 'rgba(15,23,42,0.28)',
-          weight: isSelected ? 2.5 : 1,
+          color: isSelected ? 'rgba(71, 85, 105, 0.55)' : 'rgba(148, 163, 184, 0.35)',
+          weight: isSelected ? 1.5 : 0.7,
+          opacity: 1,
         };
       }
       return {
-        fillColor: isSelected ? '#00A859' : '#E5E7EB',
-        fillOpacity: isSelected ? 0.18 : inFilter ? 0.04 : 0.02,
-        color: isSelected ? '#111827' : 'rgba(55,65,81,0.35)',
-        weight: isSelected ? 2.5 : 1,
+        fillColor: isSelected ? '#00A859' : '#CBD5E1',
+        fillOpacity: isSelected ? 0.14 : inFilter ? 0.04 : 0.015,
+        color: isSelected ? 'rgba(71, 85, 105, 0.65)' : 'rgba(148, 163, 184, 0.4)',
+        weight: isSelected ? 1.75 : 0.75,
+        opacity: 1,
       };
     },
     [visibleIds, effectiveFocusedId, mapMode],
@@ -838,7 +885,7 @@ const StationCoverageReport: React.FC = () => {
         const crText = item ? formatCoverage(item.cr) : 'Ngoài bộ lọc';
         layer.bindTooltip(
           `<div class="text-xs font-bold">${name}</div><div class="text-[10px] text-gray-500">${crText}</div>`,
-          { sticky: true, className: 'map-trip-tooltip' },
+          { sticky: false, opacity: 0.95, className: 'map-trip-tooltip', direction: 'top' },
         );
       }
     },
@@ -1189,8 +1236,8 @@ const StationCoverageReport: React.FC = () => {
               }
             >
               <MapContainer
-                center={[16.2, 106.5]}
-                zoom={6}
+                center={DEFAULT_MAP_CENTER}
+                zoom={DEFAULT_MAP_ZOOM}
                 className="absolute inset-0 z-0 h-full w-full"
                 scrollWheelZoom
                 zoomAnimation
@@ -1200,27 +1247,32 @@ const StationCoverageReport: React.FC = () => {
                 maxBounds={VIETNAM_BOUNDS}
                 maxBoundsViscosity={1}
                 minZoom={5}
-                maxZoom={13}
+                maxZoom={14}
               >
                 <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution={RSA_MAP_TILE_ATTRIBUTION}
+                  url={RSA_MAP_TILE_URL}
+                  maxZoom={14}
+                  maxNativeZoom={14}
                 />
-                {selectedCenter || mapFitPoints.length > 0 ? (
+                {/* Chỉ fly khi đã chọn khu vực — tránh fit toàn quốc vì có sẵn marker lúc vào trang. */}
+                {selectedCenter ? (
                   <FlyToArea
                     center={selectedCenter}
-                    points={mapFitPoints}
+                    points={searchAreaFocus ? [] : mapFitPoints}
                     includeRadiusKm={searchAreaFocus ? NEARBY_RADIUS_KM : null}
                   />
                 ) : (
-                  <FitVietnamBounds resetKey={`${region}`} />
+                  <FitDefaultView resetKey={`${addressSchema}-${region}`} region={region} />
                 )}
                 <MapRefBridge onMap={handleMapReady} />
                 <GeoJSON
                   key={geoKey}
-                  data={vietnamProvincesGeo as GeoJSONType}
+                  data={provinceBoundaries as GeoJSONType}
                   style={provinceStyle}
                   onEachFeature={onEachProvince}
+                  interactive
+                  bubblingMouseEvents={false}
                 />
 
                 {searchAreaFocus && (
@@ -1234,6 +1286,7 @@ const StationCoverageReport: React.FC = () => {
                       fillOpacity: 0.08,
                       dashArray: '6 4',
                     }}
+                    interactive={false}
                   />
                 )}
 
@@ -1247,32 +1300,46 @@ const StationCoverageReport: React.FC = () => {
                       icon={iconForStation(station.stationType, station.provinceId === effectiveFocusedId)}
                       eventHandlers={{
                         click: () => setFocusedId(station.provinceId),
+                        mouseover: () => setHoveredStationId(station.id),
+                        mouseout: () =>
+                          setHoveredStationId((curr) => (curr === station.id ? null : curr)),
                       }}
                     >
-                      <Tooltip direction="top" offset={[0, -14]} opacity={1} className="station-name-tooltip">
-                        <div className="min-w-0 max-w-[296px]">
-                          <p className="text-[13px] font-bold leading-snug text-white">{station.name}</p>
-                          <p className="mt-1 text-[11px] font-medium leading-snug text-white/80">
-                            {stationTypeLabel(station.stationType)}
-                            {nearbyDistanceById.has(station.id)
-                              ? ` · ${nearbyDistanceById.get(station.id)!.toFixed(1)} km`
-                              : ''}
-                            {searchAreaFocus &&
-                            nearbyDistanceById.has(station.id) &&
-                            !filteredStationIdSet.has(station.id)
-                              ? ' · ngoài khu vực lọc'
-                              : ''}
-                          </p>
-                          <p className="mt-0.5 text-[11px] leading-snug text-white/75">{station.partner}</p>
-                          <p className="mt-1 text-[11px] leading-snug text-white/70">
-                            {station.code} · {station.provinceName}
-                            {station.provinceSource === 'address' ? ' (suy từ địa chỉ)' : ''}
-                          </p>
-                          {station.address ? (
-                            <p className="mt-1 break-words text-[11px] leading-snug text-white/65">{station.address}</p>
-                          ) : null}
-                        </div>
-                      </Tooltip>
+                      {hoveredStationId === station.id ? (
+                        <Tooltip
+                          permanent
+                          interactive={false}
+                          direction="top"
+                          offset={[0, -14]}
+                          opacity={1}
+                          className="station-name-tooltip"
+                        >
+                          <div className="min-w-0 max-w-[296px]">
+                            <p className="text-[13px] font-bold leading-snug text-white">{station.name}</p>
+                            <p className="mt-1 text-[11px] font-medium leading-snug text-white/80">
+                              {stationTypeLabel(station.stationType)}
+                              {nearbyDistanceById.has(station.id)
+                                ? ` · ${nearbyDistanceById.get(station.id)!.toFixed(1)} km`
+                                : ''}
+                              {searchAreaFocus &&
+                              nearbyDistanceById.has(station.id) &&
+                              !filteredStationIdSet.has(station.id)
+                                ? ' · ngoài khu vực lọc'
+                                : ''}
+                            </p>
+                            <p className="mt-0.5 text-[11px] leading-snug text-white/75">{station.partner}</p>
+                            <p className="mt-1 text-[11px] leading-snug text-white/70">
+                              {station.code} · {station.provinceName}
+                              {station.provinceSource === 'address' ? ' (suy từ địa chỉ)' : ''}
+                            </p>
+                            {station.address ? (
+                              <p className="mt-1 break-words text-[11px] leading-snug text-white/65">
+                                {station.address}
+                              </p>
+                            ) : null}
+                          </div>
+                        </Tooltip>
+                      ) : null}
                     </Marker>
                   ))}
               </MapContainer>

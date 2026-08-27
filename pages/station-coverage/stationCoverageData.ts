@@ -1,6 +1,10 @@
 import { DB_STATIONS, type DbStationRow } from './stationCoverageFromDb';
 import { INTERNAL_VEHICLE_STATIONS } from './stationCoverageInternalVehicles';
 import { STATION_ADMIN_OVERRIDES } from './stationAdminOverrides';
+import {
+  SUPPLEMENTAL_STATION_OVERRIDES,
+  SUPPLEMENTAL_STATIONS,
+} from './stationCoverageSupplemental5000';
 import { PARTNER_SIGNING_DATES } from './partnerSigningDates';
 import {
   ADDRESS_SCHEMA_OPTIONS,
@@ -586,13 +590,18 @@ function provinceCodesForAreaLookup(mode: AddressSchemaMode, provinceCode: strin
 }
 
 /** Gán huyện/xã chuẩn (override + remap address) — nguồn sự thật chung 2 mode. */
+function getStationAdminOverride(id: string | number) {
+  const key = String(id);
+  return STATION_ADMIN_OVERRIDES[key] ?? SUPPLEMENTAL_STATION_OVERRIDES[key];
+}
+
 function resolveAdminDistrictPrecinct(
   row: DbStationRow,
   provinceCode: string,
 ): { districtCode: string | null; precinctCode: string | null } {
   let districtCode = row.districtCode?.trim() || null;
   let precinctCode = row.precinctCode?.trim() || null;
-  const override = STATION_ADMIN_OVERRIDES[String(row.id)];
+  const override = getStationAdminOverride(row.id);
   if (override) {
     // districtCode: '' = Ops clear huyện (chỉ giữ tỉnh)
     if (typeof override.districtCode === 'string') {
@@ -626,7 +635,7 @@ function resolveAdminDistrictPrecinct(
 function toMapPoint(row: DbStationRow, mode: AddressSchemaMode): MapStationPoint {
   // 1) Luôn resolve theo địa chỉ cũ (63 tỉnh + override) làm nguồn sự thật huyện/xã
   let { def, source } = resolveProvinceOld(row);
-  const override = STATION_ADMIN_OVERRIDES[String(row.id)];
+  const override = getStationAdminOverride(row.id);
   if (override?.provinceCode) {
     const byCode = AREA_BY_CODE.get(override.provinceCode.toUpperCase());
     if (byCode && !OLD_NON_PROVINCE_CODES.has(byCode.code)) {
@@ -671,8 +680,10 @@ function toMapPoint(row: DbStationRow, mode: AddressSchemaMode): MapStationPoint
 }
 
 export function getMapStationPoints(mode: AddressSchemaMode): MapStationPoint[] {
-  // Giữ toàn bộ trạm snapshot + bổ sung mỗi xe INTERNAL (temp_rescue_station) như 1 trạm nội bộ.
-  const merged = [...DB_STATIONS, ...INTERNAL_VEHICLE_STATIONS];
+  // Snapshot trạm + xe INTERNAL + bổ sung id 5000–5011 (temp_rescue_station).
+  const existingIds = new Set(DB_STATIONS.map((s) => s.id));
+  const supplemental = SUPPLEMENTAL_STATIONS.filter((s) => !existingIds.has(s.id));
+  const merged = [...DB_STATIONS, ...INTERNAL_VEHICLE_STATIONS, ...supplemental];
   return merged.filter(shouldIncludeStationInCoverage).map((row) => toMapPoint(row, mode));
 }
 
