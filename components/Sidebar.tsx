@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves, Settings2, SlidersHorizontal, Handshake, BarChart3, GitBranch, Car } from 'lucide-react';
+import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves, Settings2, SlidersHorizontal, Handshake, BarChart3, GitBranch, Car, Store } from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
@@ -68,6 +68,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     'partner',
     'partnerVehicle',
     'partnerReport',
+    'partnerAdmin',
   ]);
 
   if (!isOpen) return null;
@@ -104,6 +105,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const isPartnerVehicleActive =
     currentStep === Step.PARTNER_VEHICLES || currentStep === Step.PARTNER_TOOL_CONFIG;
+
+  const isPartnerAdminActive =
+    currentStep === Step.RESCUE_PROVIDER_MANAGEMENT || currentStep === Step.RESCUE_STATION_ADMIN;
 
   const navPartnerItem = (step: Step, path: string, label: string, Icon: typeof Car) => (
     <div
@@ -217,6 +221,26 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Briefcase size={14} className="shrink-0" />
                 <span className="whitespace-nowrap">Quản lý doanh nghiệp</span>
+              </div>
+              <div>
+                <div
+                  onClick={() => toggleMenu('partnerAdmin')}
+                  className={`flex items-center justify-between gap-1 text-sm px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                    isPartnerAdminActive ? 'text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Handshake size={14} className="shrink-0" />
+                    <span className="truncate">Quản lý đối tác cứu hộ</span>
+                  </div>
+                  <ChevronDown size={12} className={`shrink-0 transition-transform duration-200 ${isMenuOpen('partnerAdmin') ? 'rotate-180' : ''}`} />
+                </div>
+                {isMenuOpen('partnerAdmin') && (
+                  <div className="mt-0.5 ml-3 border-l border-gray-200 pl-2 space-y-0.5">
+                    {navPartnerItem(Step.RESCUE_PROVIDER_MANAGEMENT, '/admin/rescue-providers', 'Nhà cung cấp', Store)}
+                    {navPartnerItem(Step.RESCUE_STATION_ADMIN, '/admin/rescue-stations', 'Trạm cứu hộ', Building2)}
+                  </div>
+                )}
               </div>
               <div 
                 onClick={onNavigateFloodZoneManagement}

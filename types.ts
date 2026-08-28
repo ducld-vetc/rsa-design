@@ -120,6 +120,8 @@ export enum Step {
   PARTNER_STAFF = 53,
   PARTNER_REPORTS = 54,
   PARTNER_ORG = 55,
+  RESCUE_PROVIDER_MANAGEMENT = 56,
+  RESCUE_STATION_ADMIN = 57,
 }
 
 export interface MonitoringOrder {

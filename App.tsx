@@ -45,6 +45,10 @@ import PartnerStaffDetail from './pages/PartnerStaffDetail';
 import PartnerReports from './pages/PartnerReports';
 import PartnerOrgConfig from './pages/PartnerOrgConfig';
 import StationCoverageReport from './pages/station-coverage/StationCoverageReport';
+import RescueProviderList from './pages/rescue-partner-admin/RescueProviderList';
+import { RescueProviderCreate, RescueProviderEdit, RescueProviderView } from './pages/rescue-partner-admin/RescueProviderForm';
+import RescueStationAdminList from './pages/rescue-partner-admin/RescueStationAdminList';
+import { RescueStationAdminCreate, RescueStationAdminEdit, RescueStationAdminView } from './pages/rescue-partner-admin/RescueStationAdminForm';
 import { ShiftConfigProvider } from './context/ShiftConfigContext';
 
 const initialData: FormData = {
@@ -107,6 +111,8 @@ const App: React.FC = () => {
 
   // Helper to map URL path to Step enum for Sidebar/Stepper compatibility
   const getStepFromPath = (path: string): Step => {
+    if (path.includes('/admin/rescue-providers')) return Step.RESCUE_PROVIDER_MANAGEMENT;
+    if (path.includes('/admin/rescue-stations')) return Step.RESCUE_STATION_ADMIN;
     if (path.includes('/partner/vehicles')) return Step.PARTNER_VEHICLES;
     if (path.includes('/partner/tool-config')) return Step.PARTNER_TOOL_CONFIG;
     if (path.includes('/partner/staff')) return Step.PARTNER_STAFF;
@@ -434,6 +440,8 @@ const App: React.FC = () => {
     Step.PARTNER_STAFF,
     Step.PARTNER_REPORTS,
     Step.PARTNER_ORG,
+    Step.RESCUE_PROVIDER_MANAGEMENT,
+    Step.RESCUE_STATION_ADMIN,
   ];
   
   const isStepperVisible = !hideStepperSteps.includes(currentStep);
@@ -502,6 +510,30 @@ const App: React.FC = () => {
     }
     if (currentStep === Step.PARTNER_REPORTS) return ['Đối tác cứu hộ', 'Báo cáo'];
     if (currentStep === Step.PARTNER_ORG) return ['Đối tác cứu hộ', 'Cấu hình tổ chức'];
+    if (currentStep === Step.RESCUE_PROVIDER_MANAGEMENT) {
+      if (location.pathname.endsWith('/admin/rescue-providers/new')) {
+        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Thêm mới NCC dịch vụ'];
+      }
+      if (location.pathname.endsWith('/edit')) {
+        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Chỉnh sửa NCC dịch vụ'];
+      }
+      if (location.pathname.match(/\/admin\/rescue-providers\/[^/]+$/)) {
+        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Xem chi tiết NCC dịch vụ'];
+      }
+      return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Nhà cung cấp'];
+    }
+    if (currentStep === Step.RESCUE_STATION_ADMIN) {
+      if (location.pathname.endsWith('/admin/rescue-stations/new')) {
+        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Thêm mới trạm cứu hộ'];
+      }
+      if (location.pathname.endsWith('/edit')) {
+        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Chỉnh sửa trạm cứu hộ'];
+      }
+      if (location.pathname.match(/\/admin\/rescue-stations\/[^/]+$/)) {
+        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Xem chi tiết điểm dịch vụ'];
+      }
+      return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Trạm cứu hộ'];
+    }
     if (currentStep === Step.PAYMENT_REQUEST_MANAGEMENT) {
       if (location.pathname.includes('/payment-request-management/')) {
         return ['Quản trị hệ thống', 'Quản lý thanh toán', 'Tạo đề nghị thanh toán'];
@@ -730,6 +762,14 @@ const App: React.FC = () => {
                 <Route path="/partner/staff" element={<PartnerStaff />} />
                 <Route path="/partner/reports" element={<PartnerReports />} />
                 <Route path="/partner/org" element={<PartnerOrgConfig />} />
+                <Route path="/admin/rescue-providers/new" element={<RescueProviderCreate />} />
+                <Route path="/admin/rescue-providers/:id/edit" element={<RescueProviderEdit />} />
+                <Route path="/admin/rescue-providers/:id" element={<RescueProviderView />} />
+                <Route path="/admin/rescue-providers" element={<RescueProviderList />} />
+                <Route path="/admin/rescue-stations/new" element={<RescueStationAdminCreate />} />
+                <Route path="/admin/rescue-stations/:id/edit" element={<RescueStationAdminEdit />} />
+                <Route path="/admin/rescue-stations/:id" element={<RescueStationAdminView />} />
+                <Route path="/admin/rescue-stations" element={<RescueStationAdminList />} />
               </Routes>
               </ShiftConfigProvider>
               </div>
