@@ -27,6 +27,7 @@ import PricingPolicyCreate from './pages/PricingPolicyCreate';
 import BusinessManagement from './pages/BusinessManagement';
 import BusinessForm from './pages/BusinessForm';
 import PackagePurchaseManagement from './pages/PackagePurchaseManagement';
+import PackageImportManagement from './pages/PackageImportManagement';
 import PaymentRequestManagement from './pages/PaymentRequestManagement';
 import PaymentRequestDetail from './pages/PaymentRequestDetail';
 import LocationSearch, { LocationSearchPrefill } from './pages/LocationSearch';
@@ -126,6 +127,7 @@ const App: React.FC = () => {
     if (path.includes('/location-search')) return Step.LOCATION_SEARCH;
     if (path.includes('/pricing-policy')) return Step.PRICING_POLICY;
     if (path.includes('/payment-request-management')) return Step.PAYMENT_REQUEST_MANAGEMENT;
+    if (path.includes('/package-import')) return Step.PACKAGE_IMPORT;
     if (path.includes('/package-purchase-management')) return Step.PACKAGE_PURCHASE_MANAGEMENT;
     if (path.includes('/business-management')) return Step.BUSINESS_MANAGEMENT;
     if (path.includes('/rsa-dashboard')) return Step.RSA_DASHBOARD;
@@ -322,6 +324,7 @@ const App: React.FC = () => {
   const handleNavigateToPricingPolicy = () => navigate('/pricing-policy');
   const handleNavigateToBusinessManagement = () => navigate('/business-management');
   const handleNavigateToPackagePurchaseManagement = () => navigate('/package-purchase-management');
+  const handleNavigateToPackageImport = () => navigate('/package-import');
   const handleNavigateToPaymentRequestManagement = () => navigate('/payment-request-management');
   const handleNavigateToLocationSearch = () => navigate('/location-search');
   const handleNavigateToShiftDefinition = () => navigate('/shift-definition-management');
@@ -428,6 +431,7 @@ const App: React.FC = () => {
     Step.PRICING_POLICY,
     Step.BUSINESS_MANAGEMENT,
     Step.PACKAGE_PURCHASE_MANAGEMENT,
+    Step.PACKAGE_IMPORT,
     Step.PAYMENT_REQUEST_MANAGEMENT,
     Step.LOCATION_SEARCH,
     Step.SHIFT_DEFINITION_MANAGEMENT,
@@ -465,6 +469,9 @@ const App: React.FC = () => {
     }
     if (currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT) {
       return ['Quản trị hệ thống', 'Quản lý mua gói'];
+    }
+    if (currentStep === Step.PACKAGE_IMPORT) {
+      return ['Quản trị hệ thống', 'Gói cứu hộ', 'Import gói cứu hộ'];
     }
     if (currentStep === Step.LOCATION_SEARCH) {
       return ['Chăm sóc khách hàng', 'Tìm kiếm vị trí'];
@@ -563,6 +570,7 @@ const App: React.FC = () => {
         onNavigatePricingPolicy={handleNavigateToPricingPolicy}
         onNavigateBusinessManagement={handleNavigateToBusinessManagement}
         onNavigatePackagePurchaseManagement={handleNavigateToPackagePurchaseManagement}
+        onNavigatePackageImport={handleNavigateToPackageImport}
         onNavigatePaymentRequestManagement={handleNavigateToPaymentRequestManagement}
         onNavigateLocationSearch={handleNavigateToLocationSearch}
         onNavigateShiftDefinition={handleNavigateToShiftDefinition}
@@ -718,6 +726,9 @@ const App: React.FC = () => {
                 } />
                 <Route path="/package-purchase-management" element={
                   <PackagePurchaseManagement />
+                } />
+                <Route path="/package-import" element={
+                  <PackageImportManagement />
                 } />
                 <Route path="/payment-request-management" element={
                   <PaymentRequestManagement />

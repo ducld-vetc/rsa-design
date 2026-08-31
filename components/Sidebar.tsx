@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves, Settings2, SlidersHorizontal, Handshake, BarChart3, GitBranch, Car, Store } from 'lucide-react';
+import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves, Settings2, SlidersHorizontal, Handshake, BarChart3, GitBranch, Car, Store, FileSpreadsheet } from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
@@ -19,6 +19,7 @@ interface SidebarProps {
   onNavigatePricingPolicy: () => void;
   onNavigateBusinessManagement: () => void;
   onNavigatePackagePurchaseManagement: () => void;
+  onNavigatePackageImport: () => void;
   onNavigatePaymentRequestManagement: () => void;
   onNavigateLocationSearch: () => void;
   onNavigateShiftDefinition: () => void;
@@ -46,6 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigatePricingPolicy,
   onNavigateBusinessManagement,
   onNavigatePackagePurchaseManagement,
+  onNavigatePackageImport,
   onNavigatePaymentRequestManagement,
   onNavigateLocationSearch,
   onNavigateShiftDefinition,
@@ -90,7 +92,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const isRescuePackageActive =
     currentStep === Step.PRICING_POLICY ||
-    currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT;
+    currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT ||
+    currentStep === Step.PACKAGE_IMPORT;
 
   const isRescueFeeActive =
     currentStep === Step.RESCUE_FEE_CONFIGURATION ||
@@ -210,6 +213,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <Package size={13} className="shrink-0" />
                       <span className="whitespace-nowrap">Quản lý mua gói</span>
+                    </div>
+                    <div
+                      onClick={onNavigatePackageImport}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.PACKAGE_IMPORT ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <FileSpreadsheet size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Import gói cứu hộ</span>
                     </div>
                   </div>
                 )}
