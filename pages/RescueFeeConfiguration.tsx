@@ -184,7 +184,7 @@ const RescueFeeConfiguration: React.FC = () => {
               >
                 <option value="all">Tất cả</option>
                 <option value="CUSTOMER">Khách hàng</option>
-                <option value="PARTNER">Nhà cung cấp</option>
+                <option value="PARTNER">Đối tác cứu hộ</option>
               </select>
             </div>
             <div className="min-w-0">
@@ -242,7 +242,7 @@ const RescueFeeConfiguration: React.FC = () => {
               </select>
             </div>
             <div className="min-w-0">
-              <label className={labelClass}>Nhà cung cấp</label>
+              <label className={labelClass}>Đối tác cứu hộ</label>
               <select
                 value={partnerDraft}
                 onChange={(e) => setPartnerDraft(e.target.value)}

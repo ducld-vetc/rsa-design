@@ -177,7 +177,7 @@ const RescueStationAdminList: React.FC = () => {
     const header = [
       'Mã trạm',
       'Tên trạm',
-      'NCC dịch vụ',
+      'Đối tác cứu hộ',
       'SL user',
       'SL xe',
       'Địa chỉ',
@@ -339,7 +339,7 @@ const RescueStationAdminList: React.FC = () => {
                 <th className={`${dataThClass('center')} w-10`}>STT</th>
                 <th className={`${dataThClass('center')} w-24`}>Thao tác</th>
                 <th className={dataThClass('left')}>Trạm cứu hộ</th>
-                <th className={dataThClass('left')}>NCC dịch vụ</th>
+                <th className={dataThClass('left')}>Đối tác cứu hộ</th>
                 <th className={`${dataThClass('center')} w-20`}>SL user</th>
                 <th className={`${dataThClass('center')} w-20`}>SL xe</th>
                 <th className={dataThClass('left')}>Địa chỉ</th>

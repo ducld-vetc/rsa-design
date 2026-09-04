@@ -736,7 +736,7 @@ export const FEE_STATUS_LABELS: Record<FeeTableStatus, string> = {
 
 export const FEE_TARGET_LABELS: Record<FeeTarget, string> = {
   CUSTOMER: 'Khách hàng',
-  PARTNER: 'Nhà cung cấp',
+  PARTNER: 'Đối tác cứu hộ',
 };
 
 const sharedSurcharges: SurchargeRule[] = [

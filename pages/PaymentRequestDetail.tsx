@@ -369,7 +369,7 @@ const PaymentRequestDetail: React.FC = () => {
         <SectionHeader title="Thông tin cứu hộ" />
         <div className="p-4">
           <div className={FIELD_GRID_CLASS}>
-            <ReadOnlyField label="Nhà cung cấp" value={detail.provider} colSpan={2} />
+            <ReadOnlyField label="Đối tác cứu hộ" value={detail.provider} colSpan={2} />
             <ReadOnlyField label="Mã số thuế" value={detail.providerTaxId} />
             <ReadOnlyField label="Biển số xe cứu hộ" value={detail.rescueVehiclePlate} />
             <ReadOnlyField label="Trạm cứu hộ" value={detail.rescueStation} colSpan={2} />

@@ -26,7 +26,7 @@ const ProviderPaymentConfirmDialog: React.FC<ProviderPaymentConfirmDialogProps> 
         <div className="p-6 space-y-4">
           <div className="flex items-start space-x-3 p-3 bg-blue-50 border border-blue-100 rounded-lg text-blue-800 text-sm">
             <Info size={18} className="shrink-0 mt-0.5" />
-            <p>Bạn có chắc chắn muốn xác nhận thanh toán chi phí cứu hộ cho nhà cung cấp <strong>{partnerName}</strong>?</p>
+            <p>Bạn có chắc chắn muốn xác nhận thanh toán chi phí cứu hộ cho đối tác cứu hộ <strong>{partnerName}</strong>?</p>
           </div>
           
           <div className="flex space-x-3 pt-2">

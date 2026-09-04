@@ -827,3 +827,112 @@ export const MOCK_STATION_STAFF: StationStaffRecord[] = [
 
 export const getStaffByStationId = (stationId: string): StationStaffRecord[] =>
   MOCK_STATION_STAFF.filter((s) => s.stationId === stationId);
+
+const adminNowStamp = () => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} - ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
+const nextProviderCode = () => `PT${Date.now().toString(36).toUpperCase().slice(-8)}`;
+
+export type ProviderFormPayload = Omit<
+  RescueProviderRecord,
+  | 'id'
+  | 'stationCount'
+  | 'userCount'
+  | 'avgRating'
+  | 'avgResponseTime'
+  | 'totalOrders'
+  | 'completedOrders'
+  | 'cancelledOrders'
+  | 'createdAt'
+  | 'createdBy'
+  | 'updatedAt'
+  | 'updatedBy'
+> & { latitude?: string; longitude?: string };
+
+export const createMockProvider = (
+  payload: ProviderFormPayload,
+  options?: { autoCreateStation?: boolean },
+): { provider: RescueProviderRecord; station?: RescueStationAdminRecord } => {
+  const stamp = adminNowStamp();
+  const id = `pv-${Date.now()}`;
+  const code = payload.code.trim() || nextProviderCode();
+  const { latitude = '', longitude = '', ...providerFields } = payload;
+  const provider: RescueProviderRecord = {
+    ...providerFields,
+    id,
+    code,
+    address: providerFields.address || providerFields.specificAddress,
+    stationCount: 0,
+    userCount: 0,
+    avgRating: '0/5',
+    avgResponseTime: '0 giây',
+    totalOrders: 0,
+    completedOrders: 0,
+    cancelledOrders: 0,
+    createdAt: stamp,
+    createdBy: 'admin_portal',
+    updatedAt: stamp,
+    updatedBy: 'admin_portal',
+  };
+
+  MOCK_RESCUE_PROVIDERS.unshift(provider);
+
+  if (!options?.autoCreateStation) {
+    return { provider };
+  }
+
+  const stationId = `st-${Date.now()}`;
+  const stationCode = `${code}_01`;
+  const station: RescueStationAdminRecord = {
+    id: stationId,
+    code: stationCode,
+    name: payload.name.trim(),
+    providerId: id,
+    providerCode: code,
+    providerName: providerDisplayName(provider),
+    status: payload.status,
+    stationCategory: 'STORE',
+    address: payload.address || payload.specificAddress,
+    province: payload.province,
+    district: payload.district,
+    ward: payload.ward,
+    specificAddress: payload.specificAddress,
+    longitude,
+    latitude,
+    contactName: payload.contactName,
+    contactPhone: payload.contactPhone,
+    otherPhone: payload.otherPhone,
+    email: payload.email,
+    contacts: [
+      {
+        id: `${stationId}-c1`,
+        name: payload.contactName,
+        phone: payload.contactPhone,
+        otherPhone: payload.otherPhone,
+        email: payload.email,
+      },
+      emptyStationContact(),
+    ],
+    bankAccount: '',
+    accountName: '',
+    bankName: '',
+    taxCode: payload.taxCode,
+    capacity: 3,
+    services: [...payload.serviceTypes],
+    vehicleTypes: [],
+    userCount: 0,
+    operatingAreas: [],
+    createdAt: stamp,
+    createdBy: 'admin_portal',
+    updatedAt: stamp,
+    updatedBy: 'admin_portal',
+  };
+
+  MOCK_RESCUE_STATIONS_ADMIN.unshift(station);
+  provider.stationCount = 1;
+
+  return { provider, station };
+};

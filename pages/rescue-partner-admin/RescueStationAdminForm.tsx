@@ -155,6 +155,8 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
   const { id } = useParams<{ id: string }>();
   const existing = useMemo(() => (id ? getStationById(id) : undefined), [id]);
   const readOnly = mode === 'view';
+  const isViewMode = mode === 'view';
+  const showTabs = isViewMode;
 
   const [form, setForm] = useState<FormState>(() => {
     if (!existing) return EMPTY_FORM;
@@ -321,7 +323,7 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
   const handleSave = () => {
     const primary = form.contacts[0];
     if (!form.name.trim() || !form.providerId || !primary?.name.trim() || !primary?.phone.trim()) {
-      setError('Vui lòng nhập Tên trạm, NCC dịch vụ, và ít nhất một Người liên hệ + SĐT.');
+      setError('Vui lòng nhập Tên trạm, Đối tác cứu hộ, và ít nhất một Người liên hệ + SĐT.');
       setTab('general');
       return;
     }
@@ -371,41 +373,49 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
       {notice && <p className="text-sm text-vetc-green bg-green-50 border border-green-100 rounded px-3 py-2">{notice}</p>}
 
       <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
-        <div className="flex items-center overflow-x-auto border-b bg-gray-50/80">
-          {tabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setTab(item.id)}
-              className={`px-4 py-3 text-xs font-bold whitespace-nowrap border-b-2 transition-all ${
-                tab === item.id
-                  ? 'border-vetc-green text-vetc-green bg-green-50/50'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        {showTabs && (
+          <div className="flex items-center overflow-x-auto border-b bg-gray-50/80">
+            {tabs.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={`px-4 py-3 text-xs font-bold whitespace-nowrap border-b-2 transition-all ${
+                  tab === item.id
+                    ? 'border-vetc-green text-vetc-green bg-green-50/50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {tab === 'general' && (
+        {(!isViewMode || tab === 'general') && (
           <div className="space-y-4 bg-gray-50 p-4">
       <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
         <SectionHeader title="Thông tin chung" icon={<MapPin size={16} />} />
         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="min-w-0">
             <FieldLabel required>Tên trạm</FieldLabel>
-            <input className={inputClass} value={form.name} disabled={readOnly} onChange={(e) => update('name', e.target.value)} />
+            <input
+              className={inputClass}
+              value={form.name}
+              disabled={readOnly}
+              placeholder="Nhập tên trạm cứu hộ"
+              onChange={(e) => update('name', e.target.value)}
+            />
           </div>
           <div className="min-w-0">
-            <FieldLabel required>NCC dịch vụ</FieldLabel>
+            <FieldLabel required>Đối tác cứu hộ</FieldLabel>
             <select
               className={selectClass}
               value={form.providerId}
               disabled={readOnly}
               onChange={(e) => handleProviderChange(e.target.value)}
             >
-              <option value="">-- Chọn NCC dịch vụ --</option>
+              <option value="">-- Chọn đối tác cứu hộ --</option>
               {MOCK_RESCUE_PROVIDERS.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.code} - {p.name}
@@ -436,6 +446,7 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                   className={inputClass}
                   value={form.specificAddress}
                   disabled={readOnly}
+                  placeholder="Nhập địa chỉ chi tiết"
                   onChange={(e) => update('specificAddress', e.target.value)}
                 />
               </div>
@@ -501,7 +512,7 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                   className={inputClass}
                   value={contact.name}
                   disabled={readOnly}
-                  placeholder="Nhập họ tên"
+                  placeholder={index === 0 ? 'Nhập họ tên người liên hệ' : 'Nhập họ tên liên hệ phụ'}
                   onChange={(e) => updateContact(contact.id, { name: e.target.value })}
                 />
               </div>
@@ -511,7 +522,7 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                   className={inputClass}
                   value={contact.phone}
                   disabled={readOnly}
-                  placeholder="Nhập số điện thoại"
+                  placeholder={index === 0 ? 'Nhập số điện thoại' : 'Nhập SĐT liên hệ phụ'}
                   onChange={(e) => updateContact(contact.id, { phone: e.target.value })}
                 />
               </div>
@@ -525,19 +536,43 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
           <div className="min-w-0">
             <FieldLabel>STK thụ hưởng</FieldLabel>
-            <input className={inputClass} value={form.bankAccount} disabled={readOnly} onChange={(e) => update('bankAccount', e.target.value)} />
+            <input
+              className={inputClass}
+              value={form.bankAccount}
+              disabled={readOnly}
+              placeholder="Nhập số tài khoản thụ hưởng"
+              onChange={(e) => update('bankAccount', e.target.value)}
+            />
           </div>
           <div className="min-w-0">
             <FieldLabel>Tên tài khoản</FieldLabel>
-            <input className={inputClass} value={form.accountName} disabled={readOnly} onChange={(e) => update('accountName', e.target.value)} />
+            <input
+              className={inputClass}
+              value={form.accountName}
+              disabled={readOnly}
+              placeholder="Nhập tên chủ tài khoản"
+              onChange={(e) => update('accountName', e.target.value)}
+            />
           </div>
           <div className="min-w-0">
             <FieldLabel>Ngân hàng thụ hưởng</FieldLabel>
-            <input className={inputClass} value={form.bankName} disabled={readOnly} onChange={(e) => update('bankName', e.target.value)} />
+            <input
+              className={inputClass}
+              value={form.bankName}
+              disabled={readOnly}
+              placeholder="Nhập tên ngân hàng"
+              onChange={(e) => update('bankName', e.target.value)}
+            />
           </div>
           <div className="min-w-0">
             <FieldLabel>Mã số thuế</FieldLabel>
-            <input className={inputClass} value={form.taxCode} disabled={readOnly} onChange={(e) => update('taxCode', e.target.value)} />
+            <input
+              className={inputClass}
+              value={form.taxCode}
+              disabled={readOnly}
+              placeholder="Nhập mã số thuế"
+              onChange={(e) => update('taxCode', e.target.value)}
+            />
           </div>
         </div>
       </div>
@@ -555,6 +590,7 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                 className={inputClass}
                 value={form.capacity}
                 disabled={readOnly}
+                placeholder="Nhập số đơn tối đa"
                 onChange={(e) => update('capacity', Number(e.target.value) || 0)}
               />
             </div>
@@ -582,7 +618,7 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
           </div>
         )}
 
-        {tab === 'staff' && (
+        {isViewMode && tab === 'staff' && (
           <div className="space-y-4 bg-gray-50 p-4">
             <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
               <SectionHeader title="Danh sách nhân viên" icon={<Users size={16} />} />
@@ -662,7 +698,7 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
           </div>
         )}
 
-        {tab === 'vehicles' && (
+        {isViewMode && tab === 'vehicles' && (
           <div className="space-y-4 bg-gray-50 p-4">
             <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
               <SectionHeader title="Phương tiện cứu hộ" icon={<Car size={16} />} />
@@ -778,11 +814,21 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
             </div>
             <div className="min-w-0">
               <FieldLabel required>Họ tên</FieldLabel>
-              <input className={inputClass} value={staffDraft.fullname} onChange={(e) => setStaffDraft({ ...staffDraft, fullname: e.target.value })} />
+              <input
+                className={inputClass}
+                value={staffDraft.fullname}
+                placeholder="Nhập họ tên nhân viên"
+                onChange={(e) => setStaffDraft({ ...staffDraft, fullname: e.target.value })}
+              />
             </div>
             <div className="min-w-0">
               <FieldLabel required>SĐT</FieldLabel>
-              <input className={inputClass} value={staffDraft.phone} onChange={(e) => setStaffDraft({ ...staffDraft, phone: e.target.value })} />
+              <input
+                className={inputClass}
+                value={staffDraft.phone}
+                placeholder="Nhập số điện thoại"
+                onChange={(e) => setStaffDraft({ ...staffDraft, phone: e.target.value })}
+              />
             </div>
             <div className="min-w-0">
               <FieldLabel>Vai trò</FieldLabel>
@@ -855,7 +901,12 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="min-w-0">
               <FieldLabel required>Biển số</FieldLabel>
-              <input className={inputClass} value={vehicleDraft.plate} onChange={(e) => setVehicleDraft({ ...vehicleDraft, plate: e.target.value })} />
+              <input
+                className={inputClass}
+                value={vehicleDraft.plate}
+                placeholder="Nhập biển số xe"
+                onChange={(e) => setVehicleDraft({ ...vehicleDraft, plate: e.target.value })}
+              />
             </div>
             <div className="min-w-0">
               <FieldLabel>Loại xe</FieldLabel>
@@ -867,23 +918,48 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
             </div>
             <div className="min-w-0">
               <FieldLabel>Hãng xe</FieldLabel>
-              <input className={inputClass} value={vehicleDraft.brand} onChange={(e) => setVehicleDraft({ ...vehicleDraft, brand: e.target.value })} />
+              <input
+                className={inputClass}
+                value={vehicleDraft.brand}
+                placeholder="Nhập hãng xe"
+                onChange={(e) => setVehicleDraft({ ...vehicleDraft, brand: e.target.value })}
+              />
             </div>
             <div className="min-w-0">
               <FieldLabel>Dòng xe</FieldLabel>
-              <input className={inputClass} value={vehicleDraft.model} onChange={(e) => setVehicleDraft({ ...vehicleDraft, model: e.target.value })} />
+              <input
+                className={inputClass}
+                value={vehicleDraft.model}
+                placeholder="Nhập dòng xe"
+                onChange={(e) => setVehicleDraft({ ...vehicleDraft, model: e.target.value })}
+              />
             </div>
             <div className="min-w-0">
               <FieldLabel>Số khung</FieldLabel>
-              <input className={inputClass} value={vehicleDraft.chassis} onChange={(e) => setVehicleDraft({ ...vehicleDraft, chassis: e.target.value })} />
+              <input
+                className={inputClass}
+                value={vehicleDraft.chassis}
+                placeholder="Nhập số khung (VIN)"
+                onChange={(e) => setVehicleDraft({ ...vehicleDraft, chassis: e.target.value })}
+              />
             </div>
             <div className="min-w-0">
               <FieldLabel>Trọng tải cứu hộ tối đa</FieldLabel>
-              <input className={inputClass} value={vehicleDraft.maxRescueLoad} onChange={(e) => setVehicleDraft({ ...vehicleDraft, maxRescueLoad: e.target.value })} />
+              <input
+                className={inputClass}
+                value={vehicleDraft.maxRescueLoad}
+                placeholder="VD: 5 tấn"
+                onChange={(e) => setVehicleDraft({ ...vehicleDraft, maxRescueLoad: e.target.value })}
+              />
             </div>
             <div className="min-w-0">
               <FieldLabel>Tài xế phụ trách</FieldLabel>
-              <input className={inputClass} value={vehicleDraft.driverName} onChange={(e) => setVehicleDraft({ ...vehicleDraft, driverName: e.target.value })} />
+              <input
+                className={inputClass}
+                value={vehicleDraft.driverName}
+                placeholder="Nhập họ tên tài xế"
+                onChange={(e) => setVehicleDraft({ ...vehicleDraft, driverName: e.target.value })}
+              />
             </div>
             <div className="min-w-0">
               <FieldLabel>Trạng thái</FieldLabel>

@@ -3118,7 +3118,7 @@ const RescueFeeForm: React.FC = () => {
                     value={form.target}
                     options={[
                       { value: 'CUSTOMER', label: 'Khách hàng' },
-                      { value: 'PARTNER', label: 'Nhà cung cấp' },
+                      { value: 'PARTNER', label: 'Đối tác cứu hộ' },
                     ]}
                     onChange={(value) => {
                       const target = value as FeeTarget;
@@ -3244,10 +3244,10 @@ const RescueFeeForm: React.FC = () => {
                   )}
                 </div>
                 <div>
-                  <label className={labelClass}>Nhà cung cấp</label>
+                  <label className={labelClass}>Đối tác cứu hộ</label>
                   <AppSelect
                     value={form.scope.partnerId ?? ''}
-                    placeholder="Chọn nhà cung cấp"
+                    placeholder="Chọn đối tác cứu hộ"
                     disabled={form.target === 'CUSTOMER'}
                     options={[
                       ...FEE_PARTNER_OPTIONS.map((item) => ({
@@ -3277,7 +3277,7 @@ const RescueFeeForm: React.FC = () => {
                   />
                   {form.target === 'CUSTOMER' && (
                     <p className="mt-1 text-[10px] text-gray-400">
-                      Chỉ áp dụng khi Đối tượng tính = Nhà cung cấp.
+                      Chỉ áp dụng khi Đối tượng tính = Đối tác cứu hộ.
                     </p>
                   )}
                 </div>

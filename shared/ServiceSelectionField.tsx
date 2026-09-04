@@ -89,7 +89,7 @@ const ServiceSelectionField: React.FC<ServiceSelectionFieldProps> = ({
           <Search size={18} className="text-gray-400 mr-3" />
           <input 
             type="text"
-            placeholder="Tìm kiếm dịch vụ (VETC hoặc Nhà cung cấp)..."
+            placeholder="Tìm kiếm dịch vụ (VETC hoặc Đối tác cứu hộ)..."
             className="flex-1 text-sm outline-none bg-transparent font-medium"
             value={serviceSearch}
             onChange={(e) => {

@@ -1,14 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Edit3, Eye, FileSpreadsheet, Plus, Search, Trash2 } from 'lucide-react';
+import { Edit3, Eye, FileSpreadsheet, Package, Plus, Search, Trash2 } from 'lucide-react';
 import {
-  MOCK_RESCUE_PROVIDERS,
-  PROVIDER_TYPE_LABEL,
-  PROVIDER_TYPE_OPTIONS,
-  SERVICE_TYPE_OPTIONS,
-  type ProviderType,
-  type RescueProviderRecord,
-} from '../../data/rescuePartnerAdminMockData';
+  CORPORATE_ROLE_LABEL,
+  MOCK_RESCUE_PACKAGES,
+  PACKAGE_TYPE_LABEL,
+  PACKAGE_TYPE_OPTIONS,
+  TARGET_CUSTOMER_LABEL,
+  TARGET_CUSTOMER_OPTIONS,
+  formatVnd,
+  type CorporateRole,
+  type RescuePackageRecord,
+  type TargetCustomer,
+} from '../../data/rescuePackageMockData';
+import { MOCK_CORPORATE_CUSTOMERS } from '../../data/rescueServiceMockData';
 import {
   CombinedSearchBar,
   PAGE_SIZE_OPTIONS,
@@ -24,7 +29,7 @@ import {
   outlineBtnClass,
   primaryBtnClass,
   selectClass,
-} from './adminUi';
+} from '../rescue-partner-admin/adminUi';
 
 const compact = (value: string) => value.toLowerCase().replace(/[\s.\-_]/g, '');
 
@@ -34,32 +39,28 @@ const includesText = (haystack: string, needle: string) => {
   return haystack.toLowerCase().includes(n) || compact(haystack).includes(compact(needle));
 };
 
-type SearchField = 'name' | 'code' | 'phone' | 'tax' | 'company' | 'username';
+type SearchField = 'code' | 'name' | 'description';
 
 const SEARCH_FIELD_OPTIONS: { value: SearchField; label: string }[] = [
-  { value: 'name', label: 'Tên đối tác' },
-  { value: 'code', label: 'Mã đối tác' },
-  { value: 'phone', label: 'SĐT liên hệ' },
-  { value: 'tax', label: 'MST' },
-  { value: 'company', label: 'Công ty' },
-  { value: 'username', label: 'Username' },
+  { value: 'code', label: 'Mã gói' },
+  { value: 'name', label: 'Tên gói' },
+  { value: 'description', label: 'Mô tả' },
 ];
 
-const providerFieldHaystack = (p: RescueProviderRecord, field: SearchField): string => {
-  if (field === 'name') return p.name;
-  if (field === 'code') return p.code;
-  if (field === 'tax') return p.taxCode;
-  if (field === 'company') return p.companyName;
-  if (field === 'phone') return [p.contactPhone, p.otherPhone].join(' ');
-  return [p.createdBy, p.updatedBy, p.contactName].join(' ');
+const fieldHaystack = (row: RescuePackageRecord, field: SearchField): string => {
+  if (field === 'code') return row.packageCode;
+  if (field === 'name') return row.name;
+  return row.description;
 };
 
-const matchesSearchSlot = (p: RescueProviderRecord, field: SearchField, value: string) => {
-  if (!value.trim()) return true;
-  return includesText(providerFieldHaystack(p, field), value);
+const roleChipClass = (role: CorporateRole) => {
+  if (role === 'CHANNEL') return 'bg-blue-50 text-blue-700 border-blue-200';
+  if (role === 'SPONSOR') return 'bg-amber-50 text-amber-800 border-amber-200';
+  if (role === 'CUSTOMER') return 'bg-slate-50 text-slate-700 border-slate-200';
+  return 'bg-green-50 text-green-800 border-green-200';
 };
 
-const RescueProviderList: React.FC = () => {
+const RescuePackageList: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [notice, setNotice] = useState(() => (location.state as { notice?: string } | null)?.notice ?? '');
@@ -75,30 +76,35 @@ const RescueProviderList: React.FC = () => {
       navigate(location.pathname, { replace: true, state: null });
     }
   }, [location.pathname, location.state, navigate]);
+
   const [draftSearchField, setDraftSearchField] = useState<SearchField>('name');
   const [draftSearchValue, setDraftSearchValue] = useState('');
   const [draftStatus, setDraftStatus] = useState('');
-  const [draftType, setDraftType] = useState('');
-  const [draftService, setDraftService] = useState('');
+  const [draftPackageType, setDraftPackageType] = useState('');
+  const [draftTargetCustomer, setDraftTargetCustomer] = useState('');
+  const [draftCorporateId, setDraftCorporateId] = useState('');
 
   const [searchField, setSearchField] = useState<SearchField>('name');
   const [searchValue, setSearchValue] = useState('');
   const [status, setStatus] = useState('');
-  const [type, setType] = useState('');
-  const [service, setService] = useState('');
+  const [packageType, setPackageType] = useState('');
+  const [targetCustomer, setTargetCustomer] = useState('');
+  const [corporateId, setCorporateId] = useState('');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
   const [goToPage, setGoToPage] = useState('');
 
-  const hasActiveFilters = Boolean(searchValue.trim()) || status || type || service;
+  const hasActiveFilters =
+    Boolean(searchValue.trim()) || status || packageType || targetCustomer || corporateId;
 
   const applySearch = () => {
     setSearchField(draftSearchField);
     setSearchValue(draftSearchValue);
     setStatus(draftStatus);
-    setType(draftType);
-    setService(draftService);
+    setPackageType(draftPackageType);
+    setTargetCustomer(draftTargetCustomer);
+    setCorporateId(draftCorporateId);
     setCurrentPage(1);
   };
 
@@ -106,25 +112,30 @@ const RescueProviderList: React.FC = () => {
     setDraftSearchField('name');
     setDraftSearchValue('');
     setDraftStatus('');
-    setDraftType('');
-    setDraftService('');
+    setDraftPackageType('');
+    setDraftTargetCustomer('');
+    setDraftCorporateId('');
     setSearchField('name');
     setSearchValue('');
     setStatus('');
-    setType('');
-    setService('');
+    setPackageType('');
+    setTargetCustomer('');
+    setCorporateId('');
     setCurrentPage(1);
   };
 
   const filteredData = useMemo(() => {
-    return MOCK_RESCUE_PROVIDERS.filter((p) => {
-      if (!matchesSearchSlot(p, searchField, searchValue)) return false;
-      if (status && p.status !== status) return false;
-      if (type && p.type !== type) return false;
-      if (service && !p.serviceTypes.includes(service)) return false;
+    return MOCK_RESCUE_PACKAGES.filter((row) => {
+      if (searchValue.trim() && !includesText(fieldHaystack(row, searchField), searchValue)) return false;
+      if (status && row.status !== status) return false;
+      if (packageType && row.packageType !== packageType) return false;
+      if (targetCustomer && row.targetCustomer !== targetCustomer) return false;
+      if (corporateId && !row.corporates.some((item) => String(item.corporateCustomerId) === corporateId)) {
+        return false;
+      }
       return true;
     });
-  }, [searchField, searchValue, status, type, service]);
+  }, [searchField, searchValue, status, packageType, targetCustomer, corporateId]);
 
   const totalItems = filteredData.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -149,35 +160,41 @@ const RescueProviderList: React.FC = () => {
 
   const exportExcel = () => {
     const header = [
-      'Mã đối tác',
-      'Tên đối tác',
-      'Loại đối tác',
+      'Mã gói',
+      'Tên gói',
+      'Loại gói',
+      'Đối tượng',
+      'Giá',
+      'VAT (%)',
+      'Thời hạn (tháng)',
+      'Số dịch vụ',
+      'Doanh nghiệp khai thác',
       'Trạng thái',
-      'Công ty',
-      'Địa chỉ',
-      'Người liên hệ',
-      'SĐT',
-      'SĐT khác',
+      'Prefix',
       'Ngày tạo',
       'Người tạo',
       'Ngày cập nhật',
       'Người cập nhật',
     ];
-    const rows = filteredData.map((p) =>
+    const rows = filteredData.map((row) =>
       [
-        p.code,
-        p.name,
-        PROVIDER_TYPE_LABEL[p.type],
-        p.status === 'active' ? 'Hoạt động' : 'Không hoạt động',
-        p.companyName,
-        p.address,
-        p.contactName,
-        p.contactPhone,
-        p.otherPhone,
-        p.createdAt,
-        p.createdBy,
-        p.updatedAt,
-        p.updatedBy,
+        row.packageCode,
+        row.name,
+        PACKAGE_TYPE_LABEL[row.packageType],
+        TARGET_CUSTOMER_LABEL[row.targetCustomer],
+        row.price,
+        row.vat ?? '',
+        row.durationValue ?? '',
+        row.services.length,
+        row.corporates
+          .map((item) => `${item.corporateCustomerCode}/${item.role}`)
+          .join('; '),
+        row.status === 'active' ? 'Hoạt động' : 'Không hoạt động',
+        row.prefixPurchaseCode,
+        row.createdAt,
+        row.createdBy,
+        row.updatedAt,
+        row.updatedBy,
       ]
         .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
         .join(','),
@@ -187,14 +204,14 @@ const RescueProviderList: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'danh-sach-doi-tac-cuu-ho.csv';
+    a.download = 'danh-sach-goi-cuu-ho.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 w-full min-w-0 max-w-full">
-      <h1 className="text-lg font-black text-gray-800 uppercase tracking-tight">Đối tác cứu hộ</h1>
+      <h1 className="text-lg font-black text-gray-800 uppercase tracking-tight">Cấu hình gói cứu hộ</h1>
 
       {notice && (
         <p className="text-sm text-vetc-green bg-green-50 border border-green-100 rounded px-3 py-2">{notice}</p>
@@ -229,10 +246,14 @@ const RescueProviderList: React.FC = () => {
               </select>
             </div>
             <div className="flex items-center gap-3 min-w-0">
-              <label className={filterLabelClass}>Loại đối tác</label>
-              <select value={draftType} onChange={(e) => setDraftType(e.target.value)} className={`${selectClass} flex-1`}>
+              <label className={filterLabelClass}>Loại gói</label>
+              <select
+                value={draftPackageType}
+                onChange={(e) => setDraftPackageType(e.target.value)}
+                className={`${selectClass} flex-1`}
+              >
                 <option value="">Tất cả</option>
-                {PROVIDER_TYPE_OPTIONS.map((opt) => (
+                {PACKAGE_TYPE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
@@ -240,12 +261,31 @@ const RescueProviderList: React.FC = () => {
               </select>
             </div>
             <div className="flex items-center gap-3 min-w-0">
-              <label className={filterLabelClass}>Loại hình DV</label>
-              <select value={draftService} onChange={(e) => setDraftService(e.target.value)} className={`${selectClass} flex-1`}>
+              <label className={filterLabelClass}>Đối tượng</label>
+              <select
+                value={draftTargetCustomer}
+                onChange={(e) => setDraftTargetCustomer(e.target.value)}
+                className={`${selectClass} flex-1`}
+              >
                 <option value="">Tất cả</option>
-                {SERVICE_TYPE_OPTIONS.map((opt) => (
+                {TARGET_CUSTOMER_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-3 min-w-0">
+              <label className={filterLabelClass}>Doanh nghiệp</label>
+              <select
+                value={draftCorporateId}
+                onChange={(e) => setDraftCorporateId(e.target.value)}
+                className={`${selectClass} flex-1`}
+              >
+                <option value="">Tất cả</option>
+                {MOCK_CORPORATE_CUSTOMERS.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.code} — {c.name}
                   </option>
                 ))}
               </select>
@@ -258,7 +298,7 @@ const RescueProviderList: React.FC = () => {
                 <FileSpreadsheet size={16} />
                 <span>Xuất Excel</span>
               </button>
-              <button type="button" onClick={() => navigate('/admin/rescue-providers/new')} className={primaryBtnClass}>
+              <button type="button" onClick={() => navigate('/admin/rescue-packages/new')} className={primaryBtnClass}>
                 <Plus size={16} />
                 <span>Thêm mới</span>
               </button>
@@ -283,26 +323,26 @@ const RescueProviderList: React.FC = () => {
       </div>
 
       <div className="border rounded-lg shadow-sm bg-white w-full min-w-0 overflow-hidden">
-        <SectionHeader title="Kết quả tìm kiếm" />
+        <SectionHeader title="Kết quả tìm kiếm" icon={<Package size={16} />} />
         <div className="w-full overflow-x-auto overscroll-x-contain custom-scrollbar">
-          <table className={`${dataTableClass} min-w-[1280px]`}>
+          <table className={`${dataTableClass} min-w-[1360px]`}>
             <thead>
               <tr className={dataTheadRowClass}>
                 <th className={`${dataThClass('center')} w-10`}>STT</th>
                 <th className={`${dataThClass('center')} w-24`}>Thao tác</th>
-                <th className={dataThClass('left')}>Đối tác cứu hộ</th>
-                <th className={dataThClass('left')}>Loại đối tác</th>
-                <th className={`${dataThClass('center')} w-24`}>SL trạm</th>
-                <th className={dataThClass('left')}>Địa chỉ</th>
+                <th className={dataThClass('left')}>Gói</th>
+                <th className={dataThClass('left')}>Loại / đối tượng</th>
+                <th className={`${dataThClass('right')} w-28`}>Giá</th>
+                <th className={`${dataThClass('center')} w-24`}>Thời hạn</th>
+                <th className={dataThClass('left')}>Dịch vụ / DN khai thác</th>
                 <th className={`${dataThClass('center')} w-28`}>Trạng thái</th>
-                <th className={dataThClass('left')}>Người liên hệ</th>
                 <th className={dataThClass('left')}>Ngày tạo</th>
                 <th className={dataThClass('left')}>Ngày cập nhật</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedData.map((p: RescueProviderRecord, index) => (
-                <tr key={p.id} className={dataTbodyRowClass}>
+              {paginatedData.map((row, index) => (
+                <tr key={row.id} className={dataTbodyRowClass}>
                   <td className={`${dataTdClass('center')} font-medium`}>
                     {(currentPage - 1) * pageSize + index + 1}
                   </td>
@@ -310,7 +350,7 @@ const RescueProviderList: React.FC = () => {
                     <div className="flex items-center justify-center gap-2">
                       <button
                         type="button"
-                        onClick={() => navigate(`/admin/rescue-providers/${p.id}/edit`)}
+                        onClick={() => navigate(`/admin/rescue-packages/${row.id}/edit`)}
                         className="text-blue-500 hover:bg-blue-50 p-1 rounded transition-colors"
                         title="Chỉnh sửa"
                       >
@@ -318,7 +358,7 @@ const RescueProviderList: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate(`/admin/rescue-providers/${p.id}`)}
+                        onClick={() => navigate(`/admin/rescue-packages/${row.id}`)}
                         className="text-orange-500 hover:bg-orange-50 p-1 rounded transition-colors"
                         title="Xem chi tiết"
                       >
@@ -327,40 +367,57 @@ const RescueProviderList: React.FC = () => {
                     </div>
                   </td>
                   <td className={dataTdClass('left')}>
-                    <div className="font-bold text-gray-800">{p.name}</div>
-                    <div className="text-[10px] text-gray-400 font-mono">{p.code}</div>
-                  </td>
-                  <td className={dataTdClass('left')}>{PROVIDER_TYPE_LABEL[p.type as ProviderType]}</td>
-                  <td className={dataTdClass('center')}>
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/admin/rescue-stations?provider=${p.id}`)}
-                      className="text-blue-600 font-bold hover:underline"
-                    >
-                      {p.stationCount}
-                    </button>
-                  </td>
-                  <td className={`${dataTdClass('left')} text-gray-600 leading-relaxed`}>{p.address}</td>
-                  <td className={dataTdClass('center')}>
-                    <StatusBadge status={p.status} />
+                    <div className="font-bold text-gray-800">{row.name}</div>
+                    <div className="text-[10px] text-gray-400 font-mono">{row.packageCode}</div>
                   </td>
                   <td className={dataTdClass('left')}>
-                    {p.contactName || p.contactPhone ? (
-                      <>
-                        <div className="font-bold text-gray-800">{p.contactName || '—'}</div>
-                        <div className="text-[10px] text-gray-500 whitespace-nowrap">{p.contactPhone || '—'}</div>
-                      </>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${
+                        row.packageType === 'TRIP'
+                          ? 'bg-violet-50 text-violet-700 border-violet-200'
+                          : 'bg-slate-50 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {row.packageType === 'TRIP' ? 'TRIP' : 'ALWAYS'}
+                    </span>
+                    <div className="text-[10px] text-gray-500 mt-1">
+                      {TARGET_CUSTOMER_LABEL[row.targetCustomer as TargetCustomer]}
+                    </div>
+                  </td>
+                  <td className={`${dataTdClass('right')} whitespace-nowrap font-semibold`}>{formatVnd(row.price)}</td>
+                  <td className={dataTdClass('center')}>
+                    {row.durationValue != null ? `${row.durationValue} tháng` : '—'}
+                  </td>
+                  <td className={dataTdClass('left')}>
+                    <div className="text-[11px] text-gray-700">
+                      {row.services.length} dịch vụ
+                    </div>
+                    {row.corporates.length === 0 ? (
+                      <div className="text-[10px] text-gray-400 mt-0.5">Chưa gắn DN</div>
                     ) : (
-                      '—'
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {row.corporates.map((item) => (
+                          <span
+                            key={item.id}
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${roleChipClass(item.role)}`}
+                          >
+                            <span className="font-mono">{item.corporateCustomerCode}</span>
+                            <span className="font-medium">{CORPORATE_ROLE_LABEL[item.role]}</span>
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </td>
-                  <td className={dataTdClass('left')}>
-                    <div className="whitespace-nowrap">{p.createdAt}</div>
-                    <div className="text-[10px] text-gray-500">{p.createdBy}</div>
+                  <td className={dataTdClass('center')}>
+                    <StatusBadge status={row.status} />
                   </td>
                   <td className={dataTdClass('left')}>
-                    <div className="whitespace-nowrap">{p.updatedAt || '—'}</div>
-                    <div className="text-[10px] text-gray-500">{p.updatedBy || '—'}</div>
+                    <div className="whitespace-nowrap">{row.createdAt}</div>
+                    <div className="text-[10px] text-gray-500">{row.createdBy || '—'}</div>
+                  </td>
+                  <td className={dataTdClass('left')}>
+                    <div className="whitespace-nowrap">{row.updatedAt || '—'}</div>
+                    <div className="text-[10px] text-gray-500">{row.updatedBy || '—'}</div>
                   </td>
                 </tr>
               ))}
@@ -378,7 +435,7 @@ const RescueProviderList: React.FC = () => {
           rangeStart={rangeStart}
           rangeEnd={rangeEnd}
           totalItems={totalItems}
-          unitLabel="đối tác cứu hộ"
+          unitLabel="gói"
           currentPage={currentPage}
           totalPages={totalPages}
           pageSize={pageSize}
@@ -396,4 +453,4 @@ const RescueProviderList: React.FC = () => {
   );
 };
 
-export default RescueProviderList;
+export default RescuePackageList;

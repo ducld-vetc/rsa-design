@@ -2303,7 +2303,7 @@ const GuestOrderDetails: React.FC<{
 
   const handlePartnerFeeAwareChange = (next: string) => {
     if (next === partnerName) return;
-    requestFeeCriteriaChange(`Nhà cung cấp: ${partnerName} → ${next}`, {
+    requestFeeCriteriaChange(`Đối tác cứu hộ: ${partnerName} → ${next}`, {
       partnerName: next,
     });
   };

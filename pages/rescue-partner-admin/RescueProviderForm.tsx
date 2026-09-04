@@ -5,6 +5,7 @@ import {
   ADMIN_PROVINCES,
   PROVIDER_TYPE_OPTIONS,
   SERVICE_TYPE_OPTIONS,
+  createMockProvider,
   getProviderById,
   getStaffByStationId,
   getStationsByProviderId,
@@ -117,6 +118,10 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
   const [tab, setTab] = useState<ProviderTab>('general');
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [autoCreateStation, setAutoCreateStation] = useState(true);
+
+  const isCreateMode = mode === 'create';
+  const showTabs = !isCreateMode;
 
   const update = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -141,7 +146,7 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
   }, [existing, providerStations]);
 
   const title =
-    mode === 'create' ? 'Thêm mới NCC dịch vụ' : mode === 'edit' ? 'Chỉnh sửa NCC dịch vụ' : 'Xem chi tiết NCC dịch vụ';
+    mode === 'create' ? 'Thêm mới đối tác cứu hộ' : mode === 'edit' ? 'Chỉnh sửa đối tác cứu hộ' : 'Xem chi tiết đối tác cứu hộ';
 
   const tabs: { id: ProviderTab; label: string }[] = [
     { id: 'general', label: 'Thông tin chung' },
@@ -181,8 +186,45 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
 
   const handleSave = () => {
     if (!form.name.trim() || !form.contactName.trim() || !form.contactPhone.trim()) {
-      setError('Vui lòng nhập Tên NCC, Người liên hệ và SĐT liên hệ.');
+      setError('Vui lòng nhập Tên đối tác cứu hộ, Người liên hệ và SĐT liên hệ.');
       setTab('general');
+      return;
+    }
+    if (!form.companyName.trim() || !form.taxCode.trim()) {
+      setError('Vui lòng nhập Tên công ty và Mã số thuế.');
+      setTab('general');
+      return;
+    }
+    if (!form.specificAddress.trim()) {
+      setError('Vui lòng nhập Địa chỉ cụ thể.');
+      setTab('general');
+      return;
+    }
+    if (!form.latitude.trim() || !form.longitude.trim()) {
+      setError('Vui lòng nhập tọa độ (vĩ độ, kinh độ).');
+      setTab('general');
+      return;
+    }
+    if (!form.province.trim() || !form.ward.trim()) {
+      setError('Vui lòng chọn Tỉnh/TP và Xã/Phường.');
+      setTab('general');
+      return;
+    }
+    if (isCreateMode) {
+      const { station } = createMockProvider(
+        {
+          ...form,
+          address: form.address || form.specificAddress,
+        },
+        { autoCreateStation },
+      );
+      navigate('/admin/rescue-providers', {
+        state: {
+          notice: station
+            ? `Đã tạo đối tác cứu hộ và trạm cứu hộ ${station.name} (${station.code}).`
+            : 'Đã tạo đối tác cứu hộ.',
+        },
+      });
       return;
     }
     navigate('/admin/rescue-providers');
@@ -212,7 +254,7 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
   if ((mode === 'view' || mode === 'edit') && !existing) {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-gray-500">Không tìm thấy nhà cung cấp.</p>
+        <p className="text-sm text-gray-500">Không tìm thấy đối tác cứu hộ.</p>
         <button type="button" onClick={() => navigate('/admin/rescue-providers')} className="text-vetc-green font-bold text-sm hover:underline">
           Quay lại danh sách
         </button>
@@ -230,44 +272,48 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded px-3 py-2">{error}</p>}
 
       <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
-        <div className="flex items-center overflow-x-auto border-b bg-gray-50/80">
-          {tabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setTab(item.id)}
-              className={`px-4 py-3 text-xs font-bold whitespace-nowrap border-b-2 transition-all ${
-                tab === item.id
-                  ? 'border-vetc-green text-vetc-green bg-green-50/50'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        {showTabs && (
+          <div className="flex items-center overflow-x-auto border-b bg-gray-50/80">
+            {tabs.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={`px-4 py-3 text-xs font-bold whitespace-nowrap border-b-2 transition-all ${
+                  tab === item.id
+                    ? 'border-vetc-green text-vetc-green bg-green-50/50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {tab === 'general' && (
+        {(isCreateMode || tab === 'general') && (
           <div className="space-y-4 bg-gray-50 p-4">
             <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
               <SectionHeader title="Thông tin chung" icon={<Building2 size={16} />} />
               <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {!isCreateMode && (
+                  <div className="min-w-0">
+                    <FieldLabel>Mã đối tác cứu hộ</FieldLabel>
+                    <input className={inputClass} value={form.code} disabled placeholder="Mã đối tác cứu hộ" />
+                  </div>
+                )}
                 <div className="min-w-0">
-                  <FieldLabel>Mã NCC dịch vụ</FieldLabel>
+                  <FieldLabel required>Tên đối tác cứu hộ</FieldLabel>
                   <input
                     className={inputClass}
-                    value={form.code}
-                    disabled={readOnly || mode === 'edit'}
-                    placeholder={mode === 'create' ? 'Hệ thống tự sinh sau khi lưu' : ''}
-                    onChange={(e) => update('code', e.target.value)}
+                    value={form.name}
+                    disabled={readOnly}
+                    placeholder="Nhập tên đối tác cứu hộ"
+                    onChange={(e) => update('name', e.target.value)}
                   />
                 </div>
                 <div className="min-w-0">
-                  <FieldLabel required>Tên NCC dịch vụ</FieldLabel>
-                  <input className={inputClass} value={form.name} disabled={readOnly} onChange={(e) => update('name', e.target.value)} />
-                </div>
-                <div className="min-w-0">
-                  <FieldLabel>Loại nhà cung cấp</FieldLabel>
+                  <FieldLabel required>Loại đối tác cứu hộ</FieldLabel>
                   <select
                     className={selectClass}
                     value={form.type}
@@ -282,17 +328,24 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                   </select>
                 </div>
                 <div className="min-w-0">
-                  <FieldLabel>Tên công ty</FieldLabel>
+                  <FieldLabel required>Tên công ty</FieldLabel>
                   <input
                     className={inputClass}
                     value={form.companyName}
                     disabled={readOnly}
+                    placeholder="Nhập tên công ty / đơn vị pháp nhân"
                     onChange={(e) => update('companyName', e.target.value)}
                   />
                 </div>
                 <div className="min-w-0">
-                  <FieldLabel>Mã số thuế</FieldLabel>
-                  <input className={inputClass} value={form.taxCode} disabled={readOnly} onChange={(e) => update('taxCode', e.target.value)} />
+                  <FieldLabel required>Mã số thuế</FieldLabel>
+                  <input
+                    className={inputClass}
+                    value={form.taxCode}
+                    disabled={readOnly}
+                    placeholder="Nhập mã số thuế"
+                    onChange={(e) => update('taxCode', e.target.value)}
+                  />
                 </div>
                 <div className="min-w-0">
                   <FieldLabel>GPKD</FieldLabel>
@@ -300,6 +353,7 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                     className={inputClass}
                     value={form.businessLicense}
                     disabled={readOnly}
+                    placeholder="Nhập số giấy phép kinh doanh"
                     onChange={(e) => update('businessLicense', e.target.value)}
                   />
                 </div>
@@ -309,22 +363,24 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                     className={inputClass}
                     value={form.charterCapital}
                     disabled={readOnly}
+                    placeholder="Nhập vốn điều lệ"
                     onChange={(e) => update('charterCapital', e.target.value)}
                   />
                 </div>
                 <div className="min-w-0 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="min-w-0">
-                  <FieldLabel>Địa chỉ cụ thể</FieldLabel>
+                  <FieldLabel required>Địa chỉ cụ thể</FieldLabel>
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="flex-1 min-w-0">
                       <input
                         className={inputClass}
                         value={form.specificAddress}
                         disabled={readOnly}
+                        placeholder="Nhập địa chỉ chi tiết"
                         onChange={(e) => update('specificAddress', e.target.value)}
                       />
                     </div>
-                    {mode === 'edit' && (
+                    {mode !== 'view' && (
                       <button
                         type="button"
                         onClick={() => setIsMapModalOpen(true)}
@@ -338,13 +394,13 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                   </div>
                 </div>
                 <div className="min-w-0">
-                  <FieldLabel>Tọa độ (vĩ độ, kinh độ)</FieldLabel>
+                  <FieldLabel required>Tọa độ (vĩ độ, kinh độ)</FieldLabel>
                   <div className="flex items-center gap-1.5">
                     <input
                       className={inputClass}
                       value={coordText}
                       disabled={readOnly}
-                      placeholder="Vĩ độ, kinh độ"
+                      placeholder="21.0285, 105.8542"
                       onChange={(e) => handleCoordChange(e.target.value)}
                     />
                     <button
@@ -359,7 +415,7 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                   </div>
                 </div>
                 <div className="min-w-0">
-                  <FieldLabel>Tỉnh/TP</FieldLabel>
+                  <FieldLabel required>Tỉnh/TP</FieldLabel>
                   <select
                     className={selectClass}
                     value={form.province}
@@ -379,7 +435,7 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                   </select>
                 </div>
                 <div className="min-w-0">
-                  <FieldLabel>Xã/Phường</FieldLabel>
+                  <FieldLabel required>Xã/Phường</FieldLabel>
                   <select
                     className={selectClass}
                     value={form.ward}
@@ -404,19 +460,43 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
               <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
                 <div className="min-w-0">
                   <FieldLabel required>Người liên hệ</FieldLabel>
-                  <input className={inputClass} value={form.contactName} disabled={readOnly} onChange={(e) => update('contactName', e.target.value)} />
+                  <input
+                    className={inputClass}
+                    value={form.contactName}
+                    disabled={readOnly}
+                    placeholder="Nhập họ tên người liên hệ"
+                    onChange={(e) => update('contactName', e.target.value)}
+                  />
                 </div>
                 <div className="min-w-0">
                   <FieldLabel required>SĐT liên hệ</FieldLabel>
-                  <input className={inputClass} value={form.contactPhone} disabled={readOnly} onChange={(e) => update('contactPhone', e.target.value)} />
+                  <input
+                    className={inputClass}
+                    value={form.contactPhone}
+                    disabled={readOnly}
+                    placeholder="Nhập số điện thoại"
+                    onChange={(e) => update('contactPhone', e.target.value)}
+                  />
                 </div>
                 <div className="min-w-0">
                   <FieldLabel>SĐT liên hệ khác</FieldLabel>
-                  <input className={inputClass} value={form.otherPhone} disabled={readOnly} onChange={(e) => update('otherPhone', e.target.value)} />
+                  <input
+                    className={inputClass}
+                    value={form.otherPhone}
+                    disabled={readOnly}
+                    placeholder="Nhập SĐT phụ (nếu có)"
+                    onChange={(e) => update('otherPhone', e.target.value)}
+                  />
                 </div>
                 <div className="min-w-0">
                   <FieldLabel>Email</FieldLabel>
-                  <input className={inputClass} value={form.email} disabled={readOnly} onChange={(e) => update('email', e.target.value)} />
+                  <input
+                    className={inputClass}
+                    value={form.email}
+                    disabled={readOnly}
+                    placeholder="Nhập địa chỉ email"
+                    onChange={(e) => update('email', e.target.value)}
+                  />
                 </div>
               </div>
             </div>
@@ -425,11 +505,12 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
               <SectionHeader title="Thông tin hợp đồng" icon={<FileText size={16} />} />
               <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
                 <div className="min-w-0">
-                  <FieldLabel required>Số HĐ</FieldLabel>
+                  <FieldLabel>Số HĐ</FieldLabel>
                   <input
                     className={inputClass}
                     value={form.contractNumber}
                     disabled={readOnly}
+                    placeholder="Nhập số hợp đồng"
                     onChange={(e) => update('contractNumber', e.target.value)}
                   />
                 </div>
@@ -449,6 +530,7 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                     className={inputClass}
                     value={form.contractStaff}
                     disabled={readOnly}
+                    placeholder="Nhập họ tên nhân viên ký HĐ"
                     onChange={(e) => update('contractStaff', e.target.value)}
                   />
                 </div>
@@ -458,12 +540,34 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                     className={inputClass}
                     value={form.contractStaffId}
                     disabled={readOnly}
+                    placeholder="Nhập số CCCD"
                     onChange={(e) => update('contractStaffId', e.target.value)}
                   />
                 </div>
               </div>
             </div>
             </div>
+
+            {isCreateMode && (
+              <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
+                <div className="p-4">
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={autoCreateStation}
+                      onChange={(e) => setAutoCreateStation(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-vetc-green focus:ring-vetc-green"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold text-gray-800">Tự động tạo trạm cứu hộ tương ứng</span>
+                      <span className="block text-xs text-gray-500 mt-0.5">
+                        Sao chép thông tin đối tác cứu hộ (tên, địa chỉ, liên hệ, dịch vụ…) sang trạm cứu hộ — không cần nhập lại trên màn Trạm cứu hộ.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
 
             <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
               <SectionHeader title="Loại hình dịch vụ" icon={<Wrench size={16} />} />
@@ -477,6 +581,7 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
               </div>
             </div>
 
+            {!isCreateMode && (
             <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
               <SectionHeader title="Thống kê" icon={<BarChart3 size={16} />} />
               <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -491,10 +596,11 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                 <StatField label="Số lần báo giá thành công" value={String(stats.successfulQuotes)} />
               </div>
             </div>
+            )}
           </div>
         )}
 
-        {tab === 'stations' && (
+        {showTabs && tab === 'stations' && (
           <div className="space-y-4 bg-gray-50 p-4">
             <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
               <SectionHeader title="Danh sách trạm cứu hộ" icon={<MapPin size={16} />} />
@@ -582,7 +688,7 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                     {providerStations.length === 0 && (
                       <tr>
                         <td colSpan={8} className={`${dataTdClass('center')} py-8 text-gray-400`}>
-                          Chưa có trạm cứu hộ thuộc nhà cung cấp này
+                          Chưa có trạm cứu hộ thuộc đối tác cứu hộ này
                         </td>
                       </tr>
                     )}
@@ -600,8 +706,8 @@ const RescueProviderForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
         onConfirm={readOnly ? () => setIsMapModalOpen(false) : handleConfirmLocation}
         initialAddress={form.specificAddress || form.address}
         initialCoords={formatCoordinate(form.latitude, form.longitude)}
-        title="Chọn vị trí nhà cung cấp"
-        pinLabel="Vị trí NCC tại đây"
+        title="Chọn vị trí đối tác cứu hộ"
+        pinLabel="Vị trí đối tác cứu hộ tại đây"
         overlayClassName="z-[120]"
       />
     </div>

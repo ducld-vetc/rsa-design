@@ -50,6 +50,10 @@ import RescueProviderList from './pages/rescue-partner-admin/RescueProviderList'
 import { RescueProviderCreate, RescueProviderEdit, RescueProviderView } from './pages/rescue-partner-admin/RescueProviderForm';
 import RescueStationAdminList from './pages/rescue-partner-admin/RescueStationAdminList';
 import { RescueStationAdminCreate, RescueStationAdminEdit, RescueStationAdminView } from './pages/rescue-partner-admin/RescueStationAdminForm';
+import RescueServiceList from './pages/rescue-service/RescueServiceList';
+import { RescueServiceCreate, RescueServiceEdit, RescueServiceView } from './pages/rescue-service/RescueServiceForm';
+import RescuePackageList from './pages/rescue-package/RescuePackageList';
+import { RescuePackageCreate, RescuePackageEdit, RescuePackageView } from './pages/rescue-package/RescuePackageForm';
 import { ShiftConfigProvider } from './context/ShiftConfigContext';
 
 const initialData: FormData = {
@@ -114,6 +118,8 @@ const App: React.FC = () => {
   const getStepFromPath = (path: string): Step => {
     if (path.includes('/admin/rescue-providers')) return Step.RESCUE_PROVIDER_MANAGEMENT;
     if (path.includes('/admin/rescue-stations')) return Step.RESCUE_STATION_ADMIN;
+    if (path.includes('/admin/rescue-services')) return Step.SERVICE_MANAGEMENT;
+    if (path.includes('/admin/rescue-packages')) return Step.PACKAGE_CATALOG;
     if (path.includes('/partner/vehicles')) return Step.PARTNER_VEHICLES;
     if (path.includes('/partner/tool-config')) return Step.PARTNER_TOOL_CONFIG;
     if (path.includes('/partner/staff')) return Step.PARTNER_STAFF;
@@ -446,6 +452,8 @@ const App: React.FC = () => {
     Step.PARTNER_ORG,
     Step.RESCUE_PROVIDER_MANAGEMENT,
     Step.RESCUE_STATION_ADMIN,
+    Step.SERVICE_MANAGEMENT,
+    Step.PACKAGE_CATALOG,
   ];
   
   const isStepperVisible = !hideStepperSteps.includes(currentStep);
@@ -519,15 +527,15 @@ const App: React.FC = () => {
     if (currentStep === Step.PARTNER_ORG) return ['Đối tác cứu hộ', 'Cấu hình tổ chức'];
     if (currentStep === Step.RESCUE_PROVIDER_MANAGEMENT) {
       if (location.pathname.endsWith('/admin/rescue-providers/new')) {
-        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Thêm mới NCC dịch vụ'];
+        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Thêm mới đối tác cứu hộ'];
       }
       if (location.pathname.endsWith('/edit')) {
-        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Chỉnh sửa NCC dịch vụ'];
+        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Chỉnh sửa đối tác cứu hộ'];
       }
       if (location.pathname.match(/\/admin\/rescue-providers\/[^/]+$/)) {
-        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Xem chi tiết NCC dịch vụ'];
+        return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Xem chi tiết đối tác cứu hộ'];
       }
-      return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Nhà cung cấp'];
+      return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Đối tác cứu hộ'];
     }
     if (currentStep === Step.RESCUE_STATION_ADMIN) {
       if (location.pathname.endsWith('/admin/rescue-stations/new')) {
@@ -540,6 +548,30 @@ const App: React.FC = () => {
         return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Xem chi tiết điểm dịch vụ'];
       }
       return ['Quản trị hệ thống', 'Quản lý đối tác cứu hộ', 'Trạm cứu hộ'];
+    }
+    if (currentStep === Step.SERVICE_MANAGEMENT) {
+      if (location.pathname.endsWith('/admin/rescue-services/new')) {
+        return ['Quản trị hệ thống', 'Gói cứu hộ', 'Thêm mới dịch vụ cứu hộ'];
+      }
+      if (location.pathname.endsWith('/edit')) {
+        return ['Quản trị hệ thống', 'Gói cứu hộ', 'Chỉnh sửa dịch vụ cứu hộ'];
+      }
+      if (location.pathname.match(/\/admin\/rescue-services\/[^/]+$/)) {
+        return ['Quản trị hệ thống', 'Gói cứu hộ', 'Xem chi tiết dịch vụ cứu hộ'];
+      }
+      return ['Quản trị hệ thống', 'Gói cứu hộ', 'Dịch vụ cứu hộ'];
+    }
+    if (currentStep === Step.PACKAGE_CATALOG) {
+      if (location.pathname.endsWith('/admin/rescue-packages/new')) {
+        return ['Quản trị hệ thống', 'Gói cứu hộ', 'Thêm mới gói cứu hộ'];
+      }
+      if (location.pathname.endsWith('/edit')) {
+        return ['Quản trị hệ thống', 'Gói cứu hộ', 'Chỉnh sửa gói cứu hộ'];
+      }
+      if (location.pathname.match(/\/admin\/rescue-packages\/[^/]+$/)) {
+        return ['Quản trị hệ thống', 'Gói cứu hộ', 'Xem chi tiết gói cứu hộ'];
+      }
+      return ['Quản trị hệ thống', 'Gói cứu hộ', 'Cấu hình gói cứu hộ'];
     }
     if (currentStep === Step.PAYMENT_REQUEST_MANAGEMENT) {
       if (location.pathname.includes('/payment-request-management/')) {
@@ -781,6 +813,14 @@ const App: React.FC = () => {
                 <Route path="/admin/rescue-stations/:id/edit" element={<RescueStationAdminEdit />} />
                 <Route path="/admin/rescue-stations/:id" element={<RescueStationAdminView />} />
                 <Route path="/admin/rescue-stations" element={<RescueStationAdminList />} />
+                <Route path="/admin/rescue-services/new" element={<RescueServiceCreate />} />
+                <Route path="/admin/rescue-services/:id/edit" element={<RescueServiceEdit />} />
+                <Route path="/admin/rescue-services/:id" element={<RescueServiceView />} />
+                <Route path="/admin/rescue-services" element={<RescueServiceList />} />
+                <Route path="/admin/rescue-packages/new" element={<RescuePackageCreate />} />
+                <Route path="/admin/rescue-packages/:id/edit" element={<RescuePackageEdit />} />
+                <Route path="/admin/rescue-packages/:id" element={<RescuePackageView />} />
+                <Route path="/admin/rescue-packages" element={<RescuePackageList />} />
               </Routes>
               </ShiftConfigProvider>
               </div>

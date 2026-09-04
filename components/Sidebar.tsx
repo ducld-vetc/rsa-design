@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves, Settings2, SlidersHorizontal, Handshake, BarChart3, GitBranch, Car, Store, FileSpreadsheet } from 'lucide-react';
+import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves, Settings2, SlidersHorizontal, Handshake, BarChart3, GitBranch, Car, Store, FileSpreadsheet, Wrench } from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
@@ -93,7 +93,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isRescuePackageActive =
     currentStep === Step.PRICING_POLICY ||
     currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT ||
-    currentStep === Step.PACKAGE_IMPORT;
+    currentStep === Step.PACKAGE_IMPORT ||
+    currentStep === Step.SERVICE_MANAGEMENT ||
+    currentStep === Step.PACKAGE_CATALOG;
 
   const isRescueFeeActive =
     currentStep === Step.RESCUE_FEE_CONFIGURATION ||
@@ -221,6 +223,20 @@ const Sidebar: React.FC<SidebarProps> = ({
                       <FileSpreadsheet size={13} className="shrink-0" />
                       <span className="whitespace-nowrap">Import gói cứu hộ</span>
                     </div>
+                    <div
+                      onClick={() => onNavigatePartner('/admin/rescue-packages')}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.PACKAGE_CATALOG ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <Settings2 size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Cấu hình gói cứu hộ</span>
+                    </div>
+                    <div
+                      onClick={() => onNavigatePartner('/admin/rescue-services')}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.SERVICE_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <Wrench size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Dịch vụ cứu hộ</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -247,7 +263,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
                 {isMenuOpen('partnerAdmin') && (
                   <div className="mt-0.5 ml-3 border-l border-gray-200 pl-2 space-y-0.5">
-                    {navPartnerItem(Step.RESCUE_PROVIDER_MANAGEMENT, '/admin/rescue-providers', 'Nhà cung cấp', Store)}
+                    {navPartnerItem(Step.RESCUE_PROVIDER_MANAGEMENT, '/admin/rescue-providers', 'Đối tác cứu hộ', Store)}
                     {navPartnerItem(Step.RESCUE_STATION_ADMIN, '/admin/rescue-stations', 'Trạm cứu hộ', Building2)}
                   </div>
                 )}

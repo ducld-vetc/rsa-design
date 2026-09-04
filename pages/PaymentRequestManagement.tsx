@@ -303,7 +303,7 @@ const PaymentRequestManagement: React.FC = () => {
             </div>
 
             <div className="min-w-0">
-              <label className={labelClass}>Loại NCC dịch vụ</label>
+              <label className={labelClass}>Loại đối tác cứu hộ</label>
               <select
                 value={providerTypeFilter}
                 onChange={(e) => setProviderTypeFilter(e.target.value)}
@@ -315,7 +315,7 @@ const PaymentRequestManagement: React.FC = () => {
               </select>
             </div>
             <div className="min-w-0">
-              <label className={labelClass}>Nhà cung cấp</label>
+              <label className={labelClass}>Đối tác cứu hộ</label>
               <select value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)} className={selectClass}>
                 <option value="">Tất cả</option>
                 <option value="Carpla Service Hà Nội">Carpla Service Hà Nội</option>

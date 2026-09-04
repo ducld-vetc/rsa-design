@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import AppMultiSelect from '../../shared/AppMultiSelect';
 import type { AppSelectOption } from '../../shared/AppSelect';
 import type { PartnerStatus } from '../../data/rescuePartnerAdminMockData';
@@ -129,9 +129,19 @@ export const TagMultiSelect: React.FC<{
           {selected.map((opt) => (
             <span
               key={opt.value}
-              className="inline-flex items-center gap-1 rounded bg-green-50 text-green-800 border border-green-200 px-2 py-0.5 text-[11px] font-semibold"
+              className="inline-flex max-w-full items-center gap-1 rounded bg-green-50 text-green-800 border border-green-200 px-2 py-0.5 text-[11px] font-semibold"
             >
-              {opt.label}
+              <span className="min-w-0 truncate">{opt.label}</span>
+              {!disabled && (
+                <button
+                  type="button"
+                  className="shrink-0 rounded p-0.5 text-green-700 hover:bg-green-100"
+                  aria-label={`Bỏ ${opt.label}`}
+                  onClick={() => onChange(values.filter((v) => v !== opt.value))}
+                >
+                  <X size={11} />
+                </button>
+              )}
             </span>
           ))}
         </div>
