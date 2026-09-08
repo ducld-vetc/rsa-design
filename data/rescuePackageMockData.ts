@@ -85,8 +85,13 @@ export interface CorporatePackageLine {
   corporateCustomerCode: string;
   corporateCustomerName: string;
   role: CorporateRole;
+  /** Phí gói theo loại gói: ALWAYS = PERIODIC, TRIP = INCIDENTAL. Không cấu hình trên dòng DN. */
   feeType: CorporateFeeType;
   status: boolean;
+  /** Bảo lãnh — chỉ khi role = SPONSOR, cấu hình riêng từng DN. */
+  sponsorType?: SponsorType | '';
+  sponsorValue?: number | null;
+  maxSponsorAmount?: number | null;
 }
 
 export interface RescuePackageRecord {
@@ -141,6 +146,11 @@ const cp = (
   role: CorporateRole,
   feeType: CorporateFeeType,
   status = true,
+  sponsor?: {
+    sponsorType: SponsorType;
+    sponsorValue: number;
+    maxSponsorAmount: number;
+  },
 ): CorporatePackageLine => {
   const c = getCorporateCustomerById(corporateCustomerId);
   return {
@@ -151,6 +161,9 @@ const cp = (
     role,
     feeType,
     status,
+    sponsorType: role === 'SPONSOR' ? (sponsor?.sponsorType ?? '') : '',
+    sponsorValue: role === 'SPONSOR' ? (sponsor?.sponsorValue ?? null) : null,
+    maxSponsorAmount: role === 'SPONSOR' ? (sponsor?.maxSponsorAmount ?? null) : null,
   };
 };
 
@@ -259,9 +272,9 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
     isGift: false,
     status: 'active',
     packageType: 'TRIP',
-    sponsorType: 'RATE',
-    sponsorValue: 100,
-    maxSponsorAmount: 2000000,
+    sponsorType: '',
+    sponsorValue: null,
+    maxSponsorAmount: null,
     services: [
       ps('ps-101-2', 2, null),
       ps('ps-101-5', 5, 1),
@@ -270,7 +283,11 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
     ],
     corporates: [
       cp('cp-101-1', 16, 'CHANNEL', 'INCIDENTAL'),
-      cp('cp-101-2', 99, 'SPONSOR', 'PERIODIC'),
+      cp('cp-101-2', 99, 'SPONSOR', 'INCIDENTAL', true, {
+        sponsorType: 'RATE',
+        sponsorValue: 100,
+        maxSponsorAmount: 2000000,
+      }),
     ],
     createdAt: '04/09/2026 09:00:00',
     createdBy: 'rsa_admin',

@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Building2, Info, Package, Pencil, Plus, Save, Trash2, Wrench, X } from 'lucide-react';
 import {
-  CORPORATE_FEE_TYPE_OPTIONS,
   CORPORATE_ROLE_OPTIONS,
   PACKAGE_TYPE_OPTIONS,
   SPONSOR_TYPE_OPTIONS,
@@ -47,8 +46,10 @@ type CorporateDraft = {
   key: string;
   corporateCustomerId: string;
   role: CorporateRole | '';
-  feeType: CorporateFeeType | '';
   status: boolean;
+  sponsorType: SponsorType | '';
+  sponsorValue: string;
+  maxSponsorAmount: string;
 };
 
 type FormState = {
@@ -63,9 +64,6 @@ type FormState = {
   isGift: boolean;
   status: PartnerStatus;
   packageType: PackageType;
-  sponsorType: SponsorType | '';
-  sponsorValue: string;
-  maxSponsorAmount: string;
   services: ServiceDraft[];
   corporates: CorporateDraft[];
 };
@@ -84,9 +82,15 @@ const EMPTY_CORPORATE = (): CorporateDraft => ({
   key: newKey(),
   corporateCustomerId: '',
   role: '',
-  feeType: 'PERIODIC',
   status: true,
+  sponsorType: '',
+  sponsorValue: '',
+  maxSponsorAmount: '',
 });
+
+/** Cách thu phí theo loại gói — không cấu hình trên từng DN. */
+const feeTypeForPackage = (packageType: PackageType): CorporateFeeType =>
+  packageType === 'TRIP' ? 'INCIDENTAL' : 'PERIODIC';
 
 const EMPTY_FORM: FormState = {
   packageCode: '',
@@ -100,9 +104,6 @@ const EMPTY_FORM: FormState = {
   isGift: false,
   status: 'active',
   packageType: 'ALWAYS',
-  sponsorType: '',
-  sponsorValue: '',
-  maxSponsorAmount: '',
   services: [EMPTY_SERVICE()],
   corporates: [],
 };
@@ -133,17 +134,21 @@ const toPayload = (form: FormState): RescuePackageFormPayload => {
 
   const corporates: CorporatePackageLine[] = form.corporates
     .filter((row) => row.corporateCustomerId && row.role)
-    .map((row) => ({
-      id: row.key,
-      corporateCustomerId: Number(row.corporateCustomerId),
-      corporateCustomerCode: '',
-      corporateCustomerName: '',
-      role: row.role as CorporateRole,
-      feeType: (row.feeType || 'PERIODIC') as CorporateFeeType,
-      status: row.status,
-    }));
-
-  const isTrip = form.packageType === 'TRIP';
+    .map((row) => {
+      const isSponsor = row.role === 'SPONSOR';
+      return {
+        id: row.key,
+        corporateCustomerId: Number(row.corporateCustomerId),
+        corporateCustomerCode: '',
+        corporateCustomerName: '',
+        role: row.role as CorporateRole,
+        feeType: feeTypeForPackage(form.packageType),
+        status: row.status,
+        sponsorType: isSponsor ? (row.sponsorType as SponsorType) : '',
+        sponsorValue: isSponsor ? optionalNumber(row.sponsorValue) : null,
+        maxSponsorAmount: isSponsor ? optionalNumber(row.maxSponsorAmount) : null,
+      };
+    });
 
   return {
     packageCode: form.packageCode,
@@ -157,9 +162,9 @@ const toPayload = (form: FormState): RescuePackageFormPayload => {
     isGift: form.isGift,
     status: form.status,
     packageType: form.packageType,
-    sponsorType: isTrip ? (form.sponsorType as SponsorType) : form.sponsorType,
-    sponsorValue: isTrip || form.sponsorValue.trim() ? optionalNumber(form.sponsorValue) : null,
-    maxSponsorAmount: isTrip || form.maxSponsorAmount.trim() ? optionalNumber(form.maxSponsorAmount) : null,
+    sponsorType: '',
+    sponsorValue: null,
+    maxSponsorAmount: null,
     services,
     corporates,
   };
@@ -187,9 +192,6 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
       isGift: existing.isGift,
       status: existing.status,
       packageType: existing.packageType,
-      sponsorType: existing.sponsorType,
-      sponsorValue: existing.sponsorValue == null ? '' : String(existing.sponsorValue),
-      maxSponsorAmount: existing.maxSponsorAmount == null ? '' : String(existing.maxSponsorAmount),
       services:
         existing.services.length > 0
           ? existing.services.map((row) => ({
@@ -200,13 +202,21 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
               status: row.status,
             }))
           : [EMPTY_SERVICE()],
-      corporates: existing.corporates.map((row) => ({
-        key: row.id,
-        corporateCustomerId: String(row.corporateCustomerId),
-        role: row.role,
-        feeType: row.feeType,
-        status: row.status,
-      })),
+      corporates: existing.corporates.map((row) => {
+        const isSponsor = row.role === 'SPONSOR';
+        const sponsorType = isSponsor ? row.sponsorType || existing.sponsorType || '' : '';
+        const sponsorValue = isSponsor ? (row.sponsorValue ?? existing.sponsorValue) : null;
+        const maxSponsorAmount = isSponsor ? (row.maxSponsorAmount ?? existing.maxSponsorAmount) : null;
+        return {
+          key: row.id,
+          corporateCustomerId: String(row.corporateCustomerId),
+          role: row.role,
+          status: row.status,
+          sponsorType,
+          sponsorValue: sponsorValue == null ? '' : String(sponsorValue),
+          maxSponsorAmount: maxSponsorAmount == null ? '' : String(maxSponsorAmount),
+        };
+      }),
     };
   });
   const [error, setError] = useState('');
@@ -226,11 +236,7 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
         : 'Xem chi tiết gói cứu hộ';
 
   const handlePackageTypeChange = (next: PackageType) => {
-    setForm((prev) => ({
-      ...prev,
-      packageType: next,
-      sponsorType: next === 'TRIP' ? prev.sponsorType || 'RATE' : prev.sponsorType,
-    }));
+    update('packageType', next);
   };
 
   const updateService = (key: string, patch: Partial<ServiceDraft>) => {
@@ -243,7 +249,19 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
   const updateCorporate = (key: string, patch: Partial<CorporateDraft>) => {
     setForm((prev) => ({
       ...prev,
-      corporates: prev.corporates.map((row) => (row.key === key ? { ...row, ...patch } : row)),
+      corporates: prev.corporates.map((row) => {
+        if (row.key !== key) return row;
+        const next = { ...row, ...patch };
+        if (patch.role && patch.role !== 'SPONSOR') {
+          next.sponsorType = '';
+          next.sponsorValue = '';
+          next.maxSponsorAmount = '';
+        }
+        if (patch.role === 'SPONSOR' && !next.sponsorType) {
+          next.sponsorType = 'RATE';
+        }
+        return next;
+      }),
     }));
   };
 
@@ -309,25 +327,30 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
       return;
     }
 
-    if (form.packageType === 'TRIP') {
-      if (!form.sponsorType) {
-        setError('Gói TRIP bắt buộc chọn Hình thức sponsor.');
+    for (const row of filledCorps) {
+      if (row.role !== 'SPONSOR') continue;
+      const corpName = corpOptions.find((opt) => opt.value === row.corporateCustomerId)?.label ?? 'doanh nghiệp';
+      if (!row.sponsorType) {
+        setError(`Vai trò SPONSOR (${corpName}) bắt buộc chọn Hình thức bảo lãnh.`);
         return;
       }
-      const sponsorValue = optionalNumber(form.sponsorValue);
+      const sponsorValue = optionalNumber(row.sponsorValue);
       if (sponsorValue == null || sponsorValue <= 0) {
-        setError('Gói TRIP bắt buộc nhập Giá trị sponsor > 0.');
+        setError(`Vai trò SPONSOR (${corpName}) bắt buộc nhập Giá trị bảo lãnh > 0.`);
         return;
       }
-      if (form.sponsorType === 'RATE' && (sponsorValue < 1 || sponsorValue > 100)) {
-        setError('Sponsor theo % phải nằm trong khoảng 1–100.');
+      if (row.sponsorType === 'RATE' && (sponsorValue < 1 || sponsorValue > 100)) {
+        setError(`Bảo lãnh theo % của ${corpName} phải nằm trong khoảng 1–100.`);
         return;
       }
-      const maxAmount = optionalNumber(form.maxSponsorAmount);
+      const maxAmount = optionalNumber(row.maxSponsorAmount);
       if (maxAmount == null || maxAmount <= 0) {
-        setError('Gói TRIP bắt buộc nhập Trần sponsor / lần kích hoạt > 0.');
+        setError(`Vai trò SPONSOR (${corpName}) bắt buộc nhập Trần bảo lãnh / lần kích hoạt > 0.`);
         return;
       }
+    }
+
+    if (form.packageType === 'TRIP') {
       const activeCorps = filledCorps.filter((row) => row.status);
       const hasChannel = activeCorps.some((row) => row.role === 'CHANNEL');
       const hasSponsor = activeCorps.some((row) => row.role === 'SPONSOR');
@@ -550,59 +573,6 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
             </div>
           </div>
 
-          {isTrip && (
-            <div className="rounded-lg border border-violet-100 bg-violet-50/40 p-4 space-y-3">
-              <p className="flex items-start gap-2 text-[12px] text-violet-800 leading-relaxed">
-                <Info size={14} className="shrink-0 mt-0.5" />
-                <span>
-                  Gói TRIP: cấu hình trần sponsor trên gói. Kênh bán và đơn vị trả cứu hộ gắn ở mục Doanh nghiệp khai
-                  thác (CHANNEL + SPONSOR).
-                </span>
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="min-w-0">
-                  <FieldLabel required>Hình thức sponsor</FieldLabel>
-                  <select
-                    className={selectClass}
-                    value={form.sponsorType}
-                    disabled={disabled}
-                    onChange={(e) => update('sponsorType', e.target.value as SponsorType | '')}
-                  >
-                    <option value="">— Chọn —</option>
-                    {SPONSOR_TYPE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="min-w-0">
-                  <FieldLabel required>
-                    {form.sponsorType === 'FIXED' ? 'Số tiền sponsor (VND)' : 'Giá trị sponsor (%)'}
-                  </FieldLabel>
-                  <input
-                    className={inputClass}
-                    value={form.sponsorValue}
-                    disabled={disabled}
-                    inputMode="decimal"
-                    placeholder={form.sponsorType === 'FIXED' ? '500000' : '100'}
-                    onChange={(e) => update('sponsorValue', e.target.value.replace(/[^\d.]/g, ''))}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <FieldLabel required>Trần sponsor / lần kích hoạt (VND)</FieldLabel>
-                  <input
-                    className={inputClass}
-                    value={form.maxSponsorAmount}
-                    disabled={disabled}
-                    inputMode="numeric"
-                    placeholder="2000000"
-                    onChange={(e) => update('maxSponsorAmount', e.target.value.replace(/[^\d]/g, ''))}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -720,8 +690,9 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
           <p className="flex items-start gap-2 text-[12px] text-gray-500 leading-relaxed">
             <Info size={14} className="shrink-0 mt-0.5 text-gray-400" />
             <span>
-              Một DN có thể gắn nhiều vai trò (CHANNEL / SPONSOR / CUSTOMER / PARTNERSHIP). Cách thu phí là phí gói,
-              không phải chi phí cứu hộ. Gói ALWAYS không bắt buộc gắn DN.
+              Một DN có thể gắn nhiều vai trò (CHANNEL / SPONSOR / CUSTOMER / PARTNERSHIP). Cách thu phí theo loại gói
+              (ALWAYS: theo kỳ, TRIP: phát sinh mỗi lần kích hoạt). Vai trò SPONSOR cấu hình bảo lãnh riêng từng DN. Gói
+              ALWAYS không bắt buộc gắn DN.
               {isTrip ? ' Gói TRIP bắt buộc có CHANNEL và SPONSOR đang hoạt động.' : ''}
             </span>
           </p>
@@ -738,83 +709,126 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
               return (
                 <div
                   key={row.key}
-                  className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end rounded-lg border border-gray-100 bg-gray-50/40 p-3 overflow-visible"
+                  className="rounded-lg border border-gray-100 bg-gray-50/40 p-3 overflow-visible space-y-3"
                 >
-                  <div className="lg:col-span-4 min-w-0">
-                    <FieldLabel required={isTrip}>Doanh nghiệp</FieldLabel>
-                    <AppSelect
-                      searchable
-                      value={row.corporateCustomerId}
-                      options={corpOptions}
-                      disabled={disabled}
-                      placeholder="Chọn doanh nghiệp"
-                      onChange={(value) => updateCorporate(row.key, { corporateCustomerId: value })}
-                    />
-                  </div>
-                  <div className="lg:col-span-3 min-w-0">
-                    <FieldLabel required={isTrip}>Vai trò</FieldLabel>
-                    <select
-                      className={selectClass}
-                      value={row.role}
-                      disabled={disabled}
-                      onChange={(e) => updateCorporate(row.key, { role: e.target.value as CorporateRole | '' })}
-                    >
-                      <option value="">— Chọn —</option>
-                      {CORPORATE_ROLE_OPTIONS.map((opt) => (
-                        <option
-                          key={opt.value}
-                          value={opt.value}
-                          disabled={usedPairs.has(`${row.corporateCustomerId}:${opt.value}`)}
-                        >
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="lg:col-span-2 min-w-0">
-                    <FieldLabel>Cách thu phí</FieldLabel>
-                    <select
-                      className={selectClass}
-                      value={row.feeType}
-                      disabled={disabled}
-                      onChange={(e) => updateCorporate(row.key, { feeType: e.target.value as CorporateFeeType })}
-                    >
-                      {CORPORATE_FEE_TYPE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="lg:col-span-2 min-w-0">
-                    <FieldLabel>Trạng thái</FieldLabel>
-                    <select
-                      className={selectClass}
-                      value={row.status ? 'active' : 'inactive'}
-                      disabled={disabled}
-                      onChange={(e) => updateCorporate(row.key, { status: e.target.value === 'active' })}
-                    >
-                      <option value="active">Hoạt động</option>
-                      <option value="inactive">Không hoạt động</option>
-                    </select>
-                  </div>
-                  <div className="lg:col-span-1 flex items-center justify-end pb-0.5">
-                    {!disabled && (
-                      <button
-                        type="button"
-                        className="text-red-500 hover:bg-red-50 p-1.5 rounded"
-                        title="Xóa dòng"
-                        onClick={() =>
-                          setForm((prev) => ({
-                            ...prev,
-                            corporates: prev.corporates.filter((item) => item.key !== row.key),
-                          }))
-                        }
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+                    <div className="lg:col-span-5 min-w-0">
+                      <FieldLabel required={isTrip || row.role === 'SPONSOR'}>Doanh nghiệp</FieldLabel>
+                      <AppSelect
+                        searchable
+                        value={row.corporateCustomerId}
+                        options={corpOptions}
+                        disabled={disabled}
+                        placeholder="Chọn doanh nghiệp"
+                        onChange={(value) => updateCorporate(row.key, { corporateCustomerId: value })}
+                      />
+                    </div>
+                    <div className="lg:col-span-4 min-w-0">
+                      <FieldLabel required={isTrip || row.role === 'SPONSOR'}>Vai trò</FieldLabel>
+                      <select
+                        className={selectClass}
+                        value={row.role}
+                        disabled={disabled}
+                        onChange={(e) => updateCorporate(row.key, { role: e.target.value as CorporateRole | '' })}
                       >
-                        <Trash2 size={15} />
-                      </button>
-                    )}
+                        <option value="">— Chọn —</option>
+                        {CORPORATE_ROLE_OPTIONS.map((opt) => (
+                          <option
+                            key={opt.value}
+                            value={opt.value}
+                            disabled={usedPairs.has(`${row.corporateCustomerId}:${opt.value}`)}
+                          >
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="lg:col-span-2 min-w-0">
+                      <FieldLabel>Trạng thái</FieldLabel>
+                      <select
+                        className={selectClass}
+                        value={row.status ? 'active' : 'inactive'}
+                        disabled={disabled}
+                        onChange={(e) => updateCorporate(row.key, { status: e.target.value === 'active' })}
+                      >
+                        <option value="active">Hoạt động</option>
+                        <option value="inactive">Không hoạt động</option>
+                      </select>
+                    </div>
+                    <div className="lg:col-span-1 flex items-center justify-end pb-0.5">
+                      {!disabled && (
+                        <button
+                          type="button"
+                          className="text-red-500 hover:bg-red-50 p-1.5 rounded"
+                          title="Xóa dòng"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              corporates: prev.corporates.filter((item) => item.key !== row.key),
+                            }))
+                          }
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
                   </div>
+                  {row.role === 'SPONSOR' && (
+                    <div className="rounded-lg border border-violet-100 bg-violet-50/40 p-3 space-y-3">
+                      <p className="flex items-start gap-2 text-[12px] text-violet-800 leading-relaxed">
+                        <Info size={14} className="shrink-0 mt-0.5" />
+                        <span>Bảo lãnh của doanh nghiệp này — mỗi SPONSOR cấu hình riêng.</span>
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="min-w-0">
+                          <FieldLabel required>Hình thức bảo lãnh</FieldLabel>
+                          <select
+                            className={selectClass}
+                            value={row.sponsorType}
+                            disabled={disabled}
+                            onChange={(e) =>
+                              updateCorporate(row.key, { sponsorType: e.target.value as SponsorType | '' })
+                            }
+                          >
+                            <option value="">— Chọn —</option>
+                            {SPONSOR_TYPE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="min-w-0">
+                          <FieldLabel required>
+                            {row.sponsorType === 'FIXED' ? 'Số tiền bảo lãnh (VND)' : 'Giá trị bảo lãnh (%)'}
+                          </FieldLabel>
+                          <input
+                            className={inputClass}
+                            value={row.sponsorValue}
+                            disabled={disabled}
+                            inputMode="decimal"
+                            placeholder={row.sponsorType === 'FIXED' ? '500000' : '100'}
+                            onChange={(e) =>
+                              updateCorporate(row.key, { sponsorValue: e.target.value.replace(/[^\d.]/g, '') })
+                            }
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <FieldLabel required>Trần bảo lãnh / lần kích hoạt (VND)</FieldLabel>
+                          <input
+                            className={inputClass}
+                            value={row.maxSponsorAmount}
+                            disabled={disabled}
+                            inputMode="numeric"
+                            placeholder="2000000"
+                            onChange={(e) =>
+                              updateCorporate(row.key, { maxSponsorAmount: e.target.value.replace(/[^\d]/g, '') })
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
