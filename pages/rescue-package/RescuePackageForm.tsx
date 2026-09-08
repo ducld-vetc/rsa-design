@@ -70,6 +70,8 @@ type CorporateDraft = {
   sponsorType: SponsorType | '';
   /** RATE: một % chung cho mọi loại dịch vụ. */
   rateSponsorValue: string;
+  /** RATE: trần VND, áp chung mọi loại dịch vụ. */
+  sponsorMax: string;
   fixedSponsorRules: FixedSponsorRuleDraft[];
 };
 
@@ -112,6 +114,7 @@ const EMPTY_CORPORATE = (): CorporateDraft => ({
   status: true,
   sponsorType: '',
   rateSponsorValue: '',
+  sponsorMax: '',
   fixedSponsorRules: [],
 });
 
@@ -126,6 +129,7 @@ const clearSponsorDraft = (row: CorporateDraft): CorporateDraft => ({
   ...row,
   sponsorType: '',
   rateSponsorValue: '',
+  sponsorMax: '',
   fixedSponsorRules: [],
 });
 
@@ -248,6 +252,7 @@ const toPayload = (form: FormState): RescuePackageFormPayload => {
         status: row.status,
         sponsorType: isSponsor ? (row.sponsorType as SponsorType) : '',
         rateSponsorValue: isSponsor && row.sponsorType === 'RATE' ? optionalNumber(row.rateSponsorValue) : null,
+        sponsorMax: isSponsor && row.sponsorType === 'RATE' ? optionalNumber(row.sponsorMax) : null,
         fixedSponsorRules,
       };
     });
@@ -314,6 +319,7 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
           status: row.status,
           sponsorType,
           rateSponsorValue: isSponsor && row.rateSponsorValue != null ? String(row.rateSponsorValue) : '',
+          sponsorMax: isSponsor && row.sponsorMax != null ? String(row.sponsorMax) : '',
           fixedSponsorRules:
             isSponsor && sponsorType === 'FIXED'
               ? (row.fixedSponsorRules ?? []).map((rule) => ({
@@ -378,6 +384,7 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
             {
               ...next,
               rateSponsorValue: '',
+              sponsorMax: '',
               fixedSponsorRules: [],
             },
             patch.sponsorType,
@@ -465,6 +472,11 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
           const rate = optionalNumber(row.rateSponsorValue);
           if (rate == null || rate < 1 || rate > 100) {
             setError(`Vai trò SPONSOR (${corpName}) bắt buộc nhập giá trị bảo lãnh từ 1 đến 100%.`);
+            return;
+          }
+          const sponsorMax = optionalNumber(row.sponsorMax);
+          if (sponsorMax == null || sponsorMax <= 0) {
+            setError(`Vai trò SPONSOR (${corpName}) bắt buộc nhập Bảo lãnh tối đa > 0.`);
             return;
           }
           continue;
@@ -923,12 +935,12 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                       <p className="flex items-start gap-2 text-[12px] text-violet-800 leading-relaxed">
                         <Info size={14} className="shrink-0 mt-0.5" />
                         <span>
-                          Hình thức bảo lãnh áp dụng chung. FIXED cấu hình từng dòng: chọn một hoặc nhiều nhóm dịch
-                          vụ. Không chọn dịch vụ thì số tiền dùng chung cho cả nhóm; có chọn dịch vụ thì tính riêng
-                          dịch vụ đó.
+                          Hình thức bảo lãnh áp dụng chung. RATE nhập % và bảo lãnh tối đa. FIXED cấu hình từng dòng:
+                          chọn một hoặc nhiều nhóm dịch vụ. Không chọn dịch vụ thì số tiền dùng chung cho cả nhóm;
+                          có chọn dịch vụ thì tính riêng dịch vụ đó.
                         </span>
                       </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className={`grid grid-cols-1 gap-3 ${row.sponsorType === 'RATE' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                         <div className="min-w-0">
                           <FieldLabel required>Hình thức bảo lãnh</FieldLabel>
                           <select
@@ -948,21 +960,38 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                           </select>
                         </div>
                         {row.sponsorType === 'RATE' && (
-                          <div className="min-w-0">
-                            <FieldLabel required>Giá trị bảo lãnh (%)</FieldLabel>
-                            <input
-                              className={inputClass}
-                              value={row.rateSponsorValue}
-                              disabled={disabled}
-                              inputMode="decimal"
-                              placeholder="100"
-                              onChange={(e) =>
-                                updateCorporate(row.key, {
-                                  rateSponsorValue: e.target.value.replace(/[^\d.]/g, ''),
-                                })
-                              }
-                            />
-                          </div>
+                          <>
+                            <div className="min-w-0">
+                              <FieldLabel required>Giá trị bảo lãnh (%)</FieldLabel>
+                              <input
+                                className={inputClass}
+                                value={row.rateSponsorValue}
+                                disabled={disabled}
+                                inputMode="decimal"
+                                placeholder="100"
+                                onChange={(e) =>
+                                  updateCorporate(row.key, {
+                                    rateSponsorValue: e.target.value.replace(/[^\d.]/g, ''),
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <FieldLabel required>Bảo lãnh tối đa</FieldLabel>
+                              <input
+                                className={inputClass}
+                                value={row.sponsorMax}
+                                disabled={disabled}
+                                inputMode="numeric"
+                                placeholder="1500000"
+                                onChange={(e) =>
+                                  updateCorporate(row.key, {
+                                    sponsorMax: e.target.value.replace(/\D/g, ''),
+                                  })
+                                }
+                              />
+                            </div>
+                          </>
                         )}
                       </div>
                       {row.sponsorType === 'FIXED' && (

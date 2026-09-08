@@ -101,6 +101,8 @@ export interface CorporatePackageLine {
   sponsorType?: SponsorType | '';
   /** RATE: một % chung cho mọi loại dịch vụ được bảo lãnh. */
   rateSponsorValue?: number | null;
+  /** RATE: trần VND chung. Snapshot sang package_purchase.sponsor_max lúc kích hoạt. */
+  sponsorMax?: number | null;
   /** FIXED: các dòng nhóm dịch vụ / dịch vụ / số tiền. */
   fixedSponsorRules?: FixedSponsorRule[];
 }
@@ -160,6 +162,7 @@ const cp = (
   sponsor?: {
     sponsorType: SponsorType;
     rateSponsorValue?: number | null;
+    sponsorMax?: number | null;
     fixedSponsorRules?: FixedSponsorRule[];
   },
 ): CorporatePackageLine => {
@@ -175,6 +178,7 @@ const cp = (
     status,
     sponsorType: isSponsor ? (sponsor?.sponsorType ?? '') : '',
     rateSponsorValue: isSponsor && sponsor?.sponsorType === 'RATE' ? (sponsor.rateSponsorValue ?? null) : null,
+    sponsorMax: isSponsor && sponsor?.sponsorType === 'RATE' ? (sponsor.sponsorMax ?? null) : null,
     fixedSponsorRules: isSponsor && sponsor?.sponsorType === 'FIXED' ? (sponsor.fixedSponsorRules ?? []) : [],
   };
 };

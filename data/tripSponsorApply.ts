@@ -10,6 +10,8 @@ export interface TripSponsorConfig {
   sponsorType: SponsorType;
   /** RATE: một % chung cho mọi loại dịch vụ được bảo lãnh. */
   rateSponsorValue: number;
+  /** RATE: trần VND chung trên một đơn. Copy từ package_purchase.sponsor_max. */
+  sponsorMax?: number | null;
   /** FIXED: các dòng cấu hình. Không chọn dịch vụ = quỹ chung cho nhóm. */
   fixedSponsorRules: FixedSponsorRule[];
 }
@@ -57,7 +59,7 @@ export const snapshotTripSponsorRemain = (config: TripSponsorConfig): TripSponso
 /**
  * Áp bảo lãnh TRIP vào các dòng dịch vụ của một đơn.
  * FIXED: dòng không chọn dịch vụ trừ một quỹ chung; có chọn dịch vụ thì trừ quỹ của đúng dịch vụ đó.
- * RATE: một % chung; không trừ quỹ VND.
+ * RATE: một % chung, không vượt `sponsorMax` trên một đơn; không trừ quỹ FIXED.
  */
 export const applyTripSponsorToOrderLines = (
   config: TripSponsorConfig,
@@ -68,6 +70,12 @@ export const applyTripSponsorToOrderLines = (
     ruleRemains: (remain.ruleRemains ?? []).map((row) => ({ ...row })),
   };
 
+  const rateCap =
+    config.sponsorType === 'RATE' && config.sponsorMax != null && Number.isFinite(config.sponsorMax)
+      ? Math.max(0, config.sponsorMax)
+      : null;
+  let rateRemain = rateCap;
+
   const results = lines.map((line) => {
     const fee = Number.isFinite(line.fee) ? Math.max(0, line.fee) : 0;
     let sponsorPay = 0;
@@ -76,6 +84,10 @@ export const applyTripSponsorToOrderLines = (
       sponsorPay = 0;
     } else if (config.sponsorType === 'RATE') {
       sponsorPay = Math.round((fee * clampRate(config.rateSponsorValue)) / 100);
+      if (rateRemain != null) {
+        sponsorPay = Math.min(sponsorPay, rateRemain);
+        rateRemain -= sponsorPay;
+      }
     } else {
       const ruleIndex = matchRuleIndex(config.fixedSponsorRules, line);
       const bucket = nextRemain.ruleRemains.find((row) => row.index === ruleIndex);
