@@ -11,6 +11,9 @@ interface AppMultiSelectProps {
   searchPlaceholder?: string;
   disabled?: boolean;
   className?: string;
+  /** count: "N đã chọn". values: các nhãn cách nhau bằng dấu phẩy. */
+  summary?: 'count' | 'values';
+  countLabel?: string;
 }
 
 const AppMultiSelect: React.FC<AppMultiSelectProps> = ({
@@ -21,6 +24,8 @@ const AppMultiSelect: React.FC<AppMultiSelectProps> = ({
   searchPlaceholder = 'Tìm kiếm...',
   disabled = false,
   className = '',
+  summary = 'count',
+  countLabel = 'doanh nghiệp',
 }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -43,11 +48,10 @@ const AppMultiSelect: React.FC<AppMultiSelectProps> = ({
 
   const triggerLabel = useMemo(() => {
     if (values.length === 0) return placeholder;
-    if (values.length === 1) {
-      return options.find((option) => option.value === values[0])?.label ?? placeholder;
-    }
-    return `${values.length} doanh nghiệp đã chọn`;
-  }, [values, options, placeholder]);
+    const labels = values.map((value) => options.find((option) => option.value === value)?.label ?? value);
+    if (summary === 'values' || values.length === 1) return labels.join(', ');
+    return `${values.length} ${countLabel} đã chọn`;
+  }, [values, options, placeholder, summary, countLabel]);
 
   const updatePos = () => {
     const el = triggerRef.current;
@@ -106,7 +110,10 @@ const AppMultiSelect: React.FC<AppMultiSelectProps> = ({
         }}
         className="flex h-[34px] w-full min-w-0 items-center justify-between gap-2 rounded border bg-white px-3 text-sm text-gray-700 outline-none transition-colors focus:border-vetc-green disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
       >
-        <span className={`min-w-0 flex-1 truncate text-left ${values.length === 0 ? 'text-gray-400' : ''}`}>
+        <span
+          title={values.length > 0 ? triggerLabel : undefined}
+          className={`min-w-0 flex-1 truncate text-left ${values.length === 0 ? 'text-gray-400' : ''}`}
+        >
           {triggerLabel}
         </span>
         <ChevronDown size={14} className={`shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />

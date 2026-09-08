@@ -98,6 +98,8 @@ import PaymentRequestSection from '../shared/PaymentRequestSection';
 import DriverSelect from '../components/DriverSelect';
 import WorkshopSelect from '../shared/WorkshopSelect';
 import { INITIAL_WORKSHOP_STATIONS, WorkshopStation } from '../data/workshopStations';
+import { MOCK_RESCUE_SERVICES, SERVICE_CATEGORY_LABEL } from '../data/rescueServiceMockData';
+import type { FixedSponsorRule, SponsorCategory } from '../data/rescuePackageMockData';
 import {
   calculateRescueFees,
   getRetailMarkupFactor,
@@ -161,10 +163,53 @@ const resolveOrderPaymentStatus = (
   return 'PENDING';
 };
 
+const TRIP_PACKAGE_NAME = 'Bảo hiểm chuyến đi DIG + CHUBB';
+
+/** Bảo lãnh FIXED theo gói TRIP — một dòng = một quỹ (nhóm dùng chung hoặc đúng một dịch vụ). */
+const PACKAGE_FIXED_SPONSOR: Record<string, FixedSponsorRule[]> = {
+  [TRIP_PACKAGE_NAME]: [
+    { categories: ['RESCUE_SERVICE', 'TOW_SERVICE'], serviceId: null, amount: 1_500_000 },
+    { categories: ['REPAIR_SERVICE'], serviceId: 2, amount: 300_000 },
+    { categories: ['REPAIR_SERVICE'], serviceId: 5, amount: 300_000 },
+  ],
+};
+
+const TRIP_SPONSOR_ENTERPRISE = 'CHUBB';
+
+const categoryLabel = (code: SponsorCategory) => SERVICE_CATEGORY_LABEL[code] ?? code;
+
+const describeSponsorRule = (rule: FixedSponsorRule) => {
+  if (rule.serviceId != null) {
+    const service = MOCK_RESCUE_SERVICES.find((item) => item.id === rule.serviceId);
+    return {
+      kind: 'Dịch vụ' as const,
+      name: service?.name ?? `Dịch vụ #${rule.serviceId}`,
+      note: 'Bảo lãnh riêng dịch vụ',
+    };
+  }
+  return {
+    kind: 'Loại dịch vụ' as const,
+    name: rule.categories.map(categoryLabel).join(', '),
+    note: rule.categories.length > 1 ? 'Một quỹ dùng chung' : 'Bảo lãnh theo loại dịch vụ',
+  };
+};
+
 const PACKAGE_LIST = [
+  {
+    id: 'TRIP',
+    name: TRIP_PACKAGE_NAME,
+    packageType: 'TRIP' as const,
+    details: [
+      { stt: 1, name: 'Kích bình ắc quy', used: 0, limit: 1 },
+      { stt: 2, name: 'Thay lốp dự phòng', used: 0, limit: 1 },
+      { stt: 3, name: 'Cứu hộ', used: 0, limit: 100 },
+      { stt: 4, name: 'Cẩu kéo', used: 0, limit: 100 }
+    ]
+  },
   {
     id: 'BASIC',
     name: 'Gói cơ bản 10 dịch vụ',
+    packageType: 'ALWAYS' as const,
     details: [
       { stt: 1, name: 'Kích bình ắc quy', used: 1, limit: 100 },
       { stt: 2, name: 'Sự cố kỹ thuật khác khiến xe không di chuyển', used: 0, limit: 100 },
@@ -175,6 +220,7 @@ const PACKAGE_LIST = [
   {
     id: 'PREMIUM',
     name: 'Gói nâng cao Premium',
+    packageType: 'ALWAYS' as const,
     details: [
       { stt: 1, name: 'Kích bình ắc quy', used: 2, limit: 100 },
       { stt: 2, name: 'Thay lốp dự phòng', used: 1, limit: 100 },
@@ -1291,6 +1337,7 @@ const GuestOrderDetails: React.FC<{
     { value: 'FORD', label: 'Ford Việt Nam' },
     { value: 'TOYOTA', label: 'Toyota Việt Nam' },
     { value: 'HONDA', label: 'Honda Việt Nam' },
+    { value: 'CHUBB', label: 'CHUBB BẢO HIỂM' },
   ];
   const [selectedEnterprise, setSelectedEnterprise] = useState('');
   const [hasGuarantee, setHasGuarantee] = useState<'yes' | 'no'>('no');
@@ -1300,6 +1347,7 @@ const GuestOrderDetails: React.FC<{
   const [guaranteeRateDraft, setGuaranteeRateDraft] = useState('');
   const [guaranteeAmount, setGuaranteeAmount] = useState('');
   const [guaranteeAmountDraft, setGuaranteeAmountDraft] = useState('');
+  const [isSponsorDetailOpen, setIsSponsorDetailOpen] = useState(false);
   const [isGuaranteeRateWarningOpen, setIsGuaranteeRateWarningOpen] = useState(false);
   const [pendingGuaranteeChange, setPendingGuaranteeChange] = useState<PendingGuaranteeChange | null>(null);
   const [enterpriseEstimatedCost, setEnterpriseEstimatedCost] = useState('0');
@@ -1307,6 +1355,24 @@ const GuestOrderDetails: React.FC<{
   const selectedEnterpriseLabel =
     ENTERPRISE_OPTIONS.find((opt) => opt.value === selectedEnterprise)?.label ?? '';
   const canEditEnterpriseFees = role === 'ADMIN' && isEditing;
+  const packageFixedSponsorRules =
+    selectedPackage !== 'Không có' ? PACKAGE_FIXED_SPONSOR[selectedPackage] ?? [] : [];
+  const hasPackageFixedSponsor = packageFixedSponsorRules.length > 0;
+  const packageFixedSponsorTotal = packageFixedSponsorRules.reduce((sum, rule) => sum + rule.amount, 0);
+  const isTripPackage = PACKAGE_LIST.some(
+    (item) => item.name === selectedPackage && item.packageType === 'TRIP',
+  );
+  const tripGuaranteeLocked = isTripPackage;
+
+  useEffect(() => {
+    if (!isTripPackage) return;
+    setSelectedEnterprise(TRIP_SPONSOR_ENTERPRISE);
+    setHasGuarantee('yes');
+    setGuaranteeType('fixed');
+    const formatted = formatMoneyInput(String(packageFixedSponsorTotal));
+    setGuaranteeAmount(formatted);
+    setGuaranteeAmountDraft(formatted);
+  }, [isTripPackage, packageFixedSponsorTotal, selectedPackage]);
 
   const resetGuaranteeFields = () => {
     setHasGuarantee('no');
@@ -1319,6 +1385,7 @@ const GuestOrderDetails: React.FC<{
   };
 
   const handleEnterpriseChange = (value: string) => {
+    if (PACKAGE_LIST.some((item) => item.name === selectedPackage && item.packageType === 'TRIP')) return;
     setSelectedEnterprise(value);
     if (!value) {
       resetGuaranteeFields();
@@ -1327,6 +1394,7 @@ const GuestOrderDetails: React.FC<{
   };
 
   const handleGuaranteeChange = (value: 'yes' | 'no') => {
+    if (PACKAGE_LIST.some((item) => item.name === selectedPackage && item.packageType === 'TRIP')) return;
     setHasGuarantee(value);
     if (value === 'no') {
       setGuaranteeType('rate');
@@ -1338,7 +1406,7 @@ const GuestOrderDetails: React.FC<{
   };
 
   const handleGuaranteeTypeDraftChange = (value: GuaranteeType) => {
-    if (!isEditing || value === guaranteeType || isGuaranteeRateWarningOpen) return;
+    if (!isEditing || tripGuaranteeLocked || value === guaranteeType || isGuaranteeRateWarningOpen) return;
     const hasExistingValue = Boolean(guaranteeRate) || parseMoney(guaranteeAmount) > 0;
     if (hasExistingValue) {
       setPendingGuaranteeChange({ kind: 'type', value });
@@ -2658,9 +2726,10 @@ const GuestOrderDetails: React.FC<{
                     <Label>Doanh nghiệp</Label>
                     <select
                       value={selectedEnterprise}
-                      disabled={!isEditing}
+                      disabled={!isEditing || tripGuaranteeLocked}
                       onChange={(e) => handleEnterpriseFeeAwareChange(e.target.value)}
-                      className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all ${!isEditing ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
+                      title={tripGuaranteeLocked ? 'Gói TRIP lấy doanh nghiệp bảo lãnh từ gói, không đổi trên đơn' : undefined}
+                      className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all ${!isEditing || tripGuaranteeLocked ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
                     >
                       {ENTERPRISE_OPTIONS.map((opt) => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -2673,9 +2742,10 @@ const GuestOrderDetails: React.FC<{
                         <Label>Bảo lãnh</Label>
                         <select
                           value={hasGuarantee}
-                          disabled={!isEditing}
+                          disabled={!isEditing || tripGuaranteeLocked}
                           onChange={(e) => handleGuaranteeChange(e.target.value as 'yes' | 'no')}
-                          className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all ${!isEditing ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
+                          title={tripGuaranteeLocked ? 'Gói TRIP luôn có bảo lãnh theo cấu hình gói' : undefined}
+                          className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all ${!isEditing || tripGuaranteeLocked ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
                         >
                           <option value="no">Không</option>
                           <option value="yes">Có</option>
@@ -2687,9 +2757,10 @@ const GuestOrderDetails: React.FC<{
                             <Label required>Hình thức bảo lãnh</Label>
                             <select
                               value={guaranteeType}
-                              disabled={!isEditing}
+                              disabled={!isEditing || tripGuaranteeLocked}
                               onChange={(e) => handleGuaranteeTypeDraftChange(e.target.value as GuaranteeType)}
-                              className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all ${!isEditing ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
+                              title={tripGuaranteeLocked ? 'Hình thức bảo lãnh lấy từ gói TRIP, không đổi trên đơn' : undefined}
+                              className={`w-full border rounded px-3 py-1.5 text-xs font-bold outline-none focus:border-vetc-green transition-all ${!isEditing || tripGuaranteeLocked ? 'bg-gray-50 cursor-not-allowed' : 'bg-white'}`}
                             >
                               {GUARANTEE_TYPE_OPTIONS.map((opt) => (
                                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -2714,16 +2785,32 @@ const GuestOrderDetails: React.FC<{
                           ) : (
                             <div>
                               <Label required>Số tiền bảo lãnh</Label>
-                              <div className="relative">
-                                <Input
-                                  value={guaranteeAmountDraft}
-                                  onChange={handleGuaranteeAmountDraftChange}
-                                  onBlur={handleGuaranteeAmountBlur}
-                                  placeholder="Nhập số tiền"
-                                  readOnly={!isEditing}
-                                  className="w-full text-right font-bold pr-8"
-                                />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 pointer-events-none">đ</span>
+                              <div className="flex items-center gap-1.5">
+                                <div className="relative flex-1 min-w-0">
+                                  <Input
+                                    value={hasPackageFixedSponsor ? formatMoneyInput(String(packageFixedSponsorTotal)) : guaranteeAmountDraft}
+                                    onChange={handleGuaranteeAmountDraftChange}
+                                    onBlur={handleGuaranteeAmountBlur}
+                                    placeholder="Nhập số tiền"
+                                    readOnly={!isEditing || tripGuaranteeLocked || hasPackageFixedSponsor}
+                                    title={tripGuaranteeLocked || hasPackageFixedSponsor ? 'Tổng số tiền bảo lãnh theo gói TRIP, không đổi trên đơn' : undefined}
+                                    className="w-full text-right font-bold pr-8"
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 pointer-events-none">đ</span>
+                                </div>
+                                {hasPackageFixedSponsor && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setIsSponsorDetailOpen(true);
+                                    }}
+                                    className="shrink-0 text-[10px] text-blue-600 font-bold underline whitespace-nowrap"
+                                  >
+                                    Xem chi tiết
+                                  </button>
+                                )}
                               </div>
                             </div>
                           )}
@@ -2856,12 +2943,12 @@ const GuestOrderDetails: React.FC<{
                       <div className={`flex-1 relative`}>
                         <select
                             value={selectedPackage}
-                            disabled
-                            title="Gói cứu hộ chỉ được chọn khi Tạo đơn"
+                            disabled={!isEditing}
+                            title={isEditing ? 'Chọn gói. Gói TRIP khóa doanh nghiệp và bảo lãnh theo cấu hình gói' : 'Gói cứu hộ chỉ được chọn khi Tạo đơn'}
                             onChange={(e) => {
                               setSelectedPackage(e.target.value);
                             }}
-                            className={`w-full border rounded pl-3 pr-10 py-1.5 text-xs font-bold outline-none appearance-none transition-all cursor-not-allowed ${selectedPackage === 'Không có' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}
+                            className={`w-full border rounded pl-3 pr-10 py-1.5 text-xs font-bold outline-none appearance-none transition-all ${!isEditing ? 'cursor-not-allowed' : 'cursor-pointer'} ${selectedPackage === 'Không có' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}
                         >
                           {PACKAGE_LIST.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                           <option value="Không có">Không có</option>
@@ -4179,6 +4266,69 @@ const GuestOrderDetails: React.FC<{
             customerPlate={mockFormData.customer.plate}
             orders={packageOrders}
         />
+
+        {isSponsorDetailOpen && createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60"
+            onClick={() => setIsSponsorDetailOpen(false)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col border-t-4 border-vetc-green"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-vetc-green p-4 flex items-center justify-between text-white">
+                <div>
+                  <h3 className="font-bold text-lg">Chi tiết bảo lãnh theo gói</h3>
+                  <p className="text-[11px] text-white/80 mt-0.5">{selectedPackage}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSponsorDetailOpen(false)}
+                  className="p-1 hover:bg-white/20 rounded-full transition-colors"
+                >
+                  <X size={22} />
+                </button>
+              </div>
+              <div className="p-5">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="text-[10px] font-bold uppercase text-gray-400 border-b">
+                      <th className="py-2 pr-3">Loại</th>
+                      <th className="py-2 pr-3">Dịch vụ / loại dịch vụ</th>
+                      <th className="py-2 text-right">Số tiền bảo lãnh</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {packageFixedSponsorRules.map((rule, index) => {
+                      const detail = describeSponsorRule(rule);
+                      return (
+                        <tr key={`${detail.kind}-${index}`} className="border-b border-gray-100">
+                          <td className="py-2.5 pr-3 font-bold text-gray-700 whitespace-nowrap">{detail.kind}</td>
+                          <td className="py-2.5 pr-3">
+                            <div className="font-bold text-gray-800">{detail.name}</div>
+                            <div className="text-[10px] text-gray-400 mt-0.5">{detail.note}</div>
+                          </td>
+                          <td className="py-2.5 text-right font-bold text-gray-800 whitespace-nowrap">
+                            {rule.amount.toLocaleString('en-US')} đ
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={2} className="pt-3 font-bold text-gray-600 uppercase text-[10px]">Tổng</td>
+                      <td className="pt-3 text-right font-bold text-vetc-green whitespace-nowrap">
+                        {packageFixedSponsorTotal.toLocaleString('en-US')} đ
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
         <AppliedFeeTablesModal
           open={isFeeTableModalOpen}

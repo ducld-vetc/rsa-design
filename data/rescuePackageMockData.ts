@@ -79,6 +79,15 @@ export interface PackageServiceLine {
   status: boolean;
 }
 
+export type SponsorCategory = 'RESCUE_SERVICE' | 'TOW_SERVICE' | 'REPAIR_SERVICE';
+
+/** Một dòng bảo lãnh FIXED. Không chọn dịch vụ = quỹ chung cho các nhóm đã chọn. */
+export interface FixedSponsorRule {
+  categories: SponsorCategory[];
+  serviceId: number | null;
+  amount: number;
+}
+
 export interface CorporatePackageLine {
   id: string;
   corporateCustomerId: number;
@@ -88,10 +97,12 @@ export interface CorporatePackageLine {
   /** Phí gói theo loại gói: ALWAYS = PERIODIC, TRIP = INCIDENTAL. Không cấu hình trên dòng DN. */
   feeType: CorporateFeeType;
   status: boolean;
-  /** Bảo lãnh — chỉ khi role = SPONSOR, cấu hình riêng từng DN. */
+  /** Bảo lãnh TRIP — hình thức chung cho mọi loại dịch vụ, cấu hình riêng từng DN. */
   sponsorType?: SponsorType | '';
-  sponsorValue?: number | null;
-  maxSponsorAmount?: number | null;
+  /** RATE: một % chung cho mọi loại dịch vụ được bảo lãnh. */
+  rateSponsorValue?: number | null;
+  /** FIXED: các dòng nhóm dịch vụ / dịch vụ / số tiền. */
+  fixedSponsorRules?: FixedSponsorRule[];
 }
 
 export interface RescuePackageRecord {
@@ -148,11 +159,12 @@ const cp = (
   status = true,
   sponsor?: {
     sponsorType: SponsorType;
-    sponsorValue: number;
-    maxSponsorAmount: number;
+    rateSponsorValue?: number | null;
+    fixedSponsorRules?: FixedSponsorRule[];
   },
 ): CorporatePackageLine => {
   const c = getCorporateCustomerById(corporateCustomerId);
+  const isSponsor = role === 'SPONSOR';
   return {
     id: lineId,
     corporateCustomerId,
@@ -161,9 +173,9 @@ const cp = (
     role,
     feeType,
     status,
-    sponsorType: role === 'SPONSOR' ? (sponsor?.sponsorType ?? '') : '',
-    sponsorValue: role === 'SPONSOR' ? (sponsor?.sponsorValue ?? null) : null,
-    maxSponsorAmount: role === 'SPONSOR' ? (sponsor?.maxSponsorAmount ?? null) : null,
+    sponsorType: isSponsor ? (sponsor?.sponsorType ?? '') : '',
+    rateSponsorValue: isSponsor && sponsor?.sponsorType === 'RATE' ? (sponsor.rateSponsorValue ?? null) : null,
+    fixedSponsorRules: isSponsor && sponsor?.sponsorType === 'FIXED' ? (sponsor.fixedSponsorRules ?? []) : [],
   };
 };
 
@@ -284,9 +296,13 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
     corporates: [
       cp('cp-101-1', 16, 'CHANNEL', 'INCIDENTAL'),
       cp('cp-101-2', 99, 'SPONSOR', 'INCIDENTAL', true, {
-        sponsorType: 'RATE',
-        sponsorValue: 100,
-        maxSponsorAmount: 2000000,
+        sponsorType: 'FIXED',
+        rateSponsorValue: null,
+        fixedSponsorRules: [
+          { categories: ['RESCUE_SERVICE', 'TOW_SERVICE'], serviceId: null, amount: 1500000 },
+          { categories: ['REPAIR_SERVICE'], serviceId: 2, amount: 300000 },
+          { categories: ['REPAIR_SERVICE'], serviceId: 5, amount: 300000 },
+        ],
       }),
     ],
     createdAt: '04/09/2026 09:00:00',
