@@ -116,6 +116,8 @@ export interface RescuePackageRecord {
   price: number;
   vat: number | null;
   durationValue: number | null;
+  /** Giờ chờ sau mốc kích hoạt trước khi gói có hiệu lực. `0` = hiệu lực ngay. */
+  activationDelayHours: number | null;
   prefixPurchaseCode: string;
   isGift: boolean;
   status: PartnerStatus;
@@ -193,6 +195,7 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
     price: 200000,
     vat: 8,
     durationValue: 12,
+    activationDelayHours: 0,
     prefixPurchaseCode: 'RS2',
     isGift: false,
     status: 'active',
@@ -225,6 +228,7 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
     price: 299000,
     vat: 8,
     durationValue: 12,
+    activationDelayHours: 0,
     prefixPurchaseCode: 'RS3',
     isGift: false,
     status: 'active',
@@ -257,6 +261,7 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
     price: 299000,
     vat: 8,
     durationValue: 12,
+    activationDelayHours: 0,
     prefixPurchaseCode: 'RS4VCX',
     isGift: false,
     status: 'active',
@@ -284,6 +289,7 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
     price: 0,
     vat: 8,
     durationValue: 1,
+    activationDelayHours: 0,
     prefixPurchaseCode: 'TRIP',
     isGift: false,
     status: 'active',
@@ -323,6 +329,7 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
     price: 1500000,
     vat: null,
     durationValue: 11,
+    activationDelayHours: 0,
     prefixPurchaseCode: 'RSA3',
     isGift: false,
     status: 'active',

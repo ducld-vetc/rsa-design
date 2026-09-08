@@ -83,6 +83,7 @@ type FormState = {
   price: string;
   vat: string;
   durationValue: string;
+  activationDelayHours: string;
   prefixPurchaseCode: string;
   isGift: boolean;
   status: PartnerStatus;
@@ -191,6 +192,7 @@ const EMPTY_FORM: FormState = {
   price: '',
   vat: '8',
   durationValue: '12',
+  activationDelayHours: '0',
   prefixPurchaseCode: '',
   isGift: false,
   status: 'active',
@@ -265,6 +267,7 @@ const toPayload = (form: FormState): RescuePackageFormPayload => {
     price: Number(form.price || 0),
     vat: optionalNumber(form.vat),
     durationValue: optionalNumber(form.durationValue),
+    activationDelayHours: optionalNumber(form.activationDelayHours),
     prefixPurchaseCode: form.prefixPurchaseCode.trim(),
     isGift: form.isGift,
     status: form.status,
@@ -295,6 +298,7 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
       price: String(existing.price),
       vat: existing.vat == null ? '' : String(existing.vat),
       durationValue: existing.durationValue == null ? '' : String(existing.durationValue),
+      activationDelayHours: existing.activationDelayHours == null ? '0' : String(existing.activationDelayHours),
       prefixPurchaseCode: existing.prefixPurchaseCode,
       isGift: existing.isGift,
       status: existing.status,
@@ -418,6 +422,13 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
       const d = Number(form.durationValue);
       if (!Number.isInteger(d) || d < 0) {
         setError('Thời hạn (tháng) phải là số nguyên ≥ 0.');
+        return;
+      }
+    }
+    if (form.activationDelayHours.trim()) {
+      const delay = Number(form.activationDelayHours);
+      if (!Number.isInteger(delay) || delay < 0) {
+        setError('Thời gian chờ kích hoạt (giờ) phải là số nguyên ≥ 0.');
         return;
       }
     }
@@ -701,6 +712,18 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
                 inputMode="numeric"
                 placeholder="12"
                 onChange={(e) => update('durationValue', e.target.value.replace(/\D/g, ''))}
+              />
+            </div>
+            <div className="min-w-0">
+              <FieldLabel>Thời gian chờ kích hoạt (giờ)</FieldLabel>
+              <input
+                className={inputClass}
+                value={form.activationDelayHours}
+                disabled={disabled}
+                inputMode="numeric"
+                placeholder="0"
+                title="Số giờ chờ sau mốc kích hoạt trước khi gói có hiệu lực. 0 = hiệu lực ngay."
+                onChange={(e) => update('activationDelayHours', e.target.value.replace(/\D/g, ''))}
               />
             </div>
             <div className="min-w-0">
