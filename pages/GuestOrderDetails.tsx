@@ -1308,8 +1308,17 @@ const GuestOrderDetails: React.FC<{
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isManualSearchModalOpen, setIsManualSearchModalOpen] = useState(false);
   const [isInvoicePreviewOpen, setIsInvoicePreviewOpen] = useState(false);
+  const [invoicePreviewMode, setInvoicePreviewMode] = useState<'preview' | 'export' | 'adjust'>('preview');
   const [isExportingInvoice, setIsExportingInvoice] = useState(false);
-  const [invoiceDownloadUrl, setInvoiceDownloadUrl] = useState<string | null>(null);
+  /** Sample case: đơn đã xuất hóa đơn thành công */
+  const [invoiceDownloadUrl, setInvoiceDownloadUrl] = useState<string | null>(
+    'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
+  );
+  const [invoiceEmail, setInvoiceEmail] = useState('nguyenvana@email.com');
+  const [invoiceCode] = useState('1C25TRA-136');
+  const [invoiceExportedAt] = useState('10/09/2026 14:32');
+  const [invoiceExportCount] = useState(1);
+  const [invoiceExportedBy] = useState('Nguyễn Văn A');
   const [stateFindStation, setStateFindStation] = useState<'search' | 'list'>('search');
 
   // Location type state
@@ -1989,12 +1998,22 @@ const GuestOrderDetails: React.FC<{
   };
 
   const handleExportInvoice = () => {
+    setInvoicePreviewMode(invoiceDownloadUrl ? 'adjust' : 'export');
+    setIsInvoicePreviewOpen(true);
+  };
+
+  const handleViewInvoice = () => {
+    if (invoiceDownloadUrl) {
+      window.open(invoiceDownloadUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleConfirmExportInvoice = () => {
     setIsExportingInvoice(true);
-    setInvoiceDownloadUrl(null);
-    // Simulate API call
     setTimeout(() => {
       setIsExportingInvoice(false);
-      setInvoiceDownloadUrl(`https://example.com/invoices/INV-${mockFormData.orderId}.pdf`);
+      setInvoiceDownloadUrl('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
+      setIsInvoicePreviewOpen(false);
     }, 1500);
   };
 
@@ -4180,7 +4199,13 @@ const GuestOrderDetails: React.FC<{
                     <Label>Email nhận hóa đơn</Label>
                     <div className="relative">
                       <Mail size={12} className="absolute left-3 top-2 text-gray-400" />
-                      <Input placeholder="email@company.com" className="pl-8" readOnly={!isEditing} />
+                      <Input
+                        placeholder="email@company.com"
+                        className="pl-8"
+                        readOnly={!isEditing}
+                        value={invoiceEmail}
+                        onChange={(e) => setInvoiceEmail(e.target.value)}
+                      />
                     </div>
                   </div>
 
@@ -4194,56 +4219,89 @@ const GuestOrderDetails: React.FC<{
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center justify-between p-3 bg-blue-50 border border-blue-100 rounded-lg gap-4 text-left">
-                  <div className="flex items-start space-x-3 text-left">
-                    <AlertCircle size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                    <div className="text-[11px] text-blue-800 leading-relaxed font-medium">
-                      Hóa đơn điện tử sẽ được gửi tự động qua email sau khi đơn hàng được xác nhận thanh toán thành công và hoàn tất cứu hộ.
-                      <br />Vui lòng kiểm tra kỹ thông tin pháp nhân trước khi lưu.
+                {invoiceDownloadUrl ? (
+                  <div className="overflow-hidden rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 via-white to-white shadow-sm">
+                    <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="min-w-0 flex-1 space-y-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[#00A859]">
+                            <Check size={16} strokeWidth={2.5} />
+                          </span>
+                          <div>
+                            <p className="text-sm font-bold text-gray-800">Hóa đơn đã xuất</p>
+                            <p className="text-[11px] font-medium text-gray-500">File eInvoice sẵn sàng xem và điều chỉnh thông tin phi tiền tệ</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-lg border border-emerald-100 bg-white/80 px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Mã hóa đơn</p>
+                            <p className="mt-0.5 text-xs font-bold text-gray-800">{invoiceCode}</p>
+                          </div>
+                          <div className="rounded-lg border border-emerald-100 bg-white/80 px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Người xuất</p>
+                            <p className="mt-0.5 truncate text-xs font-bold text-gray-800" title={invoiceExportedBy}>{invoiceExportedBy}</p>
+                          </div>
+                          <div className="rounded-lg border border-emerald-100 bg-white/80 px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Lần xuất</p>
+                            <p className="mt-0.5 text-xs font-bold text-gray-800">Lần {invoiceExportCount}</p>
+                          </div>
+                          <div className="rounded-lg border border-emerald-100 bg-white/80 px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Thời điểm xuất</p>
+                            <p className="mt-0.5 text-xs font-bold text-gray-800">{invoiceExportedAt}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center gap-2 lg:flex-col lg:items-stretch">
+                        <button
+                          type="button"
+                          onClick={handleViewInvoice}
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#00A859] px-4 text-xs font-bold text-white transition-colors hover:bg-[#008f4c]"
+                        >
+                          <Eye size={14} />
+                          Xem hóa đơn
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleExportInvoice}
+                          disabled={isExportingInvoice}
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 text-xs font-bold text-gray-700 transition-colors hover:border-[#00A859] hover:text-[#00A859] disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          <Pencil size={14} />
+                          Điều chỉnh
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex flex-col space-y-3">
-                    <div className="flex items-center space-x-3">
+                ) : (
+                  <div className="flex flex-col items-stretch justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/80 p-4 sm:flex-row sm:items-center">
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">Chưa xuất hóa đơn</p>
+                      <p className="text-[11px] font-medium text-gray-500">Kiểm tra thông tin pháp nhân rồi xuất eInvoice</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
-                          onClick={() => setIsInvoicePreviewOpen(true)}
-                          className="flex items-center space-x-2 border-2 border-blue-600 text-blue-600 px-6 py-2.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition-all active:scale-95 whitespace-nowrap"
+                        type="button"
+                        onClick={() => {
+                          setInvoicePreviewMode('preview');
+                          setIsInvoicePreviewOpen(true);
+                        }}
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 text-xs font-bold text-gray-700 transition-colors hover:border-[#00A859] hover:text-[#00A859]"
                       >
-                        <Eye size={16} />
-                        <span>Xem trước hóa đơn</span>
+                        <Eye size={14} />
+                        Xem trước
                       </button>
-                      <button 
+                      <button
+                        type="button"
                         onClick={handleExportInvoice}
                         disabled={isExportingInvoice}
-                        className={`flex items-center space-x-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md transition-all active:scale-95 whitespace-nowrap ${isExportingInvoice ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#00A859] px-4 text-xs font-bold text-white transition-colors hover:bg-[#008f4c] ${isExportingInvoice ? 'opacity-70 cursor-not-allowed' : ''}`}
                       >
-                        {isExportingInvoice ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
-                        <span>{isExportingInvoice ? 'Đang tạo...' : 'Xuất hóa đơn'}</span>
+                        {isExportingInvoice ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />}
+                        {isExportingInvoice ? 'Đang tạo...' : 'Xuất hóa đơn'}
                       </button>
                     </div>
-
-                    {invoiceDownloadUrl && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="p-3 bg-green-50 border border-green-100 rounded-xl flex items-center justify-between"
-                      >
-                        <div className="flex items-center space-x-2 text-green-700">
-                          <Check size={16} />
-                          <span className="text-xs font-bold">Hóa đơn đã được tạo thành công!</span>
-                        </div>
-                        <a 
-                          href={invoiceDownloadUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center space-x-1 text-blue-600 hover:text-blue-700 text-xs font-black underline"
-                        >
-                          <FileText size={14} />
-                          <span>Tải về PDF</span>
-                        </a>
-                      </motion.div>
-                    )}
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -4579,6 +4637,10 @@ const GuestOrderDetails: React.FC<{
             customerName={mockFormData.customer.name}
             customerPhone={mockFormData.customer.phone}
             mapAddress={mapAddress}
+            invoiceEmail={invoiceEmail}
+            mode={invoicePreviewMode}
+            onConfirmExport={handleConfirmExportInvoice}
+            isExporting={isExportingInvoice}
         />
 
         <ProviderPaymentConfirmDialog
