@@ -15,6 +15,7 @@ import {
   Copy,
   CreditCard,
   Banknote,
+  Bell,
   Download,
   Edit,
   Eye,
@@ -86,7 +87,7 @@ import RatingHistoryModal from '../shared/RatingHistoryModal';
 import VehicleInfoLookupModal from '../shared/VehicleInfoLookupModal';
 import { VehicleRescuePackage, VehicleSearchResult } from '../shared/VehiclePlateSearchModal';
 import PriorityCustomerBadge from '../shared/PriorityCustomerBadge';
-import { OrderWarningBadge, FloodWarningBadge } from '../shared/OrderAlertBadges';
+import { OrderWarningBadge, FloodWarningBadge, CustomerUpdatedBadge, CustomerUpdateStatusBadge } from '../shared/OrderAlertBadges';
 import { isPriorityCustomerPhone } from '../shared/priorityCustomer';
 import { RatingType, RATING_TYPE_LABELS } from '../shared/ratingTypes';
 import { INITIAL_RATING_HISTORIES, RATING_DEMO_CASES } from '../data/ratingMockData';
@@ -162,6 +163,28 @@ const resolveOrderPaymentStatus = (
   if (deposited > 0 || paid > 0) return 'DEPOSITED';
   return 'PENDING';
 };
+
+type CustomerUpdateRequestStatus = 'idle' | 'pushing' | 'waiting' | 'completed';
+
+const formatDateTimeVi = (date: Date) => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const CUSTOMER_SUBMITTED_ADDRESS =
+  'Vị trí hiện tại — Ngõ 192 Phố Hào Nam, Phường Ô Chợ Dừa, Quận Đống Đa, Hà Nội';
+const CUSTOMER_SUBMITTED_COORDS = '21.026412, 105.826015';
+const CUSTOMER_SUBMITTED_IMAGES = [
+  'https://picsum.photos/id/111/800/600',
+  'https://picsum.photos/id/133/800/600',
+  'https://picsum.photos/id/146/800/600',
+];
+const CUSTOMER_SUBMITTED_DESCRIPTION =
+  '- Hiện tượng: Xe không đề được, đèn báo lỗi sáng.\n' +
+  '- Khả năng di chuyển: Không di chuyển được, đang dừng bên đường.\n' +
+  '- Dấu hiệu bất thường: Có tiếng kêu lạ khi đề máy.\n' +
+  '- Phán đoán nguyên nhân: Có thể ắc quy yếu / hệ thống điện.\n' +
+  '- Thời điểm: Vừa xảy ra, khách hàng gửi từ app.';
 
 const TRIP_PACKAGE_NAME = 'Bảo hiểm chuyến đi DIG + CHUBB';
 
@@ -1709,11 +1732,49 @@ const GuestOrderDetails: React.FC<{
   /** Demo webview: normal | thiếu vị trí cứu hộ (auto GPS) */
   const [webviewDemoMode, setWebviewDemoMode] = useState<'normal' | 'missing-rescue'>('normal');
   const [currentStatus, setCurrentStatus] = useState(navState?.portalStatusId ?? 'EXECUTE-RESCUING');
+  const [customerUpdateStatus, setCustomerUpdateStatus] = useState<CustomerUpdateRequestStatus>('idle');
+  const [customerUpdatePushedAt, setCustomerUpdatePushedAt] = useState<string | null>(null);
+  const [customerUpdateCompletedAt, setCustomerUpdateCompletedAt] = useState<string | null>(null);
+  const customerUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCustomerUpdated = customerUpdateStatus === 'completed';
 
   const openShareLocationWebview = (mode: 'normal' | 'missing-rescue' = 'normal') => {
     setWebviewDemoMode(mode);
     setIsShareLocationWebviewOpen(true);
   };
+
+  const clearCustomerUpdateTimer = () => {
+    if (customerUpdateTimerRef.current) {
+      clearTimeout(customerUpdateTimerRef.current);
+      customerUpdateTimerRef.current = null;
+    }
+  };
+
+  const applyCustomerSubmittedUpdate = () => {
+    setMapAddress(CUSTOMER_SUBMITTED_ADDRESS);
+    setMapCoords(CUSTOMER_SUBMITTED_COORDS);
+    setSceneImages(CUSTOMER_SUBMITTED_IMAGES);
+    setIncidentDescription(CUSTOMER_SUBMITTED_DESCRIPTION);
+    setCustomerUpdateCompletedAt(formatDateTimeVi(new Date()));
+    setCustomerUpdateStatus('completed');
+  };
+
+  const handlePushCustomerUpdateRequest = () => {
+    if (customerUpdateStatus === 'pushing') return;
+    clearCustomerUpdateTimer();
+    setCustomerUpdateStatus('pushing');
+    customerUpdateTimerRef.current = setTimeout(() => {
+      setCustomerUpdatePushedAt(formatDateTimeVi(new Date()));
+      setCustomerUpdateStatus('waiting');
+      customerUpdateTimerRef.current = setTimeout(() => {
+        applyCustomerSubmittedUpdate();
+      }, 1800);
+    }, 800);
+  };
+
+  useEffect(() => {
+    return () => clearCustomerUpdateTimer();
+  }, []);
 
   useEffect(() => {
     if (!navState) return;
@@ -1856,6 +1917,14 @@ const GuestOrderDetails: React.FC<{
     remainingAmount
   );
   const paymentStatusInfo = PAYMENT_STATUS_CONFIG[orderPaymentStatus];
+  const headerPrimaryBtnClass =
+    'bg-vetc-green text-white rounded-lg text-xs font-bold hover:bg-green-700 shadow-lg transition-all active:scale-95 group';
+  const headerBellBtnClass =
+    customerUpdateStatus === 'completed'
+      ? 'bg-vetc-green text-white hover:bg-green-700 shadow-lg'
+      : customerUpdateStatus === 'waiting' || customerUpdateStatus === 'pushing'
+        ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-lg'
+        : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 shadow-sm';
 
   const handleStartEditing = () => {
     setEditBaselineTotal(individualCustomerPrice);
@@ -2557,19 +2626,32 @@ const GuestOrderDetails: React.FC<{
       <div className="space-y-6 animate-in fade-in duration-700 max-w-[1600px] mx-auto pb-20">
         {/* Top Sticky Header Row */}
         <div className="sticky top-0 z-20 flex flex-col bg-white/95 backdrop-blur-md border rounded-xl shadow-md border-l-4 border-l-vetc-green text-left">
-          <div className="flex items-center justify-between p-4">
+          <div className="flex items-center justify-between p-4 gap-3 flex-wrap">
             <div className="flex items-center space-x-6">
 
               <div className="flex flex-col">
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Mã đơn hàng (Cố định)</span>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2">
                   <span className="text-xl font-black text-gray-900 tracking-tight">{displayOrderId}</span>
                   <span className={`${selectedPackage === 'Không có' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'} px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-tight`}>
                     {selectedPackage === 'Không có' ? 'Đơn Lẻ' : 'Đơn gói'}
                   </span>
-                  {isPriorityCustomer && <PriorityCustomerBadge />}
-                  {hasOrderWarning && <OrderWarningBadge />}
-                  {isFloodedArea && <FloodWarningBadge />}
+                  <div className="inline-flex items-center gap-1">
+                    {isPriorityCustomer && <PriorityCustomerBadge iconOnly />}
+                    {hasOrderWarning && <OrderWarningBadge iconOnly />}
+                    {isFloodedArea && <FloodWarningBadge iconOnly />}
+                    {customerUpdateStatus === 'waiting' && (
+                      <CustomerUpdateStatusBadge iconOnly status="waiting" time={customerUpdatePushedAt} />
+                    )}
+                    {isCustomerUpdated && (
+                      <CustomerUpdateStatusBadge
+                        iconOnly
+                        status="completed"
+                        time={customerUpdateCompletedAt}
+                        onClick={() => scrollToSection('general')}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2604,7 +2686,37 @@ const GuestOrderDetails: React.FC<{
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 shrink-0">
+              {!isOrderCancelled && (
+                    <button
+                        type="button"
+                        onClick={handlePushCustomerUpdateRequest}
+                        disabled={customerUpdateStatus === 'pushing'}
+                        className={`relative flex items-center justify-center h-8 w-8 rounded-lg text-xs font-bold transition-all active:scale-95 group disabled:opacity-70 disabled:cursor-wait ${headerBellBtnClass}`}
+                        title={
+                          customerUpdateStatus === 'pushing'
+                            ? 'Đang gửi thông báo...'
+                            : customerUpdateStatus === 'waiting'
+                              ? `Đã gửi thông báo${customerUpdatePushedAt ? ` lúc ${customerUpdatePushedAt}` : ''} — đang chờ khách hàng`
+                              : isCustomerUpdated
+                                ? `Gửi lại thông báo${customerUpdateCompletedAt ? ` · KH cập nhật lúc ${customerUpdateCompletedAt}` : ''}`
+                                : 'Yêu cầu KH cập nhật vị trí, ảnh và mô tả'
+                        }
+                        aria-label="Yêu cầu KH cập nhật"
+                    >
+                      {customerUpdateStatus === 'pushing' ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Bell size={14} className="group-hover:scale-110 transition-transform" />
+                      )}
+                      {(customerUpdateStatus === 'waiting' || isCustomerUpdated) && (
+                        <span
+                          className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 border-2 border-white shadow-sm animate-pulse"
+                          title={isCustomerUpdated ? 'Khách hàng đã cập nhật mới' : 'Đang chờ khách hàng'}
+                        />
+                      )}
+                    </button>
+              )}
               {isEditing && (
                   <button
                       className="flex items-center space-x-2 px-6 py-2 border-2 border-blue-500 text-blue-500 rounded-lg text-xs font-bold hover:bg-blue-50 transition-all active:scale-95 group"
@@ -2635,7 +2747,7 @@ const GuestOrderDetails: React.FC<{
                     </button>
                     <button
                         onClick={handleSaveChanges}
-                        className="flex items-center space-x-2 px-6 py-2 bg-vetc-green text-white rounded-lg text-xs font-bold hover:bg-green-700 shadow-lg transition-all active:scale-95 group"
+                        className={`flex items-center space-x-2 px-6 py-2 ${headerPrimaryBtnClass}`}
                     >
                       <Save size={14} className="group-hover:scale-110 transition-transform" />
                       <span>Lưu thay đổi</span>
@@ -2644,7 +2756,7 @@ const GuestOrderDetails: React.FC<{
               ) : (
                   <button
                       onClick={handleStartEditing}
-                      className="flex items-center space-x-2 px-6 py-2 bg-vetc-green text-white rounded-lg text-xs font-bold hover:bg-green-700 shadow-lg transition-all active:scale-95 group"
+                      className={`flex items-center space-x-2 px-6 py-2 ${headerPrimaryBtnClass}`}
                     >
                     <Edit size={14} className="group-hover:scale-110 transition-transform" />
                     <span>Cập nhật</span>
@@ -2994,6 +3106,7 @@ const GuestOrderDetails: React.FC<{
                       <div className="flex items-center gap-2">
                         <Label required>Vị trí sự cố</Label>
                         {isFloodedArea && <FloodWarningBadge compact />}
+                        <CustomerUpdatedBadge compact updated={isCustomerUpdated} />
                       </div>
                       <div className="flex gap-2">
                         <div className="relative flex-1 min-w-0 text-left">
@@ -3219,7 +3332,10 @@ const GuestOrderDetails: React.FC<{
 
                 <div className="lg:col-span-4">
                   <div className="flex items-center justify-between mb-1">
-                    <Label required>Mô tả chi tiết tình trạng sự cố</Label>
+                    <div className="flex items-center gap-2">
+                      <Label required>Mô tả chi tiết tình trạng sự cố</Label>
+                      <CustomerUpdatedBadge compact updated={isCustomerUpdated} />
+                    </div>
                     <AISuggestionSection
                         description={incidentDescription}
                         onApply={applyAISuggestion}
@@ -4068,7 +4184,12 @@ const GuestOrderDetails: React.FC<{
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
               <SectionHeader title="Hình ảnh sự cố & Quá trình thực hiện" number={5} icon={<Camera size={18} />} />
               <div className="p-6">
-                <ImageUploadSection readOnly={!isEditing} sceneImages={sceneImages} />
+                <ImageUploadSection
+                  readOnly={!isEditing}
+                  sceneImages={sceneImages}
+                  sceneBadge={<CustomerUpdatedBadge compact updated={isCustomerUpdated} />}
+                  sceneCustomerMarked={isCustomerUpdated}
+                />
               </div>
             </div>
           </div>
@@ -4166,7 +4287,7 @@ const GuestOrderDetails: React.FC<{
               <div className="p-5 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
                   <div>
-                    <Label required>Phân loại khách hàng</Label>
+                    <Label required>Đối tượng xuất hóa đơn</Label>
                     <select
                         disabled={!isEditing}
                         value={customerType}

@@ -7,12 +7,18 @@ interface ImageUploadSectionProps {
   onlyScene?: boolean;
   /** Ảnh hiện trường (controlled) — dùng khi fill từ tra cứu xe */
   sceneImages?: string[];
+  /** Badge nguồn (vd. khách hàng cập nhật) cho nhóm ảnh hiện trường */
+  sceneBadge?: React.ReactNode;
+  /** Đánh dấu từng ảnh hiện trường là khách hàng gửi */
+  sceneCustomerMarked?: boolean;
 }
 
 const ImageUploadSection: React.FC<ImageUploadSectionProps> = ({
   readOnly = false,
   onlyScene = false,
   sceneImages,
+  sceneBadge,
+  sceneCustomerMarked = false,
 }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const defaultScene = ['https://picsum.photos/id/1071/800/600'];
@@ -24,20 +30,25 @@ const ImageUploadSection: React.FC<ImageUploadSectionProps> = ({
     color, 
     shadow, 
     max, 
-    images = []
+    images = [],
+    badge,
+    customerMarked = false,
   }: { 
     title: string,
     subtitle?: string,
     color: string,
     shadow: string, 
     max: number, 
-    images?: string[] 
+    images?: string[],
+    badge?: React.ReactNode,
+    customerMarked?: boolean,
   }) => (
     <div className="flex flex-col space-y-3">
       <div className={`flex items-center justify-between pb-1.5 border-b ${color.replace('bg-', 'border-')}`}>
         <div className="flex items-center space-x-2">
           <div className={`w-2.5 h-2.5 rounded-full ${color} shadow-sm ${shadow}`}></div>
           <h4 className="text-[10px] font-black text-gray-800 uppercase tracking-tight">{title}</h4>
+          {badge}
         </div>
         <span className={`${color.replace('bg-', 'bg-').replace('-500', '-50')} ${color.replace('bg-', 'text-').replace('-500', '-600')} px-1.5 py-0.5 rounded text-[8px] font-bold`}>Tối đa {max}</span>
       </div>
@@ -59,6 +70,11 @@ const ImageUploadSection: React.FC<ImageUploadSectionProps> = ({
             onClick={() => setPreviewUrl(src)}
           >
             <img src={src} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt={`${title} ${idx + 1}`} />
+            {customerMarked && (
+              <span className="absolute top-1 left-1 px-1 py-0.5 rounded bg-indigo-600/90 text-white text-[7px] font-black uppercase tracking-wide leading-none">
+                KH
+              </span>
+            )}
             
             {/* Overlay on hover */}
             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -101,6 +117,8 @@ const ImageUploadSection: React.FC<ImageUploadSectionProps> = ({
           shadow="shadow-orange-200" 
           max={4} 
           images={sceneList}
+          badge={sceneBadge}
+          customerMarked={sceneCustomerMarked}
         />
         {/* Preview Modal */}
         {previewUrl && (
@@ -134,6 +152,8 @@ const ImageUploadSection: React.FC<ImageUploadSectionProps> = ({
         shadow="shadow-orange-200" 
         max={4} 
         images={sceneList}
+        badge={sceneBadge}
+        customerMarked={sceneCustomerMarked}
       />
       <ImageGroup 
         title="Quá trình xử lý"

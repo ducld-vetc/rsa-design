@@ -1089,7 +1089,7 @@ const PackageImportManagement: React.FC = () => {
       <input
         ref={fileRef}
         type="file"
-        accept="*"
+        accept=".xlsx,.xls"
         className="hidden"
         onChange={(e) => {
           void onPickFile(e.target.files?.[0] ?? null);
@@ -1658,20 +1658,29 @@ const PackageImportManagement: React.FC = () => {
             <div className="border rounded-lg shadow-sm overflow-hidden bg-white">
               <SectionHeader title="Tải file Excel" icon={<Upload size={16} />} />
               <div className="p-4 space-y-4">
-                <p className="text-xs text-gray-500">
-                  Cột bắt buộc: {PACKAGE_IMPORT_HEADERS.join(', ')}. Mã gói hợp lệ:{' '}
-                  {PACKAGE_IMPORT_CODES.map((p) => p.value).join(', ')}. Mã đối tác:{' '}
-                  {PACKAGE_IMPORT_PARTNERS.map((p) => p.value).join(', ')}.
-                </p>
-                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-                  <button type="button" onClick={downloadTemplate} className={outlineBtnClass}>
-                    <Download size={16} />
-                    <span>Tải file mẫu</span>
-                  </button>
-                  <button type="button" onClick={() => fileRef.current?.click()} className={primaryBtnClass}>
-                    <Upload size={16} />
-                    <span>Chọn file Excel</span>
-                  </button>
+                <div
+                  className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center transition-colors hover:border-vetc-green"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    void onPickFile(e.dataTransfer.files?.[0] ?? null);
+                  }}
+                >
+                  <FileSpreadsheet size={28} className="mx-auto text-vetc-green" />
+                  <p className="mt-3 text-sm font-semibold text-gray-700">Chọn hoặc kéo thả file Excel</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Hỗ trợ .xlsx, .xls · Dùng file mẫu để đúng cấu trúc cột
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <button type="button" onClick={downloadTemplate} className={outlineBtnClass}>
+                      <Download size={16} />
+                      <span>Tải file mẫu</span>
+                    </button>
+                    <button type="button" onClick={() => fileRef.current?.click()} className={primaryBtnClass}>
+                      <Upload size={16} />
+                      <span>Chọn file</span>
+                    </button>
+                  </div>
                 </div>
                 {fileError && (
                   <p className="rounded border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{fileError}</p>
