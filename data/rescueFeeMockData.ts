@@ -611,9 +611,8 @@ export const FEE_SURCHARGE_CATALOG = [
   {
     name: 'Lễ/Tết',
     criterionKey: 'holiday',
-    criterionLabel: 'Lễ/Tết',
-    value: 'Có',
-    requiresHolidayDates: true,
+    criterionLabel: 'Loại ngày',
+    value: 'Ngày lễ',
   },
 ] as const;
 
@@ -713,8 +712,8 @@ export const SURCHARGE_CRITERIA_CATALOG = [
   },
   {
     key: 'holiday',
-    label: 'Lễ/Tết',
-    values: ['Có', 'Không'],
+    label: 'Loại ngày',
+    values: ['Ngày thường', 'Ngày lễ', 'Ngày tết'],
   },
 ] as const;
 
@@ -862,16 +861,15 @@ const sharedSurcharges: SurchargeRule[] = [
     name: 'Lễ/Tết',
     type: 'FIXED',
     value: 300000,
-    activeWhen: 'holiday=Có',
+    activeWhen: 'holiday=Ngày lễ',
     conditions: [
       {
         criterionKey: 'holiday',
-        criterionLabel: 'Lễ/Tết',
+        criterionLabel: 'Loại ngày',
         operator: '=',
-        value: 'Có',
+        value: 'Ngày lễ',
       },
     ],
-    holidayDates: ['2026-01-01', '2026-02-17', '2026-04-30', '2026-05-01', '2026-09-02'],
     stackable: true,
   },
 ];
@@ -2057,10 +2055,6 @@ const calcServiceBase = (
 };
 
 const isSurchargeActive = (rule: SurchargeRule, input: FeeCalculationInput): boolean => {
-  if (rule.holidayDates?.length) {
-    const asOf = (input.asOfDate ?? new Date().toISOString()).slice(0, 10);
-    return rule.holidayDates.includes(asOf);
-  }
   if (rule.conditions.length > 0) {
     return conditionsMatch(rule.conditions, buildRuleContext(input));
   }

@@ -488,18 +488,5 @@ export const validatePriceTableForSave = (
     };
   }
 
-  if (
-    form.surchargeRules.some(
-      (s) =>
-        (s.name === 'Lễ/Tết' || s.conditions[0]?.criterionKey === 'holiday') &&
-        !(s.holidayDates ?? []).some((date) => date.trim())
-    )
-  ) {
-    return {
-      message: 'Phụ phí Lễ/Tết bắt buộc cấu hình ít nhất một ngày holiday',
-      tab: 'surcharges',
-    };
-  }
-
   return null;
 };

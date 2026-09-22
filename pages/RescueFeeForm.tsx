@@ -46,7 +46,6 @@ import {
   usesRetailMarkupOnlyPricing,
   RETAIL_MARKUP_DEFAULT_FACTOR,
   DEFAULT_TIME_RANGE,
-  SYSTEM_HOLIDAY_DATES,
   type FeeCriterion,
   type FeeRuleCondition,
   type FeeObjectType,
@@ -1109,8 +1108,6 @@ const RescueFeeForm: React.FC = () => {
               value: isTime ? timeRange : head.value,
             },
           ],
-          holidayDates:
-            'requiresHolidayDates' in head && head.requiresHolidayDates ? [] : undefined,
           stackable: true,
         });
       });
@@ -1813,7 +1810,6 @@ const RescueFeeForm: React.FC = () => {
         : [],
       applicableServices:
         applicableServices && applicableServices.length > 0 ? applicableServices : undefined,
-      holidayDates: name === 'Lễ/Tết' ? [] : undefined,
       stackable: true,
     };
   };
@@ -2546,7 +2542,6 @@ const RescueFeeForm: React.FC = () => {
           value: criterionValue,
         },
       ],
-      holidayDates: 'requiresHolidayDates' in head && head.requiresHolidayDates ? [] : undefined,
       stackable: true,
     };
     update('surchargeRules', [...form.surchargeRules, rule]);
@@ -2763,7 +2758,6 @@ const RescueFeeForm: React.FC = () => {
           value,
         },
       ],
-      holidayDates: criterionKey === 'holiday' ? [] : undefined,
     });
   };
 
@@ -5262,8 +5256,6 @@ const RescueFeeForm: React.FC = () => {
                   const groupCriterionKey = first?.conditions[0]?.criterionKey;
                   const groupCriterionLabel =
                     first?.conditions[0]?.criterionLabel || 'Chưa gắn tiêu chí';
-                  const isHolidayGroup =
-                    group.name === 'Lễ/Tết' || groupCriterionKey === 'holiday';
                   const isTimeGroup = isTimeSurchargeCriterion(groupCriterionKey);
                   const serviceOptions = matrixServiceHeads.map((service) => ({
                     value: service,
@@ -5360,8 +5352,6 @@ const RescueFeeForm: React.FC = () => {
                           </thead>
                           <tbody>
                             {group.rules.map((s) => {
-                              const isHoliday =
-                                s.name === 'Lễ/Tết' || s.conditions[0]?.criterionKey === 'holiday';
                               const isTimeCriterion = isTimeSurchargeCriterion(
                                 s.conditions[0]?.criterionKey
                               );
@@ -5372,8 +5362,7 @@ const RescueFeeForm: React.FC = () => {
                                 ? String(s.conditions[0]?.value[1] ?? '')
                                 : '';
                               return (
-                                <React.Fragment key={s.id}>
-                                  <tr className="align-top even:bg-gray-50/40">
+                                <tr key={s.id} className="align-top even:bg-gray-50/40">
                                     <td className="border-b border-r p-2">
                                       {isTimeCriterion ? (
                                         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -5407,7 +5396,7 @@ const RescueFeeForm: React.FC = () => {
                                         </div>
                                       ) : (
                                         <AppSelect
-                                          disabled={!s.conditions.length || isHoliday}
+                                          disabled={!s.conditions.length}
                                           value={String(s.conditions[0]?.value ?? '')}
                                           placeholder="Chọn giá trị"
                                           options={(SURCHARGE_CRITERIA_CATALOG.find(
@@ -5476,104 +5465,11 @@ const RescueFeeForm: React.FC = () => {
                                       </div>
                                     </td>
                                   </tr>
-                                  {isHoliday && (
-                                    <tr className="bg-amber-50/40">
-                                      <td colSpan={4} className="border-b px-3 py-3">
-                                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                          <div>
-                                            <div className="text-xs font-bold text-amber-800">
-                                              Ngày holiday áp dụng
-                                            </div>
-                                            <div className="text-[10px] text-amber-700">
-                                              Chỉ thu phụ phí Lễ/Tết khi ngày đơn thuộc danh sách
-                                              này.
-                                            </div>
-                                          </div>
-                                          <div className="flex flex-wrap items-center gap-2">
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const merged = Array.from(
-                                                  new Set([
-                                                    ...(s.holidayDates ?? []).filter((d) =>
-                                                      String(d).trim()
-                                                    ),
-                                                    ...SYSTEM_HOLIDAY_DATES,
-                                                  ])
-                                                ).sort();
-                                                updateSurcharge(s.id, { holidayDates: merged });
-                                              }}
-                                              className="inline-flex items-center gap-1 rounded border border-vetc-green bg-white px-2 py-1 text-[10px] font-bold text-vetc-green hover:bg-green-50"
-                                              title="Gộp ngày lễ/Tết từ danh mục hệ thống"
-                                            >
-                                              <Download size={12} /> Lấy từ hệ thống
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                updateSurcharge(s.id, {
-                                                  holidayDates: [...(s.holidayDates ?? []), ''],
-                                                })
-                                              }
-                                              className="inline-flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-1 text-[10px] font-bold text-amber-700"
-                                            >
-                                              <Plus size={12} /> Thêm ngày
-                                            </button>
-                                          </div>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                          {(s.holidayDates ?? []).map((date, index) => (
-                                            <div
-                                              key={`${s.id}-holiday-${index}`}
-                                              className="flex items-center gap-1"
-                                            >
-                                              <input
-                                                type="date"
-                                                className={`${inputClass} w-auto`}
-                                                value={date}
-                                                onChange={(e) => {
-                                                  const next = [...(s.holidayDates ?? [])];
-                                                  next[index] = e.target.value;
-                                                  updateSurcharge(s.id, { holidayDates: next });
-                                                }}
-                                              />
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  updateSurcharge(s.id, {
-                                                    holidayDates: (s.holidayDates ?? []).filter(
-                                                      (_, i) => i !== index
-                                                    ),
-                                                  })
-                                                }
-                                                className="rounded p-1.5 text-red-500 hover:bg-red-50"
-                                              >
-                                                <Trash2 size={13} />
-                                              </button>
-                                            </div>
-                                          ))}
-                                          {(s.holidayDates ?? []).length === 0 && (
-                                            <div className="text-xs text-amber-700">
-                                              Chưa có ngày holiday. Nhấn “Lấy từ hệ thống” hoặc
-                                              “Thêm ngày”.
-                                            </div>
-                                          )}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  )}
-                                </React.Fragment>
                               );
                             })}
                           </tbody>
                         </table>
                       </div>
-
-                      {isHolidayGroup && group.rules.length > 1 && (
-                        <div className="border-t bg-amber-50/50 px-4 py-2 text-[10px] text-amber-700">
-                          Mỗi dòng Lễ/Tết có thể cấu hình danh sách ngày riêng.
-                        </div>
-                      )}
                     </div>
                   );
                 })}
