@@ -1331,7 +1331,7 @@ const GuestOrderDetails: React.FC<{
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isManualSearchModalOpen, setIsManualSearchModalOpen] = useState(false);
   const [isInvoicePreviewOpen, setIsInvoicePreviewOpen] = useState(false);
-  const [invoicePreviewMode, setInvoicePreviewMode] = useState<'preview' | 'export' | 'adjust'>('preview');
+  const [invoicePreviewMode, setInvoicePreviewMode] = useState<'preview' | 'export' | 'adjust' | 'replace'>('preview');
   const [isExportingInvoice, setIsExportingInvoice] = useState(false);
   /** Sample case: đơn đã xuất hóa đơn thành công */
   const [invoiceDownloadUrl, setInvoiceDownloadUrl] = useState<string | null>(
@@ -2068,6 +2068,11 @@ const GuestOrderDetails: React.FC<{
 
   const handleExportInvoice = () => {
     setInvoicePreviewMode(invoiceDownloadUrl ? 'adjust' : 'export');
+    setIsInvoicePreviewOpen(true);
+  };
+
+  const handleReplaceInvoice = () => {
+    setInvoicePreviewMode('replace');
     setIsInvoicePreviewOpen(true);
   };
 
@@ -4350,7 +4355,7 @@ const GuestOrderDetails: React.FC<{
                           </span>
                           <div>
                             <p className="text-sm font-bold text-gray-800">Hóa đơn đã xuất</p>
-                            <p className="text-[11px] font-medium text-gray-500">File eInvoice sẵn sàng xem và điều chỉnh thông tin phi tiền tệ</p>
+                            <p className="text-[11px] font-medium text-gray-500">Có thể điều chỉnh thông tin phi tiền tệ hoặc thay thế toàn bộ hóa đơn</p>
                           </div>
                         </div>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -4389,6 +4394,15 @@ const GuestOrderDetails: React.FC<{
                         >
                           <Pencil size={14} />
                           Điều chỉnh
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleReplaceInvoice}
+                          disabled={isExportingInvoice}
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-4 text-xs font-bold text-gray-700 transition-colors hover:border-[#00A859] hover:text-[#00A859] disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          <RefreshCw size={14} />
+                          Thay thế
                         </button>
                       </div>
                     </div>

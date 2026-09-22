@@ -80,6 +80,8 @@ export interface PriceTableScope {
   corporateCustomerId?: string;
   partnerId?: string;
   partnerName?: string;
+  /** Đầu dịch vụ đã chọn (leaf / flat) — Kéo/Cẩu lưu dịch vụ con, dòng giá gom theo category cha */
+  appliedServices?: string[];
   areas?: string[];
   serviceTypes?: ServiceType[];
   vehicleTypes?: string[];
@@ -483,6 +485,51 @@ export const resolveFeeServiceType = (serviceDetail: string): ServiceType | unde
   if (direct) return direct.type;
   const parent = FEE_SERVICE_CATALOG.find((item) => item.children?.includes(serviceDetail));
   return parent?.type;
+};
+
+/** Category cha (Kéo xe / Cẩu xe) nếu `serviceDetail` là dịch vụ con */
+export const resolveFeeServiceParent = (serviceDetail: string): string | undefined =>
+  FEE_SERVICE_CATALOG.find((item) => item.children?.includes(serviceDetail))?.value;
+
+/** Đầu dùng trên ma trận dòng giá — Kéo/Cẩu gom về category cha */
+export const resolveMatrixServiceHead = (serviceDetail: string): string =>
+  resolveFeeServiceParent(serviceDetail) ?? serviceDetail;
+
+/**
+ * Chuẩn hóa: dịch vụ con Kéo/Cẩu → appliedServices; serviceRules chỉ giữ đầu ma trận (category).
+ */
+export const normalizePriceTableServiceHeads = (table: PriceTable): PriceTable => {
+  const applied = new Set<string>(table.scope.appliedServices ?? []);
+  const rulesByHead = new Map<string, ServicePriceRule[]>();
+
+  for (const rule of table.serviceRules) {
+    const parent = resolveFeeServiceParent(rule.serviceDetail);
+    const catalog = FEE_SERVICE_CATALOG.find((item) => item.value === rule.serviceDetail);
+    if (parent) {
+      applied.add(rule.serviceDetail);
+      const rewritten = { ...rule, serviceDetail: parent };
+      const list = rulesByHead.get(parent) ?? [];
+      list.push(rewritten);
+      rulesByHead.set(parent, list);
+      continue;
+    }
+    if (!catalog?.children?.length) {
+      applied.add(rule.serviceDetail);
+    }
+    const head = rule.serviceDetail;
+    const list = rulesByHead.get(head) ?? [];
+    list.push(rule);
+    rulesByHead.set(head, list);
+  }
+
+  return {
+    ...table,
+    scope: {
+      ...table.scope,
+      appliedServices: Array.from(applied),
+    },
+    serviceRules: Array.from(rulesByHead.values()).flat(),
+  };
 };
 
 export const FEE_SURCHARGE_CATALOG = [

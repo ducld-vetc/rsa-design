@@ -46,7 +46,7 @@ interface InvoicePreviewModalProps {
   companyName?: string;
   taxCode?: string;
   invoiceEmail?: string;
-  mode?: 'preview' | 'export' | 'adjust';
+  mode?: 'preview' | 'export' | 'adjust' | 'replace';
   onConfirmExport?: () => void;
   isExporting?: boolean;
   /**
@@ -290,13 +290,25 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
   const needsRegen = Boolean(previewFileUrl) && formDirty;
   const showPreviewPane = isGenerating || Boolean(previewFileUrl);
   const confirmLabel =
-    mode === 'adjust' ? (isExporting ? 'Đang lưu...' : 'Lưu điều chỉnh') : isExporting ? 'Đang xuất...' : 'Xuất hóa đơn';
+    mode === 'adjust'
+      ? isExporting
+        ? 'Đang lưu...'
+        : 'Lưu điều chỉnh'
+      : mode === 'replace'
+        ? isExporting
+          ? 'Đang thay thế...'
+          : 'Thay thế hóa đơn'
+        : isExporting
+          ? 'Đang xuất...'
+          : 'Xuất hóa đơn';
   const titleLabel =
     mode === 'adjust'
       ? 'Điều chỉnh hóa đơn điện tử'
-      : mode === 'export'
-        ? 'Xuất hóa đơn điện tử'
-        : 'Xem trước hóa đơn điện tử';
+      : mode === 'replace'
+        ? 'Thay thế hóa đơn điện tử'
+        : mode === 'export'
+          ? 'Xuất hóa đơn điện tử'
+          : 'Xem trước hóa đơn điện tử';
   const lockedCell =
     'w-full min-w-0 rounded border border-gray-100 bg-gray-50 px-1.5 py-1.5 text-[12px] text-gray-500 cursor-not-allowed';
 
@@ -312,7 +324,9 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
             <p className="text-[11px] font-medium text-gray-500">
               {moneyLocked
                 ? 'Chỉ chỉnh thông tin không liên quan tiền. SL / đơn giá / thuế bị khóa.'
-                : 'Nhập thông tin → Preview file eInvoice → Xuất hóa đơn.'}
+                : mode === 'replace'
+                  ? 'Thay thế toàn bộ hóa đơn đã xuất — có thể sửa cả thông tin tiền tệ.'
+                  : 'Nhập thông tin → Preview file eInvoice → Xuất hóa đơn.'}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -334,7 +348,7 @@ const InvoicePreviewModal: React.FC<InvoicePreviewModalProps> = ({
                 </>
               )}
             </button>
-            {mode === 'export' || mode === 'adjust' ? (
+            {mode === 'export' || mode === 'adjust' || mode === 'replace' ? (
               <button
                 type="button"
                 onClick={onConfirmExport}

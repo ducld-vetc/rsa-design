@@ -34,6 +34,9 @@ import {
   rescueFeeTables,
   upsertPriceTable,
   resolveFeeServiceType,
+  resolveFeeServiceParent,
+  resolveMatrixServiceHead,
+  normalizePriceTableServiceHeads,
   isTimeSurchargeCriterion,
   usesRetailMarkupOnlyPricing,
   RETAIL_MARKUP_DEFAULT_FACTOR,
@@ -836,22 +839,26 @@ const RescueFeeForm: React.FC = () => {
 
   const initial = useMemo(() => {
     if (clonedTable) {
-      return ensureRequiredCriteria(clonedTable);
+      return normalizePriceTableServiceHeads(ensureRequiredCriteria(clonedTable));
     }
     if (id) {
-      return ensureRequiredCriteria(
-        rescueFeeTables.find((t) => t.id === id) ?? emptyPriceTable()
+      return normalizePriceTableServiceHeads(
+        ensureRequiredCriteria(
+          rescueFeeTables.find((t) => t.id === id) ?? emptyPriceTable()
+        )
       );
     }
-    return ensureRequiredCriteria(
-      emptyPriceTable({
-        code: 'FEE-NEW',
-        name: 'Bảng phí mới',
-        applyFor: '',
-        status: 'ACTIVE',
-        objectType: 'PARTNER_INTERNAL',
-        orderType: 'PACKAGE_SINGLE',
-      })
+    return normalizePriceTableServiceHeads(
+      ensureRequiredCriteria(
+        emptyPriceTable({
+          code: 'FEE-NEW',
+          name: 'Bảng phí mới',
+          applyFor: '',
+          status: 'ACTIVE',
+          objectType: 'PARTNER_INTERNAL',
+          orderType: 'PACKAGE_SINGLE',
+        })
+      )
     );
   }, [id, clonedTable]);
 
@@ -888,12 +895,11 @@ const RescueFeeForm: React.FC = () => {
 
 
   const handleSave = () => {
-    const payload: PriceTable = {
+    const payload: PriceTable = normalizePriceTableServiceHeads({
       ...form,
-      status: 'ACTIVE',
       updatedAt: new Date().toLocaleString('vi-VN'),
       updatedBy: 'admin',
-    };
+    });
     const issue = validatePriceTableForSave(payload, rescueFeeTables);
     if (issue) {
       setError(issue.message);
@@ -919,26 +925,59 @@ const RescueFeeForm: React.FC = () => {
   };
 
   const addServiceHead = (serviceDetail: string) => {
-    if (form.serviceRules.some((rule) => rule.serviceDetail === serviceDetail)) return;
+    const parent = resolveFeeServiceParent(serviceDetail);
+    const matrixHead = parent ?? serviceDetail;
     const serviceType = resolveFeeServiceType(serviceDetail);
     if (!serviceType) return;
+
     setForm((prev) => {
-      if (prev.serviceRules.some((rule) => rule.serviceDetail === serviceDetail)) return prev;
+      const applied = new Set(prev.scope.appliedServices ?? []);
+      applied.add(serviceDetail);
+      const hasMatrixRules = prev.serviceRules.some(
+        (rule) => resolveMatrixServiceHead(rule.serviceDetail) === matrixHead
+      );
       return {
         ...prev,
-        serviceRules: [
-          ...prev.serviceRules,
-          ...createDemoServiceRules(serviceDetail, serviceType),
-        ],
+        scope: { ...prev.scope, appliedServices: Array.from(applied) },
+        serviceRules: hasMatrixRules
+          ? prev.serviceRules
+          : [
+              ...prev.serviceRules,
+              ...createDemoServiceRules(matrixHead, serviceType),
+            ],
       };
     });
   };
 
   const removeServiceHead = (serviceDetail: string) => {
-    update(
-      'serviceRules',
-      form.serviceRules.filter((rule) => rule.serviceDetail !== serviceDetail)
-    );
+    const parent = resolveFeeServiceParent(serviceDetail);
+    const matrixHead = parent ?? serviceDetail;
+    const catalogParent = FEE_SERVICE_CATALOG.find((item) => item.value === matrixHead);
+
+    setForm((prev) => {
+      const applied = new Set(prev.scope.appliedServices ?? []);
+      applied.delete(serviceDetail);
+      if (parent && catalogParent?.children?.length) {
+        const stillHasSibling = catalogParent.children.some((child) => applied.has(child));
+        if (stillHasSibling) {
+          return {
+            ...prev,
+            scope: { ...prev.scope, appliedServices: Array.from(applied) },
+          };
+        }
+      }
+      // Flat service or last child of category — drop matrix head rules
+      if (!parent) {
+        applied.delete(matrixHead);
+      }
+      return {
+        ...prev,
+        scope: { ...prev.scope, appliedServices: Array.from(applied) },
+        serviceRules: prev.serviceRules.filter(
+          (rule) => resolveMatrixServiceHead(rule.serviceDetail) !== matrixHead
+        ),
+      };
+    });
   };
 
   const toggleServiceHead = (serviceDetail: string, checked: boolean) => {
@@ -951,50 +990,90 @@ const RescueFeeForm: React.FC = () => {
     if (!parent?.children?.length) return;
     if (checked) {
       setForm((prev) => {
-        let nextRules = [...prev.serviceRules];
-        parent.children!.forEach((child, childIndex) => {
-          if (nextRules.some((rule) => rule.serviceDetail === child)) return;
-          const generated = createDemoServiceRules(child, parent.type).map((rule, index) => ({
-            ...rule,
-            id: `sr-demo-${Date.now()}-${childIndex}-${index}`,
-          }));
-          nextRules = [...nextRules, ...generated];
-        });
-        return { ...prev, serviceRules: nextRules };
+        const applied = new Set(prev.scope.appliedServices ?? []);
+        parent.children!.forEach((child) => applied.add(child));
+        const hasMatrixRules = prev.serviceRules.some(
+          (rule) => resolveMatrixServiceHead(rule.serviceDetail) === parentValue
+        );
+        return {
+          ...prev,
+          scope: { ...prev.scope, appliedServices: Array.from(applied) },
+          serviceRules: hasMatrixRules
+            ? prev.serviceRules
+            : [
+                ...prev.serviceRules,
+                ...createDemoServiceRules(parentValue, parent.type).map((rule, index) => ({
+                  ...rule,
+                  id: `sr-demo-${Date.now()}-${index}`,
+                })),
+              ],
+        };
       });
       return;
     }
-    const removeSet = new Set<string>([parentValue, ...parent.children]);
-    update(
-      'serviceRules',
-      form.serviceRules.filter((rule) => !removeSet.has(rule.serviceDetail))
-    );
+    setForm((prev) => {
+      const removeSet = new Set<string>([parentValue, ...parent.children!]);
+      const applied = (prev.scope.appliedServices ?? []).filter((item) => !removeSet.has(item));
+      return {
+        ...prev,
+        scope: { ...prev.scope, appliedServices: applied },
+        serviceRules: prev.serviceRules.filter(
+          (rule) => resolveMatrixServiceHead(rule.serviceDetail) !== parentValue
+        ),
+      };
+    });
   };
 
   const selectAllServiceHeads = () => {
-    const leafServices = SERVICE_OPTIONS.flatMap((option) =>
-      option.children?.length ? [...option.children] : [option.value]
-    );
     setForm((prev) => {
+      const applied = new Set(prev.scope.appliedServices ?? []);
       let nextRules = [...prev.serviceRules];
-      const selected = new Set(nextRules.map((rule) => rule.serviceDetail));
-      leafServices.forEach((serviceDetail, serviceIndex) => {
-        if (selected.has(serviceDetail)) return;
-        const serviceType = resolveFeeServiceType(serviceDetail);
-        if (!serviceType) return;
-        const generated = createDemoServiceRules(serviceDetail, serviceType).map((rule, index) => ({
-          ...rule,
-          id: `sr-demo-${Date.now()}-${serviceIndex}-${index}`,
-        }));
-        nextRules = [...nextRules, ...generated];
-        selected.add(serviceDetail);
+      const matrixHeads = new Set(
+        nextRules.map((rule) => resolveMatrixServiceHead(rule.serviceDetail))
+      );
+
+      SERVICE_OPTIONS.forEach((option, optionIndex) => {
+        if (option.children?.length) {
+          option.children.forEach((child) => applied.add(child));
+          if (!matrixHeads.has(option.value)) {
+            const generated = createDemoServiceRules(option.value, option.type).map(
+              (rule, index) => ({
+                ...rule,
+                id: `sr-demo-${Date.now()}-${optionIndex}-${index}`,
+              })
+            );
+            nextRules = [...nextRules, ...generated];
+            matrixHeads.add(option.value);
+          }
+          return;
+        }
+        applied.add(option.value);
+        if (!matrixHeads.has(option.value)) {
+          const generated = createDemoServiceRules(option.value, option.type).map(
+            (rule, index) => ({
+              ...rule,
+              id: `sr-demo-${Date.now()}-${optionIndex}-${index}`,
+            })
+          );
+          nextRules = [...nextRules, ...generated];
+          matrixHeads.add(option.value);
+        }
       });
-      return { ...prev, serviceRules: nextRules };
+
+      return {
+        ...prev,
+        scope: { ...prev.scope, appliedServices: Array.from(applied) },
+        serviceRules: nextRules,
+      };
     });
   };
 
   const clearAllServiceHeads = () => {
-    update('serviceRules', []);
+    setForm((prev) => ({
+      ...prev,
+      scope: { ...prev.scope, appliedServices: [] },
+      serviceRules: [],
+    }));
   };
 
   const selectAllSurchargeHeads = () => {
@@ -1036,15 +1115,18 @@ const RescueFeeForm: React.FC = () => {
   };
 
   const addPriceLineForService = (serviceDetail: string) => {
+    const matrixHead = resolveMatrixServiceHead(serviceDetail);
     const serviceType =
-      form.serviceRules.find((rule) => rule.serviceDetail === serviceDetail)?.serviceType ??
-      resolveFeeServiceType(serviceDetail) ??
+      form.serviceRules.find(
+        (rule) => resolveMatrixServiceHead(rule.serviceDetail) === matrixHead
+      )?.serviceType ??
+      resolveFeeServiceType(matrixHead) ??
       'ONSITE';
     const primary = buildPrimaryCondition(serviceType);
     const rule: ServicePriceRule = {
       id: `sr-${Date.now()}`,
       serviceType,
-      serviceDetail,
+      serviceDetail: matrixHead,
       basePrice: 0,
       pricingMode: 'FIXED',
       unit: SERVICE_CONFIG[serviceType].unit,
@@ -1094,8 +1176,8 @@ const RescueFeeForm: React.FC = () => {
       const fromRule = prev.serviceRules[fromIndex];
       const toRule = prev.serviceRules[toIndex];
       if (
-        fromRule.serviceDetail !== serviceDetail ||
-        toRule.serviceDetail !== serviceDetail
+        resolveMatrixServiceHead(fromRule.serviceDetail) !== serviceDetail ||
+        resolveMatrixServiceHead(toRule.serviceDetail) !== serviceDetail
       ) {
         return prev;
       }
@@ -1233,12 +1315,15 @@ const RescueFeeForm: React.FC = () => {
   };
 
   const openImportJson = (serviceDetail: string) => {
+    const matrixHead = resolveMatrixServiceHead(serviceDetail);
     const serviceType =
-      form.serviceRules.find((rule) => rule.serviceDetail === serviceDetail)?.serviceType ??
-      resolveFeeServiceType(serviceDetail) ??
+      form.serviceRules.find(
+        (rule) => resolveMatrixServiceHead(rule.serviceDetail) === matrixHead
+      )?.serviceType ??
+      resolveFeeServiceType(matrixHead) ??
       'ONSITE';
-    setImportServiceDetail(serviceDetail);
-    setImportJsonText(JSON.stringify(buildImportSample(serviceDetail, serviceType), null, 2));
+    setImportServiceDetail(matrixHead);
+    setImportJsonText(JSON.stringify(buildImportSample(matrixHead, serviceType), null, 2));
     setImportError('');
   };
 
@@ -1421,7 +1506,9 @@ const RescueFeeForm: React.FC = () => {
         };
       });
       update('serviceRules', [
-        ...form.serviceRules.filter((rule) => rule.serviceDetail !== importServiceDetail),
+        ...form.serviceRules.filter(
+          (rule) => resolveMatrixServiceHead(rule.serviceDetail) !== importServiceDetail
+        ),
         ...importedRules,
       ]);
       setImportServiceDetail(null);
@@ -1897,42 +1984,44 @@ const RescueFeeForm: React.FC = () => {
 
     const target = (payload.target as FeeTarget | undefined) ?? form.target;
 
-    setForm((prev) => ({
-      ...prev,
-      code: String(payload.code ?? prev.code),
-      name: String(payload.name ?? prev.name),
-      applyFor: String(payload.applyFor ?? prev.applyFor),
-      target,
-      objectType:
-        (String(payload.objectType ?? prev.objectType ?? defaultObjectTypeByTarget(target)) ||
-          defaultObjectTypeByTarget(target)) as FeeObjectType,
-      orderType:
-        (String(payload.orderType ?? prev.orderType ?? 'PACKAGE') || 'PACKAGE') as FeeOrderType,
-      scope: {
-        ...prev.scope,
-        ...(payload.scope as Record<string, unknown> | undefined),
-      },
-      status: (payload.status as FeeTableStatus | undefined) ?? prev.status,
-      settings: {
-        ...prev.settings,
-        retailMarkupFactor: Number(
-          (payload.settings as { retailMarkupFactor?: number } | undefined)?.retailMarkupFactor ??
-            prev.settings.retailMarkupFactor
-        ),
-        roundMode:
-          ((payload.settings as { roundMode?: RoundMode } | undefined)?.roundMode as RoundMode) ??
-          prev.settings.roundMode,
-        stackSurcharges:
-          (payload.settings as { stackSurcharges?: boolean } | undefined)?.stackSurcharges ??
-          prev.settings.stackSurcharges,
-        includesVat:
-          (payload.settings as { includesVat?: boolean } | undefined)?.includesVat ??
-          prev.settings.includesVat,
-      },
-      priceCriteria: nextCriteria,
-      serviceRules: importedRules.length ? importedRules : prev.serviceRules,
-      surchargeRules: importedSurcharges.length ? importedSurcharges : prev.surchargeRules,
-    }));
+    setForm((prev) =>
+      normalizePriceTableServiceHeads({
+        ...prev,
+        code: String(payload.code ?? prev.code),
+        name: String(payload.name ?? prev.name),
+        applyFor: String(payload.applyFor ?? prev.applyFor),
+        target,
+        objectType:
+          (String(payload.objectType ?? prev.objectType ?? defaultObjectTypeByTarget(target)) ||
+            defaultObjectTypeByTarget(target)) as FeeObjectType,
+        orderType:
+          (String(payload.orderType ?? prev.orderType ?? 'PACKAGE') || 'PACKAGE') as FeeOrderType,
+        scope: {
+          ...prev.scope,
+          ...(payload.scope as Record<string, unknown> | undefined),
+        },
+        status: (payload.status as FeeTableStatus | undefined) ?? prev.status,
+        settings: {
+          ...prev.settings,
+          retailMarkupFactor: Number(
+            (payload.settings as { retailMarkupFactor?: number } | undefined)?.retailMarkupFactor ??
+              prev.settings.retailMarkupFactor
+          ),
+          roundMode:
+            ((payload.settings as { roundMode?: RoundMode } | undefined)?.roundMode as RoundMode) ??
+            prev.settings.roundMode,
+          stackSurcharges:
+            (payload.settings as { stackSurcharges?: boolean } | undefined)?.stackSurcharges ??
+            prev.settings.stackSurcharges,
+          includesVat:
+            (payload.settings as { includesVat?: boolean } | undefined)?.includesVat ??
+            prev.settings.includesVat,
+        },
+        priceCriteria: nextCriteria,
+        serviceRules: importedRules.length ? importedRules : prev.serviceRules,
+        surchargeRules: importedSurcharges.length ? importedSurcharges : prev.surchargeRules,
+      })
+    );
     setTableImportOpen(false);
     setActiveTab('matrix');
     setError('');
@@ -2648,7 +2737,19 @@ const RescueFeeForm: React.FC = () => {
     }
   };
   const selectedServiceHeads: string[] = Array.from(
-    new Set<string>(form.serviceRules.map((rule) => rule.serviceDetail))
+    new Set<string>([
+      ...(form.scope.appliedServices ?? []),
+      // Legacy: rule còn gắn tên cha category (cấu hình cũ) hoặc flat chưa nằm trong appliedServices
+      ...form.serviceRules
+        .map((rule) => rule.serviceDetail)
+        .filter((detail) => {
+          const catalog = SERVICE_OPTIONS.find((item) => item.value === detail);
+          return !catalog?.children?.length && !resolveFeeServiceParent(detail);
+        }),
+    ])
+  );
+  const matrixServiceHeads: string[] = Array.from(
+    new Set(form.serviceRules.map((rule) => resolveMatrixServiceHead(rule.serviceDetail)))
   );
   const matrixFilters = {
     keyword: matrixKeyword,
@@ -2670,10 +2771,18 @@ const RescueFeeForm: React.FC = () => {
     Boolean(matrixSeatNumber.trim()) ||
     Boolean(matrixLoadCapacity.trim());
   const filteredMatrixRules = form.serviceRules.filter((rule) =>
-    ruleMatchesMatrixFilter(rule, matrixFilters)
+    ruleMatchesMatrixFilter(
+      {
+        ...rule,
+        serviceDetail: resolveMatrixServiceHead(rule.serviceDetail),
+      },
+      matrixFilters
+    )
   );
-  const filteredMatrixServiceHeads = selectedServiceHeads.filter((serviceDetail) =>
-    filteredMatrixRules.some((rule) => rule.serviceDetail === serviceDetail)
+  const filteredMatrixServiceHeads = matrixServiceHeads.filter((serviceDetail) =>
+    filteredMatrixRules.some(
+      (rule) => resolveMatrixServiceHead(rule.serviceDetail) === serviceDetail
+    )
   );
   const clearMatrixFilters = () => {
     setMatrixKeyword('');
@@ -3146,14 +3255,117 @@ const RescueFeeForm: React.FC = () => {
                   <AppSelect
                     value={form.objectType ?? defaultObjectTypeByTarget(form.target)}
                     options={OBJECT_TYPE_OPTIONS_BY_TARGET[form.target]}
-                    onChange={(value) =>
-                      update(
-                        'objectType',
-                        (value as FeeObjectType | '') || defaultObjectTypeByTarget(form.target)
-                      )
-                    }
+                    onChange={(value) => {
+                      const nextType =
+                        (value as FeeObjectType | '') || defaultObjectTypeByTarget(form.target);
+                      setForm((prev) => ({
+                        ...prev,
+                        objectType: nextType,
+                        scope: {
+                          ...prev.scope,
+                          ...(nextType === 'CUSTOMER_BUSINESS'
+                            ? { partnerId: undefined, partnerName: undefined }
+                            : nextType.startsWith('PARTNER_')
+                              ? { corporateCustomerId: undefined }
+                              : {
+                                  partnerId: undefined,
+                                  partnerName: undefined,
+                                  corporateCustomerId: undefined,
+                                }),
+                        },
+                      }));
+                    }}
                   />
                 </div>
+                {form.objectType === 'CUSTOMER_BUSINESS' ||
+                (form.objectType ?? '').startsWith('PARTNER_') ||
+                (!form.objectType && form.target === 'PARTNER') ? (
+                  <div>
+                    <label className={labelClass}>
+                      {(form.objectType ?? defaultObjectTypeByTarget(form.target)).startsWith(
+                        'PARTNER_'
+                      )
+                        ? 'Đối tác cứu hộ'
+                        : 'Doanh nghiệp'}
+                    </label>
+                    {(form.objectType ?? defaultObjectTypeByTarget(form.target)).startsWith(
+                      'PARTNER_'
+                    ) ? (
+                      <AppSelect
+                        value={form.scope.partnerId ?? ''}
+                        placeholder="Chọn đối tác cứu hộ"
+                        options={[
+                          ...FEE_PARTNER_OPTIONS.map((item) => ({
+                            value: item.id,
+                            label: `${item.id} — ${item.name}`,
+                          })),
+                          ...(form.scope.partnerId &&
+                          !FEE_PARTNER_OPTIONS.some((item) => item.id === form.scope.partnerId)
+                            ? [
+                                {
+                                  value: form.scope.partnerId,
+                                  label: `${form.scope.partnerId}${
+                                    form.scope.partnerName
+                                      ? ` — ${form.scope.partnerName}`
+                                      : ''
+                                  }`,
+                                },
+                              ]
+                            : []),
+                        ]}
+                        onChange={(value) => {
+                          const selected = FEE_PARTNER_OPTIONS.find((item) => item.id === value);
+                          update('scope', {
+                            ...form.scope,
+                            partnerId: value || undefined,
+                            partnerName:
+                              selected?.name ?? (value ? form.scope.partnerName : undefined),
+                            corporateCustomerId: undefined,
+                          });
+                        }}
+                      />
+                    ) : (
+                      <AppSelect
+                        value={form.scope.corporateCustomerId ?? ''}
+                        placeholder="Chọn doanh nghiệp"
+                        options={[
+                          ...FEE_CORPORATE_CUSTOMER_OPTIONS.map((item) => ({
+                            value: item.code,
+                            label: `${item.code} — ${item.name}`,
+                          })),
+                          ...(form.scope.corporateCustomerId &&
+                          !FEE_CORPORATE_CUSTOMER_OPTIONS.some(
+                            (item) => item.code === form.scope.corporateCustomerId
+                          )
+                            ? [
+                                {
+                                  value: form.scope.corporateCustomerId,
+                                  label: form.scope.corporateCustomerId,
+                                },
+                              ]
+                            : []),
+                        ]}
+                        onChange={(value) =>
+                          update('scope', {
+                            ...form.scope,
+                            corporateCustomerId: value || undefined,
+                            partnerId: undefined,
+                            partnerName: undefined,
+                          })
+                        }
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className={labelClass}>Đối tượng áp dụng</label>
+                    <input
+                      className={`${inputClass} bg-gray-50 text-gray-500`}
+                      value="Không áp dụng — khách cá nhân"
+                      readOnly
+                    />
+                  </div>
+                )}
                 <div>
                   <label className={labelClass}>Loại đơn</label>
                   <AppSelect
@@ -3166,15 +3378,14 @@ const RescueFeeForm: React.FC = () => {
                 </div>
                 <div>
                   <label className={labelClass}>Trạng thái</label>
-                  <input
-                    className={`${inputClass} bg-gray-50 text-gray-700`}
-                    value={FEE_STATUS_LABELS.ACTIVE}
-                    readOnly
-                    title="Lưu bảng phí sẽ kích hoạt trạng thái Đang hiệu lực"
+                  <AppSelect
+                    value={form.status}
+                    options={(Object.keys(FEE_STATUS_LABELS) as FeeTableStatus[]).map((key) => ({
+                      value: key,
+                      label: FEE_STATUS_LABELS[key],
+                    }))}
+                    onChange={(value) => update('status', (value as FeeTableStatus) || 'ACTIVE')}
                   />
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    Lưu sẽ luôn đặt bảng ở trạng thái Đang hiệu lực (ACTIVE). Không dùng nháp.
-                  </p>
                 </div>
                 <div>
                   <label className={labelClass}>Phiên bản</label>
@@ -3185,143 +3396,53 @@ const RescueFeeForm: React.FC = () => {
                     onChange={(e) => update('version', Number(e.target.value) || 1)}
                   />
                 </div>
-                <div>
-                  <label className={labelClass}>Hiệu lực từ</label>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={form.validFrom}
-                    onChange={(e) => update('validFrom', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Hiệu lực đến</label>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={form.validTo}
-                    onChange={(e) => update('validTo', e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
-              <SectionHeader title="Phạm vi áp dụng" number={2} />
-              <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div>
-                  <label className={labelClass}>Doanh nghiệp</label>
-                  <AppSelect
-                    value={form.scope.corporateCustomerId ?? ''}
-                    placeholder="Chọn doanh nghiệp"
-                    disabled={form.target === 'PARTNER'}
-                    options={[
-                      ...FEE_CORPORATE_CUSTOMER_OPTIONS.map((item) => ({
-                        value: item.code,
-                        label: `${item.code} — ${item.name}`,
-                      })),
-                      ...(form.scope.corporateCustomerId &&
-                      !FEE_CORPORATE_CUSTOMER_OPTIONS.some((item) => item.code === form.scope.corporateCustomerId)
-                        ? [
-                            {
-                              value: form.scope.corporateCustomerId,
-                              label: form.scope.corporateCustomerId,
-                            },
-                          ]
-                        : []),
-                    ]}
-                    onChange={(value) =>
-                      update('scope', {
-                        ...form.scope,
-                        corporateCustomerId: value || undefined,
-                      })
-                    }
-                  />
-                  {form.target === 'PARTNER' && (
-                    <p className="mt-1 text-[10px] text-gray-400">
-                      Chỉ áp dụng khi Đối tượng tính = Khách hàng.
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className={labelClass}>Đối tác cứu hộ</label>
-                  <AppSelect
-                    value={form.scope.partnerId ?? ''}
-                    placeholder="Chọn đối tác cứu hộ"
-                    disabled={form.target === 'CUSTOMER'}
-                    options={[
-                      ...FEE_PARTNER_OPTIONS.map((item) => ({
-                        value: item.id,
-                        label: `${item.id} — ${item.name}`,
-                      })),
-                      ...(form.scope.partnerId &&
-                      !FEE_PARTNER_OPTIONS.some((item) => item.id === form.scope.partnerId)
-                        ? [
-                            {
-                              value: form.scope.partnerId,
-                              label: `${form.scope.partnerId}${
-                                form.scope.partnerName ? ` — ${form.scope.partnerName}` : ''
-                              }`,
-                            },
-                          ]
-                        : []),
-                    ]}
-                    onChange={(value) => {
-                      const selected = FEE_PARTNER_OPTIONS.find((item) => item.id === value);
-                      update('scope', {
-                        ...form.scope,
-                        partnerId: value || undefined,
-                        partnerName: selected?.name ?? (value ? form.scope.partnerName : undefined),
-                      });
-                    }}
-                  />
-                  {form.target === 'CUSTOMER' && (
-                    <p className="mt-1 text-[10px] text-gray-400">
-                      Chỉ áp dụng khi Đối tượng tính = Đối tác cứu hộ.
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className={labelClass}>Tên NCC</label>
-                  <input
-                    className={`${inputClass} bg-gray-50`}
-                    value={form.scope.partnerName ?? ''}
-                    readOnly
-                    placeholder="Tự điền khi chọn NCC"
-                  />
+                <div className="sm:col-span-2 lg:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>Hiệu lực từ</label>
+                    <input
+                      type="date"
+                      className={inputClass}
+                      value={form.validFrom}
+                      onChange={(e) => update('validFrom', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Hiệu lực đến</label>
+                    <input
+                      type="date"
+                      className={inputClass}
+                      value={form.validTo}
+                      onChange={(e) => update('validTo', e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
-              <SectionHeader title="Tham số tính của bảng phí" number={3} />
+              <SectionHeader title="Tham số tính của bảng phí" number={2} />
               <div className="space-y-4 p-4">
-                <label
-                  className={`flex items-start gap-3 rounded-lg border p-3 ${
-                    form.target === 'CUSTOMER'
-                      ? 'cursor-pointer border-gray-200 bg-gray-50/80'
-                      : 'cursor-not-allowed border-gray-200 bg-gray-100/70 opacity-70'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-0.5"
-                    disabled={form.target !== 'CUSTOMER'}
-                    checked={usesMarkupOnly}
-                    onChange={(e) => setRetailMarkupOnlyMode(e.target.checked)}
-                  />
-                  <span className="text-sm leading-relaxed text-gray-700">
-                    <span className="font-semibold text-gray-900">
-                      Chỉ áp dụng hệ số giá khách lẻ
+                {form.target === 'CUSTOMER' && (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-gray-50/80 p-3">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={usesMarkupOnly}
+                      onChange={(e) => setRetailMarkupOnlyMode(e.target.checked)}
+                    />
+                    <span className="text-sm leading-relaxed text-gray-700">
+                      <span className="font-semibold text-gray-900">
+                        Chỉ áp dụng hệ số giá khách lẻ
+                      </span>
+                      <span className="mt-1 block text-xs text-gray-500">
+                        Bật: đơn dùng hệ số × giá, không cấu hình ma trận dòng giá / phụ phí. Tắt:
+                        cấu hình bảng phí đầy đủ — hai chế độ loại trừ nhau.
+                      </span>
                     </span>
-                    <span className="mt-1 block text-xs text-gray-500">
-                      {form.target === 'CUSTOMER'
-                        ? 'Bật: đơn dùng hệ số × giá, không cấu hình ma trận dòng giá / phụ phí. Tắt: cấu hình bảng phí đầy đủ — hai chế độ loại trừ nhau.'
-                        : 'Chỉ áp dụng cho bảng phí Khách hàng. Đổi "Đối tượng tính" sang Khách hàng để dùng chế độ này.'}
-                    </span>
-                  </span>
-                </label>
+                  </label>
+                )}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {form.target === 'CUSTOMER' && (
                 <div>
                   <label className={labelClass}>Hệ số giá khách lẻ</label>
                   <input
@@ -3345,6 +3466,7 @@ const RescueFeeForm: React.FC = () => {
                       : 'Chỉ nhập khi bật "Chỉ áp dụng hệ số giá khách lẻ"'}
                   </p>
                 </div>
+                )}
                 <div>
                   <label className={labelClass}>Quy tắc làm tròn</label>
                   <AppSelect
@@ -3425,7 +3547,7 @@ const RescueFeeForm: React.FC = () => {
             {!skipsPriceMatrixTabs && (
             <>
             <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
-              <SectionHeader title="Danh mục áp dụng trong bảng phí" number={4} />
+              <SectionHeader title="Danh mục áp dụng trong bảng phí" number={3} />
               <div className="space-y-4 p-4">
                 <p className="text-xs text-gray-500">
                   Chọn trước các đầu dịch vụ và phụ phí. Hệ thống sẽ tạo dòng cấu hình tương ứng
@@ -3487,9 +3609,12 @@ const RescueFeeForm: React.FC = () => {
                           const selectedChildren = children.filter((child) =>
                             selectedServiceHeads.includes(child)
                           );
-                          const legacyParentSelected = selectedServiceHeads.includes(
-                            option.value
-                          );
+                          const legacyParentSelected =
+                            selectedChildren.length === 0 &&
+                            form.serviceRules.some(
+                              (rule) =>
+                                resolveMatrixServiceHead(rule.serviceDetail) === option.value
+                            );
                           const allSelected =
                             children.length > 0 && selectedChildren.length === children.length;
                           const someSelected =
@@ -3628,7 +3753,7 @@ const RescueFeeForm: React.FC = () => {
             <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
               <SectionHeader
                 title="Tiêu chí của ma trận giá"
-                number={5}
+                number={4}
                 actions={
                   <button
                     type="button"
@@ -3752,7 +3877,7 @@ const RescueFeeForm: React.FC = () => {
                       onChange={(e) => setMatrixServiceDetail(e.target.value)}
                     >
                       <option value="">Tất cả</option>
-                      {selectedServiceHeads.map((serviceDetail) => (
+                      {matrixServiceHeads.map((serviceDetail) => (
                         <option key={serviceDetail} value={serviceDetail}>
                           {serviceDetail}
                         </option>
@@ -3833,11 +3958,11 @@ const RescueFeeForm: React.FC = () => {
               <div className="space-y-4 p-4">
                 {filteredMatrixServiceHeads.map((serviceDetail, serviceIndex) => {
                   const serviceRules = filteredMatrixRules.filter(
-                    (rule) => rule.serviceDetail === serviceDetail
+                    (rule) => resolveMatrixServiceHead(rule.serviceDetail) === serviceDetail
                   );
                   const serviceType = serviceRules[0]?.serviceType ?? 'ONSITE';
                   const totalServiceRules = form.serviceRules.filter(
-                    (rule) => rule.serviceDetail === serviceDetail
+                    (rule) => resolveMatrixServiceHead(rule.serviceDetail) === serviceDetail
                   ).length;
                   return (
                     <div key={serviceDetail} className="overflow-hidden rounded-lg border bg-white shadow-sm">
