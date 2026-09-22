@@ -17,6 +17,8 @@ export type RoundMode = 'NEAREST_1000' | 'NEAREST_100' | 'NONE';
 export type CriterionRole = 'PRICE' | 'SURCHARGE' | 'BOTH';
 export type CriterionValueType = 'LIST' | 'RANGE' | 'TIME';
 export type ServicePricingMode = 'FIXED' | 'PER_UNIT';
+/** Loại đoạn giá trên dòng đơn giá */
+export type PriceSegmentType = 'TIERED' | 'SINGLE';
 
 export interface FeeRuleCondition {
   criterionKey: string;
@@ -49,6 +51,11 @@ export interface SurchargeRule {
   activeWhen: string;
   /** Phụ phí bắt buộc gắn ít nhất một tiêu chí phụ có cấu trúc. */
   conditions: FeeRuleCondition[];
+  /**
+   * Dịch vụ áp dụng (đầu ma trận / category).
+   * `undefined` hoặc rỗng = ALL dịch vụ đã chọn trên bảng.
+   */
+  applicableServices?: string[];
   stackable?: boolean;
   exclusiveGroup?: string;
   capAmount?: number;
@@ -61,8 +68,22 @@ export interface ServicePriceRule {
   serviceType: ServiceType;
   serviceDetail: string;
   basePrice: number;
-  /** FIXED: thu một lần khi đi vào bậc; PER_UNIT: nhân số đơn vị nằm trong bậc. */
+  /**
+   * Phương pháp tính:
+   * - FIXED (Cố định): thu một lần khi khớp điều kiện / bậc
+   * - PER_UNIT (Đơn vị): nhân theo số đơn vị (km, m, …)
+   */
   pricingMode?: ServicePricingMode;
+  /**
+   * Loại đoạn giá:
+   * - TIERED (Bậc thang): chuỗi bậc khoảng cách — chỉ Kéo / Cẩu
+   * - SINGLE (Đơn lẻ): một mức giá độc lập
+   */
+  segmentType?: PriceSegmentType;
+  /** Ngày hiệu lực của dòng giá (YYYY-MM-DD) */
+  validFrom?: string;
+  /** Ngày hết hạn của dòng giá (YYYY-MM-DD) */
+  validTo?: string;
   /** Kéo xe: số km bao gồm trong giá mở cửa */
   includedKm?: number;
   /** Kéo xe: đơn giá mỗi km vượt */
@@ -780,6 +801,23 @@ export const FEE_STATUS_LABELS: Record<FeeTableStatus, string> = {
   EXPIRED: 'Hết hiệu lực',
   INACTIVE: 'Ngừng hiệu lực',
 };
+
+export const SERVICE_PRICING_MODE_LABELS: Record<ServicePricingMode, string> = {
+  FIXED: 'Cố định',
+  PER_UNIT: 'Đơn vị',
+};
+
+export const PRICE_SEGMENT_TYPE_LABELS: Record<PriceSegmentType, string> = {
+  TIERED: 'Bậc thang',
+  SINGLE: 'Đơn lẻ',
+};
+
+/** Bậc thang chỉ áp dụng Kéo / Cẩu; còn lại mặc định Đơn lẻ */
+export const defaultPriceSegmentType = (serviceType: ServiceType): PriceSegmentType =>
+  serviceType === 'TOWING' || serviceType === 'CRANE' ? 'TIERED' : 'SINGLE';
+
+export const canUseTieredSegment = (serviceType: ServiceType): boolean =>
+  serviceType === 'TOWING' || serviceType === 'CRANE';
 
 export const FEE_TARGET_LABELS: Record<FeeTarget, string> = {
   CUSTOMER: 'Khách hàng',

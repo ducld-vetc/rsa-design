@@ -16,6 +16,7 @@ package "Cau_hinh_bang_phi" {
   rectangle fee_price_line as PL
   rectangle fee_price_line_condition as PLC
   rectangle fee_surcharge_rule as SR
+  rectangle fee_surcharge_rule_service as SRS
   rectangle fee_surcharge_condition as SRC
 }
 
@@ -35,6 +36,8 @@ FTV --> PL
 FTV --> SR
 PL --> PLC
 SR --> SRC
+SR --> SRS
+SRS --> Svc
 FT --> Snap
 Snap --> Line
 Line --> Adj

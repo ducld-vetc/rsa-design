@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import AppSelect from '../shared/AppSelect';
+import AppMultiSelect from '../shared/AppMultiSelect';
 import {
   CRITERIA_CATALOG,
   CRITERIA_SYSTEM_CONFIG,
@@ -37,6 +38,10 @@ import {
   resolveFeeServiceParent,
   resolveMatrixServiceHead,
   normalizePriceTableServiceHeads,
+  defaultPriceSegmentType,
+  canUseTieredSegment,
+  SERVICE_PRICING_MODE_LABELS,
+  PRICE_SEGMENT_TYPE_LABELS,
   isTimeSurchargeCriterion,
   usesRetailMarkupOnlyPricing,
   RETAIL_MARKUP_DEFAULT_FACTOR,
@@ -50,6 +55,7 @@ import {
   type FeeTableStatus,
   type FeeTarget,
   type PriceTable,
+  type PriceSegmentType,
   type ServicePriceRule,
   type ServiceType,
   type SurchargeRule,
@@ -149,8 +155,8 @@ const buildTableImportDemoBase = (): Record<string, unknown> => ({
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'general', label: '1. Thông tin & tham số' },
-  { id: 'matrix', label: '2. Dòng giá theo tiêu chí' },
-  { id: 'surcharges', label: '3. Phụ phí có điều kiện' },
+  { id: 'matrix', label: '2. Đơn giá' },
+  { id: 'surcharges', label: '3. Hệ số và phụ phí' },
 ];
 
 const SectionHeader: React.FC<{
@@ -754,6 +760,7 @@ const createDemoServiceRules = (
       serviceDetail,
       basePrice: tier.price,
       pricingMode: tier.mode,
+      segmentType: 'TIERED' as const,
       unit: 'km',
       conditions: [
         {
@@ -777,7 +784,8 @@ const createDemoServiceRules = (
       serviceType,
       serviceDetail,
       basePrice: tier.price,
-      pricingMode: 'FIXED',
+      pricingMode: 'FIXED' as const,
+      segmentType: 'TIERED' as const,
       unit: 'lượt',
       conditions: [
         {
@@ -800,7 +808,8 @@ const createDemoServiceRules = (
     serviceType,
     serviceDetail,
     basePrice: sample.price,
-    pricingMode: 'FIXED',
+    pricingMode: 'FIXED' as const,
+    segmentType: 'SINGLE' as const,
     unit: 'lượt',
     conditions: [vehicleCondition(sample.vehicle)],
   }));
@@ -1123,12 +1132,16 @@ const RescueFeeForm: React.FC = () => {
       resolveFeeServiceType(matrixHead) ??
       'ONSITE';
     const primary = buildPrimaryCondition(serviceType);
+    const segmentType = defaultPriceSegmentType(serviceType);
     const rule: ServicePriceRule = {
       id: `sr-${Date.now()}`,
       serviceType,
       serviceDetail: matrixHead,
       basePrice: 0,
       pricingMode: 'FIXED',
+      segmentType,
+      validFrom: form.validFrom || undefined,
+      validTo: form.validTo || undefined,
       unit: SERVICE_CONFIG[serviceType].unit,
       conditions: primary ? [primary] : [],
     };
@@ -1140,6 +1153,31 @@ const RescueFeeForm: React.FC = () => {
       'serviceRules',
       form.serviceRules.map((r) => (r.id === ruleId ? { ...r, ...patch } : r))
     );
+  };
+
+  const applySegmentType = (ruleId: string, segmentType: PriceSegmentType) => {
+    const rule = form.serviceRules.find((item) => item.id === ruleId);
+    if (!rule) return;
+    if (segmentType === 'TIERED' && !canUseTieredSegment(rule.serviceType)) return;
+
+    const patch: Partial<ServicePriceRule> = { segmentType };
+    if (segmentType === 'TIERED') {
+      const primary = buildPrimaryCondition(rule.serviceType);
+      if (primary) {
+        const others = (rule.conditions ?? []).filter(
+          (condition) => condition.criterionKey !== primary.criterionKey
+        );
+        const existingPrimary = (rule.conditions ?? []).find(
+          (condition) => condition.criterionKey === primary.criterionKey
+        );
+        patch.conditions = existingPrimary
+          ? rule.conditions
+          : [primary, ...others];
+      }
+    } else if (rule.serviceType === 'ONSITE') {
+      patch.pricingMode = 'FIXED';
+    }
+    updateServiceRule(ruleId, patch);
   };
 
   const removeServiceRule = (ruleId: string) => {
@@ -1454,8 +1492,21 @@ const RescueFeeForm: React.FC = () => {
       const primaryConditionBase = buildPrimaryCondition(serviceType);
       const importedRules: ServicePriceRule[] = rows.map((row, index) => {
         const item = (row ?? {}) as Record<string, unknown>;
-        const pricingMode =
-          item.pricingMode === 'PER_UNIT' ? 'PER_UNIT' : ('FIXED' as ServicePricingMode);
+        const pricingMode: ServicePricingMode =
+          item.pricingMode === 'PER_UNIT' ||
+          /per[_\s-]?unit|đơn vị|don vi/i.test(String(item.pricingMode ?? item.CachTinh ?? ''))
+            ? 'PER_UNIT'
+            : 'FIXED';
+        const segmentRaw = String(item.segmentType ?? item.LoaiDoanGia ?? '').trim();
+        const segmentType: PriceSegmentType = /tiered|bậc thang|bac thang/i.test(segmentRaw)
+          ? 'TIERED'
+          : /single|đơn lẻ|don le/i.test(segmentRaw)
+            ? 'SINGLE'
+            : defaultPriceSegmentType(serviceType);
+        const resolvedSegmentType =
+          segmentType === 'TIERED' && !canUseTieredSegment(serviceType) ? 'SINGLE' : segmentType;
+        const validFrom = String(item.validFrom ?? item.NgayHieuLuc ?? '').trim() || undefined;
+        const validTo = String(item.validTo ?? item.NgayHetHan ?? '').trim() || undefined;
         const basePrice = Number(item.basePrice ?? item.price ?? 0) || 0;
         const conditions = parseImportedConditions(
           (item.conditions as Record<string, unknown> | undefined) ??
@@ -1501,6 +1552,9 @@ const RescueFeeForm: React.FC = () => {
           serviceDetail: importServiceDetail,
           basePrice,
           pricingMode,
+          segmentType: resolvedSegmentType,
+          validFrom,
+          validTo,
           unit: SERVICE_CONFIG[serviceType].unit,
           conditions: primary ? [primary, ...conditions] : conditions,
         };
@@ -1584,10 +1638,21 @@ const RescueFeeForm: React.FC = () => {
         : String(item.LoaiDichVu ?? '').includes('Cẩu')
           ? 'CRANE'
           : 'ONSITE');
-    const pricingRaw = String(item.pricingMode ?? item.CachTinh ?? 'FIXED');
-    const pricingMode: ServicePricingMode = /per[_\s-]?unit|đơn vị|don vi/i.test(pricingRaw)
-      ? 'PER_UNIT'
-      : 'FIXED';
+    const pricingRaw = String(item.pricingMode ?? item.CachTinh ?? item.PhuongPhapTinh ?? 'FIXED');
+    const pricingMode: ServicePricingMode =
+      /per[_\s-]?unit|đơn vị|don vi/i.test(pricingRaw) ? 'PER_UNIT' : 'FIXED';
+    const segmentRaw = String(
+      item.segmentType ?? item.LoaiDoanGia ?? item.loaiDoanGia ?? ''
+    ).trim();
+    const segmentType: PriceSegmentType = /tiered|bậc thang|bac thang/i.test(segmentRaw)
+      ? 'TIERED'
+      : /single|đơn lẻ|don le/i.test(segmentRaw)
+        ? 'SINGLE'
+        : defaultPriceSegmentType(serviceType);
+    const resolvedSegmentType =
+      segmentType === 'TIERED' && !canUseTieredSegment(serviceType) ? 'SINGLE' : segmentType;
+    const validFrom = String(item.validFrom ?? item.NgayHieuLuc ?? '').trim() || undefined;
+    const validTo = String(item.validTo ?? item.NgayHetHan ?? '').trim() || undefined;
     const basePrice = Number(item.basePrice ?? item.MucGia ?? item.price ?? 0) || 0;
     const payloadFrom = item.payloadFrom ?? item.loadFrom ?? item.TrongTaiTu;
     const payloadTo = item.payloadTo ?? item.loadTo ?? item.TrongTaiDen;
@@ -1652,6 +1717,9 @@ const RescueFeeForm: React.FC = () => {
       serviceDetail,
       basePrice,
       pricingMode,
+      segmentType: resolvedSegmentType,
+      validFrom,
+      validTo,
       unit: SERVICE_CONFIG[serviceType].unit,
       conditions: primary ? [primary, ...mergedConditions] : mergedConditions,
     };
@@ -1716,6 +1784,12 @@ const RescueFeeForm: React.FC = () => {
           ) ||
           criterionMeta?.values[0] ||
           '';
+    const applicableRaw = item.applicableServices ?? item.DichVuApDung ?? item.services;
+    const applicableServices = Array.isArray(applicableRaw)
+      ? applicableRaw.map((entry) => String(entry).trim()).filter(Boolean)
+      : typeof applicableRaw === 'string' && applicableRaw.trim() && !/^all$/i.test(applicableRaw.trim())
+        ? applicableRaw.split(/[,;|]/).map((entry) => entry.trim()).filter(Boolean)
+        : undefined;
     return {
       id: `su-table-import-${Date.now()}-${index}`,
       name,
@@ -1737,6 +1811,8 @@ const RescueFeeForm: React.FC = () => {
             },
           ]
         : [],
+      applicableServices:
+        applicableServices && applicableServices.length > 0 ? applicableServices : undefined,
       holidayDates: name === 'Lễ/Tết' ? [] : undefined,
       stackable: true,
     };
@@ -2068,7 +2144,10 @@ const RescueFeeForm: React.FC = () => {
       [],
       ['Cot DichVu', 'Y Nghia'],
       ['serviceCode', 'Mã dịch vụ (VD: ONSITE_BATTERY, TOWING_GARAGE, CRANE_ROAD)'],
-      ['pricingMode', 'FIXED | PER_UNIT'],
+      ['pricingMode', 'FIXED | PER_UNIT (Cố định | Đơn vị)'],
+      ['segmentType', 'TIERED | SINGLE (Bậc thang — chỉ Kéo/Cẩu | Đơn lẻ)'],
+      ['validFrom', 'Ngày hiệu lực dòng giá (YYYY-MM-DD)'],
+      ['validTo', 'Ngày hết hạn dòng giá (YYYY-MM-DD)'],
       ['basePrice', 'Mức giá (VNĐ)'],
       ['from', 'Tiêu chí chính Từ (km/m) — để trống nếu dịch vụ tại chỗ'],
       ['fromOperator', 'Toán tử biên dưới: < (không gồm) | ≤ (bao gồm)'],
@@ -2502,6 +2581,9 @@ const RescueFeeForm: React.FC = () => {
       id: `su-${Date.now()}`,
       conditions: source.conditions.map((condition) => ({ ...condition })),
       holidayDates: source.holidayDates ? [...source.holidayDates] : undefined,
+      applicableServices: source.applicableServices
+        ? [...source.applicableServices]
+        : undefined,
     };
     const index = form.surchargeRules.findIndex((rule) => rule.id === sid);
     const next = [...form.surchargeRules];
@@ -2516,6 +2598,21 @@ const RescueFeeForm: React.FC = () => {
       return;
     }
     addSurchargeHead(name);
+  };
+
+  const setSurchargeGroupApplicableServices = (name: string, values: string[]) => {
+    const allServices = matrixServiceHeads;
+    const normalized =
+      values.length === 0 ||
+      (allServices.length > 0 && allServices.every((service) => values.includes(service)))
+        ? undefined
+        : values.filter((service) => allServices.includes(service));
+    update(
+      'surchargeRules',
+      form.surchargeRules.map((rule) =>
+        rule.name === name ? { ...rule, applicableServices: normalized } : rule
+      )
+    );
   };
 
   const toggleSurchargeHead = (name: string, checked: boolean) => {
@@ -3530,8 +3627,8 @@ const RescueFeeForm: React.FC = () => {
               {skipsPriceMatrixTabs && (
                 <div className="border-t border-amber-100 bg-amber-50 px-4 py-3 text-[11px] leading-relaxed text-amber-900">
                   <span className="font-bold">Chế độ chỉ hệ số:</span> không cấu hình{' '}
-                  <span className="font-semibold">Dòng giá theo tiêu chí</span> và{' '}
-                  <span className="font-semibold">Phụ phí có điều kiện</span>. Phí KH trên đơn =
+                  <span className="font-semibold">Đơn giá</span> và{' '}
+                  <span className="font-semibold">Hệ số và phụ phí</span>. Phí KH trên đơn =
                   giá cơ sở × hệ số{' '}
                   <span className="font-bold">{form.settings.retailMarkupFactor}</span>.
                 </div>
@@ -3817,7 +3914,7 @@ const RescueFeeForm: React.FC = () => {
           <div className="space-y-4 bg-gray-50 p-4">
             <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
               <SectionHeader
-                title="Dòng giá theo tổ hợp tiêu chí"
+                title="Đơn giá"
                 number={1}
               />
               <div className="space-y-3 border-b bg-white px-4 py-3">
@@ -3839,7 +3936,7 @@ const RescueFeeForm: React.FC = () => {
                     </div>
                   </div>
                   <div className="w-[140px]">
-                    <label className={labelClass}>Cách tính</label>
+                    <label className={labelClass}>Phương pháp tính</label>
                     <select
                       className={inputClass}
                       value={matrixPricingMode}
@@ -3848,8 +3945,8 @@ const RescueFeeForm: React.FC = () => {
                       }
                     >
                       <option value="">Tất cả</option>
-                      <option value="FIXED">Theo lượt</option>
-                      <option value="PER_UNIT">Theo đơn vị</option>
+                      <option value="FIXED">{SERVICE_PRICING_MODE_LABELS.FIXED}</option>
+                      <option value="PER_UNIT">{SERVICE_PRICING_MODE_LABELS.PER_UNIT}</option>
                     </select>
                   </div>
                 </div>
@@ -4003,15 +4100,18 @@ const RescueFeeForm: React.FC = () => {
                         </div>
                       </div>
                       <div className="overflow-x-auto">
-                        <table className="w-full min-w-[1120px] border-collapse text-xs">
+                        <table className="w-full min-w-[1480px] border-collapse text-xs">
                           <thead>
                             <tr className="bg-white text-[10px] font-bold uppercase tracking-wide text-gray-600">
                               <th className="w-[40px] border-b border-r px-2 py-2 text-center" title="Kéo thả để sắp xếp">
                                 <GripVertical size={12} className="mx-auto text-gray-400" />
                               </th>
-                              <th className="w-[340px] border-b border-r px-3 py-2 text-left">Tiêu chí chính</th>
-                              <th className="w-[190px] border-b border-r px-3 py-2 text-left">Cách tính</th>
-                              <th className="w-[150px] border-b border-r px-3 py-2 text-right">Mức giá</th>
+                              <th className="w-[120px] border-b border-r px-3 py-2 text-left">Loại đoạn giá</th>
+                              <th className="w-[300px] border-b border-r px-3 py-2 text-left">Tiêu chí chính</th>
+                              <th className="w-[130px] border-b border-r px-3 py-2 text-left">Phương pháp tính</th>
+                              <th className="w-[130px] border-b border-r px-3 py-2 text-right">Mức giá</th>
+                              <th className="w-[128px] border-b border-r px-3 py-2 text-left">Ngày hiệu lực</th>
+                              <th className="w-[128px] border-b border-r px-3 py-2 text-left">Ngày hết hạn</th>
                               <th className="border-b border-r px-3 py-2 text-left">Tiêu chí bổ sung</th>
                               <th className="w-[112px] border-b px-3 py-2 text-center">Thao tác</th>
                             </tr>
@@ -4084,6 +4184,41 @@ const RescueFeeForm: React.FC = () => {
                             >
                               <GripVertical size={14} />
                             </div>
+                          </td>
+                          <td className="border-b border-r p-2">
+                            <AppSelect
+                              value={
+                                rule.segmentType ?? defaultPriceSegmentType(rule.serviceType)
+                              }
+                              disabled={!canUseTieredSegment(rule.serviceType)}
+                              options={
+                                canUseTieredSegment(rule.serviceType)
+                                  ? [
+                                      {
+                                        value: 'TIERED',
+                                        label: PRICE_SEGMENT_TYPE_LABELS.TIERED,
+                                      },
+                                      {
+                                        value: 'SINGLE',
+                                        label: PRICE_SEGMENT_TYPE_LABELS.SINGLE,
+                                      },
+                                    ]
+                                  : [
+                                      {
+                                        value: 'SINGLE',
+                                        label: PRICE_SEGMENT_TYPE_LABELS.SINGLE,
+                                      },
+                                    ]
+                              }
+                              onChange={(value) =>
+                                applySegmentType(rule.id, value as PriceSegmentType)
+                              }
+                              title={
+                                canUseTieredSegment(rule.serviceType)
+                                  ? 'Bậc thang: chuỗi khoảng cách. Đơn lẻ: một mức giá độc lập.'
+                                  : 'Dịch vụ hỗ trợ tại chỗ chỉ dùng Đơn lẻ'
+                              }
+                            />
                           </td>
                           <td className="border-b border-r p-2">
                             {primaryConfig?.mode === 'TOW_INCLUDED' ? (
@@ -4193,8 +4328,8 @@ const RescueFeeForm: React.FC = () => {
                               value={rule.serviceType === 'ONSITE' ? 'FIXED' : rule.pricingMode ?? 'FIXED'}
                               disabled={rule.serviceType === 'ONSITE'}
                               options={[
-                                { value: 'FIXED', label: 'Theo lượt' },
-                                { value: 'PER_UNIT', label: 'Theo đơn vị' },
+                                { value: 'FIXED', label: SERVICE_PRICING_MODE_LABELS.FIXED },
+                                { value: 'PER_UNIT', label: SERVICE_PRICING_MODE_LABELS.PER_UNIT },
                               ]}
                               onChange={(value) =>
                                 updateServiceRule(rule.id, {
@@ -4216,6 +4351,31 @@ const RescueFeeForm: React.FC = () => {
                                 })
                               }
                               placeholder="0"
+                            />
+                          </td>
+                          <td className="border-b border-r p-2">
+                            <input
+                              type="date"
+                              className={inputClass}
+                              value={rule.validFrom ?? ''}
+                              onChange={(e) =>
+                                updateServiceRule(rule.id, {
+                                  validFrom: e.target.value || undefined,
+                                })
+                              }
+                            />
+                          </td>
+                          <td className="border-b border-r p-2">
+                            <input
+                              type="date"
+                              className={inputClass}
+                              value={rule.validTo ?? ''}
+                              min={rule.validFrom || undefined}
+                              onChange={(e) =>
+                                updateServiceRule(rule.id, {
+                                  validTo: e.target.value || undefined,
+                                })
+                              }
                             />
                           </td>
                           <td className="border-b border-r p-2">
@@ -4344,8 +4504,11 @@ const RescueFeeForm: React.FC = () => {
                       </div>
                       <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] text-blue-800">
                         Mỗi dòng gồm: <code>primaryCriterion</code> (tiêu chí chính),{' '}
-                        <code>pricingMode</code> (<code>FIXED</code>=Theo lượt,{' '}
-                        <code>PER_UNIT</code>=Theo đơn vị), <code>basePrice</code> (mức giá),{' '}
+                        <code>pricingMode</code> (<code>FIXED</code>=Cố định,{' '}
+                        <code>PER_UNIT</code>=Đơn vị), <code>segmentType</code> (
+                        <code>TIERED</code>=Bậc thang / <code>SINGLE</code>=Đơn lẻ),{' '}
+                        <code>basePrice</code> (mức giá), <code>validFrom</code> /{' '}
+                        <code>validTo</code>,{' '}
                         <code>conditions</code> (tiêu chí bổ sung). Giá trị rỗng (
                         <code>[]</code>, <code>null</code>, <code>""</code>) sẽ bị bỏ qua.
                       </div>
@@ -4727,7 +4890,7 @@ const RescueFeeForm: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className={labelClass}>Cách tính</label>
+                        <label className={labelClass}>Phương pháp tính</label>
                         <select
                           className={`${inputClass} bg-white`}
                           value={rule.pricingMode ?? 'FIXED'}
@@ -4738,8 +4901,8 @@ const RescueFeeForm: React.FC = () => {
                             })
                           }
                         >
-                          <option value="FIXED">Theo lượt</option>
-                          <option value="PER_UNIT">Theo đơn vị</option>
+                          <option value="FIXED">{SERVICE_PRICING_MODE_LABELS.FIXED}</option>
+                          <option value="PER_UNIT">{SERVICE_PRICING_MODE_LABELS.PER_UNIT}</option>
                         </select>
                       </div>
                       <div>
@@ -5079,11 +5242,11 @@ const RescueFeeForm: React.FC = () => {
           <div className="space-y-4 bg-gray-50 p-4">
             <div className="overflow-hidden rounded-lg border bg-white shadow-sm">
               <SectionHeader
-                title="Phụ phí có điều kiện"
+                title="Hệ số và phụ phí"
                 number={1}
                 actions={
                   <span className="text-[10px] font-medium text-white/80">
-                    Đầu phụ phí được chọn tại tab 1
+                    Đầu phụ phí được chọn tại tab 1 · Mặc định áp dụng ALL dịch vụ đã chọn
                   </span>
                 }
               />
@@ -5102,42 +5265,82 @@ const RescueFeeForm: React.FC = () => {
                   const isHolidayGroup =
                     group.name === 'Lễ/Tết' || groupCriterionKey === 'holiday';
                   const isTimeGroup = isTimeSurchargeCriterion(groupCriterionKey);
+                  const serviceOptions = matrixServiceHeads.map((service) => ({
+                    value: service,
+                    label: service,
+                  }));
+                  const storedServices = first?.applicableServices;
+                  const applicableValues =
+                    !storedServices || storedServices.length === 0
+                      ? matrixServiceHeads
+                      : storedServices.filter((service) => matrixServiceHeads.includes(service));
+                  const appliesToAll =
+                    !storedServices ||
+                    storedServices.length === 0 ||
+                    (matrixServiceHeads.length > 0 &&
+                      matrixServiceHeads.every((service) => applicableValues.includes(service)));
                   return (
                     <div
                       key={group.name}
                       className="overflow-hidden rounded-lg border bg-white shadow-sm"
                     >
-                      <div className="flex items-center justify-between border-b bg-gray-50 px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-vetc-green text-xs font-black text-white">
+                      <div className="flex flex-col gap-3 border-b bg-gray-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-vetc-green text-xs font-black text-white">
                             {groupIndex + 1}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="text-sm font-bold text-gray-800">{group.name}</div>
                             <div className="text-[10px] text-gray-500">
                               {groupCriterionLabel} · {group.rules.length} dòng điều kiện
+                              {appliesToAll
+                                ? ' · Áp dụng ALL dịch vụ'
+                                : ` · ${applicableValues.length}/${matrixServiceHeads.length} dịch vụ`}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => addSurchargeLine(group.name)}
-                            className="inline-flex items-center gap-1 rounded border border-vetc-green bg-white px-3 py-1.5 text-[10px] font-bold text-vetc-green hover:bg-green-50"
-                            title="Thêm dòng điều kiện cùng loại"
-                          >
-                            <Plus size={13} />
-                            Thêm dòng
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeSurchargeHead(group.name)}
-                            className="inline-flex items-center gap-1 rounded border border-red-200 bg-white px-3 py-1.5 text-[10px] font-bold text-red-600 hover:bg-red-50"
-                            title="Xóa nhóm phụ phí"
-                          >
-                            <Trash2 size={13} />
-                            Xóa
-                          </button>
+                        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                          <div className="min-w-0 w-full sm:max-w-[320px]">
+                            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                              Áp dụng dịch vụ
+                            </label>
+                            <AppMultiSelect
+                              values={applicableValues}
+                              options={serviceOptions}
+                              onChange={(values) =>
+                                setSurchargeGroupApplicableServices(group.name, values)
+                              }
+                              placeholder={
+                                matrixServiceHeads.length
+                                  ? 'Chọn dịch vụ áp dụng'
+                                  : 'Chưa có dịch vụ — chọn ở tab 1'
+                              }
+                              searchPlaceholder="Tìm dịch vụ..."
+                              disabled={matrixServiceHeads.length === 0}
+                              summary="count"
+                              countLabel="dịch vụ"
+                            />
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2 sm:pt-5">
+                            <button
+                              type="button"
+                              onClick={() => addSurchargeLine(group.name)}
+                              className="inline-flex items-center gap-1 rounded border border-vetc-green bg-white px-3 py-1.5 text-[10px] font-bold text-vetc-green hover:bg-green-50"
+                              title="Thêm dòng điều kiện cùng loại"
+                            >
+                              <Plus size={13} />
+                              Thêm dòng
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeSurchargeHead(group.name)}
+                              className="inline-flex items-center gap-1 rounded border border-red-200 bg-white px-3 py-1.5 text-[10px] font-bold text-red-600 hover:bg-red-50"
+                              title="Xóa nhóm phụ phí"
+                            >
+                              <Trash2 size={13} />
+                              Xóa
+                            </button>
+                          </div>
                         </div>
                       </div>
 

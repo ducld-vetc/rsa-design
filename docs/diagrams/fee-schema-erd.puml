@@ -105,6 +105,9 @@ entity fee_price_line {
   * service_name : varchar
   * base_price : numeric
   * pricing_mode : varchar
+  * segment_type : varchar
+  * valid_from : date
+  * valid_to : date
   * unit : varchar
   * included_qty : numeric
   * price_per_extra : numeric
@@ -134,6 +137,11 @@ entity fee_surcharge_rule {
   * cap_amount : numeric
   * holiday_dates_json : jsonb
   * sort_order : int
+}
+
+entity fee_surcharge_rule_service {
+  * fee_surcharge_rule_id : bigint <<PK/FK>>
+  * service_id : bigint <<PK/FK>>
 }
 
 entity fee_surcharge_condition {
@@ -223,9 +231,11 @@ fee_table_version ||--o{ fee_surcharge_rule : surcharges
 
 service ||--o{ fee_price_line : priced_as
 service ||--o{ rescue_order_service : used_on_order
+service ||--o{ fee_surcharge_rule_service : surcharge_scope
 
 fee_price_line ||--o{ fee_price_line_condition : AND_conditions
 fee_surcharge_rule ||--o{ fee_surcharge_condition : AND_conditions
+fee_surcharge_rule ||--o{ fee_surcharge_rule_service : applies_to
 
 fee_table ||--o{ ro_fee_snapshot : customer_or_partner_table
 rescue_order_v2 ||--o| ro_fee_snapshot : has_fee_snapshot
