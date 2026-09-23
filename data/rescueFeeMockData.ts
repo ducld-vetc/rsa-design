@@ -132,15 +132,46 @@ export interface PriceTable {
   updatedBy: string;
 }
 
+/** Snapshot đủ để render màn xem bảng phí theo version cũ */
+export type FeeVersionSnapshot = Pick<
+  PriceTable,
+  | 'code'
+  | 'name'
+  | 'target'
+  | 'objectType'
+  | 'orderType'
+  | 'applyFor'
+  | 'version'
+  | 'status'
+  | 'validFrom'
+  | 'validTo'
+  | 'priceCriteria'
+  | 'serviceRules'
+  | 'surchargeRules'
+  | 'settings'
+  | 'updatedAt'
+  | 'updatedBy'
+>;
+
 export interface FeeVersionHistoryItem {
   id: string;
   tableId: string;
+  /** Mã bảng tại thời điểm version */
+  tableCode?: string;
   version: number;
   status: FeeTableStatus;
+  validFrom?: string;
+  validTo?: string;
   activatedAt?: string;
   activatedBy?: string;
   note: string;
+  /** Chi tiết các thay đổi trong version */
   changes: string[];
+  /**
+   * Snapshot nội dung bảng tại version (để xem lại trên màn view).
+   * Version đang ACTIVE dùng bản live trong `rescueFeeTables`.
+   */
+  snapshot?: FeeVersionSnapshot;
 }
 
 export interface FeeTableSettings {
@@ -266,49 +297,160 @@ export const CRITERIA_CATALOG = [
 
 export const CRITERIA_SYSTEM_CONFIG: Record<
   (typeof CRITERIA_CATALOG)[number],
-  { key: string; valueType: CriterionValueType; values: string[] }
+  {
+    key: string;
+    valueType: CriterionValueType;
+    values: string[];
+    tableMapping: FeeCriterionTableMapping;
+    fieldMapping: string;
+  }
 > = {
   /** Alias legacy — cùng nghĩa load_capacity (bảng cũ còn dùng key payload) */
-  'Trọng tải': { key: 'payload', valueType: 'RANGE', values: [] },
-  'Số chỗ': { key: 'seats', valueType: 'RANGE', values: [] },
+  'Trọng tải': {
+    key: 'payload',
+    valueType: 'RANGE',
+    values: [],
+    tableMapping: 'vehicle',
+    fieldMapping: 'payloadTons',
+  },
+  'Số chỗ': {
+    key: 'seats',
+    valueType: 'RANGE',
+    values: [],
+    tableMapping: 'vehicle',
+    fieldMapping: 'seats',
+  },
   'Loại phương tiện gặp sự cố': {
     key: 'vehicleType',
     valueType: 'LIST',
     values: ['Xe chở người', 'Xe chở hàng'],
+    tableMapping: 'vehicle',
+    fieldMapping: 'vehicleType',
   },
   'Loại phương tiện cứu hộ': {
     key: 'rescueVehicleType',
     valueType: 'LIST',
     values: ['Xe máy', 'Xe van', 'Xe sàn trượt', 'Xe cẩu, kéo'],
+    tableMapping: 'order',
+    fieldMapping: 'rescueVehicleType',
   },
-  'Khoảng cách so với mặt đất': { key: 'roadDistance', valueType: 'RANGE', values: [] },
+  'Khoảng cách so với mặt đất': {
+    key: 'roadDistance',
+    valueType: 'RANGE',
+    values: [],
+    tableMapping: 'line',
+    fieldMapping: 'roadDistance',
+  },
   'Tư thế xe cẩu (>150m)': {
     key: 'cranePosture',
     valueType: 'LIST',
     values: ['Nghiêng', 'Ngửa'],
+    tableMapping: 'line',
+    fieldMapping: 'cranePosture',
   },
-  'Quãng đường kéo': { key: 'distanceKm', valueType: 'RANGE', values: [] },
+  'Quãng đường kéo': {
+    key: 'distanceKm',
+    valueType: 'RANGE',
+    values: [],
+    tableMapping: 'line',
+    fieldMapping: 'distanceKm',
+  },
   'Địa hình khu vực': {
     key: 'areaTerrain',
     valueType: 'LIST',
     values: ['NORMAL', 'SUBURBAN', 'MOUNTAIN'],
+    tableMapping: 'order',
+    fieldMapping: 'areaTerrain',
   },
-  'Cao tốc': { key: 'isHighway', valueType: 'LIST', values: ['YES', 'NO'] },
-  'Giờ yêu cầu cứu hộ': { key: 'timeWindow', valueType: 'TIME', values: [] },
+  'Cao tốc': {
+    key: 'isHighway',
+    valueType: 'LIST',
+    values: ['YES', 'NO'],
+    tableMapping: 'order',
+    fieldMapping: 'BOOL_OR_ROUTE_TO_YES_NO',
+  },
+  'Giờ yêu cầu cứu hộ': {
+    key: 'timeWindow',
+    valueType: 'TIME',
+    values: [],
+    tableMapping: 'order',
+    fieldMapping: 'requestTime',
+  },
   'Thời tiết / thiên tai': {
     key: 'weather',
     valueType: 'LIST',
     values: ['Bình thường', 'Mưa', 'Thiên tai / ngập lụt diện rộng', 'Bão'],
+    tableMapping: 'order',
+    fieldMapping: 'UI_WEATHER_TO_LABEL',
   },
-  'Vị trí đặc biệt': { key: 'locationType', valueType: 'LIST', values: ['ROAD', 'BASEMENT'] },
+  'Vị trí đặc biệt': {
+    key: 'locationType',
+    valueType: 'LIST',
+    values: ['ROAD', 'BASEMENT'],
+    tableMapping: 'order',
+    fieldMapping: 'locationType',
+  },
   'Thiết bị thêm': {
     key: 'extraEquipment',
     valueType: 'LIST',
     values: ['DOLLY', 'DOUBLE_JACK'],
+    tableMapping: 'line',
+    fieldMapping: 'extraEquipment',
   },
 };
 
-/** Tiêu chí bổ sung (key schema PTI) — song song seats/payload legacy */
+/** Bảng/entity nguồn lấy giá trị tiêu chí (fee_criterion_mapping_field.table_mapping) */
+export type FeeCriterionTableMapping = 'order' | 'line' | 'vehicle';
+
+/** Scope runtime khớp table_mapping */
+export type FeeCriterionScope = 'ORDER' | 'LINE' | 'VEHICLE';
+
+export const FEE_CRITERION_TABLE_MAPPING_OPTIONS: Array<{
+  value: FeeCriterionTableMapping;
+  label: string;
+  scope: FeeCriterionScope;
+}> = [
+  { value: 'order', label: 'Đơn hàng (order)', scope: 'ORDER' },
+  { value: 'line', label: 'Dòng dịch vụ (line)', scope: 'LINE' },
+  { value: 'vehicle', label: 'Phương tiện (vehicle)', scope: 'VEHICLE' },
+];
+
+export const FEE_CRITERION_SCOPE_BY_TABLE: Record<
+  FeeCriterionTableMapping,
+  FeeCriterionScope
+> = {
+  order: 'ORDER',
+  line: 'LINE',
+  vehicle: 'VEHICLE',
+};
+
+/** Gợi ý field_mapping theo bảng nguồn */
+export const FEE_CRITERION_FIELD_SUGGESTIONS: Record<FeeCriterionTableMapping, string[]> = {
+  order: [
+    'weather',
+    'UI_WEATHER_TO_LABEL',
+    'severity',
+    'UI_SEVERITY_TO_LABEL',
+    'requestTime',
+    'asOfDate',
+    'DATE_IN_HOLIDAY_LIST',
+    'locationType',
+    'areaTerrain',
+    'rescueVehicleType',
+    'BOOL_OR_ROUTE_TO_YES_NO',
+  ],
+  line: ['distanceKm', 'roadDistance', 'cranePosture', 'extraEquipment'],
+  vehicle: [
+    'vehicleType',
+    'seats',
+    'payloadTons',
+    'seat_number',
+    'load_capacity',
+    'batteryType',
+  ],
+};
+
+/** Tiêu chí bổ sung (key schema PTI) — ẩn khỏi UI chọn tiêu chí ma trận */
 export const EXTRA_FEE_CRITERION_DEFINITIONS: Array<{
   id: string;
   key: string;
@@ -317,6 +459,9 @@ export const EXTRA_FEE_CRITERION_DEFINITIONS: Array<{
   values: string[];
   status: 'ACTIVE' | 'INACTIVE';
   updatedAt: string;
+  tableMapping: FeeCriterionTableMapping;
+  fieldMapping: string;
+  scope: FeeCriterionScope;
 }> = [
   {
     id: 'FEE-CRITERION-SEAT-NUMBER',
@@ -324,8 +469,11 @@ export const EXTRA_FEE_CRITERION_DEFINITIONS: Array<{
     label: 'Số chỗ (seat_number)',
     valueType: 'RANGE',
     values: [],
-    status: 'ACTIVE',
+    status: 'INACTIVE',
     updatedAt: '2026-08-03 15:00',
+    tableMapping: 'vehicle',
+    fieldMapping: 'seat_number',
+    scope: 'VEHICLE',
   },
   {
     id: 'FEE-CRITERION-LOAD-CAPACITY',
@@ -333,8 +481,11 @@ export const EXTRA_FEE_CRITERION_DEFINITIONS: Array<{
     label: 'Trọng tải tấn (load_capacity)',
     valueType: 'RANGE',
     values: [],
-    status: 'ACTIVE',
+    status: 'INACTIVE',
     updatedAt: '2026-08-03 15:00',
+    tableMapping: 'vehicle',
+    fieldMapping: 'load_capacity',
+    scope: 'VEHICLE',
   },
 ];
 
@@ -346,16 +497,30 @@ export interface FeeCriterionDefinition {
   values: string[];
   status: 'ACTIVE' | 'INACTIVE';
   updatedAt: string;
+  /** fee_criterion_mapping_field.table_mapping */
+  tableMapping: FeeCriterionTableMapping;
+  /** fee_criterion_mapping_field.field_mapping — cột hoặc hàm transform */
+  fieldMapping: string;
+  /** fee_criterion_mapping_field.scope */
+  scope: FeeCriterionScope;
 }
 
 export let feeCriterionDefinitions: FeeCriterionDefinition[] = [
-  ...CRITERIA_CATALOG.map((label, index) => ({
-    id: `FEE-CRITERION-${index + 1}`,
-    label,
-    ...CRITERIA_SYSTEM_CONFIG[label],
-    status: 'ACTIVE' as const,
-    updatedAt: '2026-07-30 10:00',
-  })),
+  ...CRITERIA_CATALOG.map((label, index) => {
+    const config = CRITERIA_SYSTEM_CONFIG[label];
+    return {
+      id: `FEE-CRITERION-${index + 1}`,
+      label,
+      key: config.key,
+      valueType: config.valueType,
+      values: config.values,
+      tableMapping: config.tableMapping,
+      fieldMapping: config.fieldMapping,
+      scope: FEE_CRITERION_SCOPE_BY_TABLE[config.tableMapping],
+      status: 'ACTIVE' as const,
+      updatedAt: '2026-07-30 10:00',
+    };
+  }),
   ...EXTRA_FEE_CRITERION_DEFINITIONS,
 ];
 
@@ -468,16 +633,21 @@ export const getActiveIncidentalFeeOptions = (): Array<{
 export const FEE_SERVICE_CATALOG: Array<{
   value: string;
   type: ServiceType;
-  /** Dịch vụ con — áp dụng cho Kéo xe / Cẩu xe */
+  /** Dịch vụ con — Hỗ trợ tại chỗ / Kéo xe / Cẩu xe */
   children?: readonly string[];
 }> = [
-  { value: 'Kích bình ắc quy', type: 'ONSITE' },
-  { value: 'Kích bình', type: 'ONSITE' },
-  { value: 'Vá lốp tại chỗ', type: 'ONSITE' },
-  { value: 'Thay lốp dự phòng', type: 'ONSITE' },
-  { value: 'Cung cấp nhiên liệu khẩn cấp (xăng, dầu, nước làm mát)', type: 'ONSITE' },
-  { value: 'Cung cấp nhiên liệu (xăng, dầu, nước làm mát)', type: 'ONSITE' },
-  { value: 'Thủy kích', type: 'ONSITE' },
+  {
+    value: 'Hỗ trợ tại chỗ',
+    type: 'ONSITE',
+    children: [
+      'Kích bình ắc quy',
+      'Kích bình',
+      'Vá lốp tại chỗ',
+      'Thay lốp dự phòng',
+      'Cung cấp nhiên liệu (xăng, dầu, nước làm mát)',
+      'Thủy kích',
+    ],
+  },
   {
     value: 'Kéo xe',
     type: 'TOWING',
@@ -500,6 +670,10 @@ export const FEE_SERVICE_CATALOG: Array<{
   },
 ];
 
+/** Kéo/Cẩu: chọn category cha trên ma trận; con chỉ hiển thị */
+export const isMatrixCategoryService = (type: ServiceType): boolean =>
+  type === 'TOWING' || type === 'CRANE';
+
 /** Resolve loại dịch vụ từ tên đầu dịch vụ hoặc dịch vụ con */
 export const resolveFeeServiceType = (serviceDetail: string): ServiceType | undefined => {
   const direct = FEE_SERVICE_CATALOG.find((item) => item.value === serviceDetail);
@@ -508,35 +682,59 @@ export const resolveFeeServiceType = (serviceDetail: string): ServiceType | unde
   return parent?.type;
 };
 
-/** Category cha (Kéo xe / Cẩu xe) nếu `serviceDetail` là dịch vụ con */
+/** Category cha nếu `serviceDetail` là dịch vụ con */
 export const resolveFeeServiceParent = (serviceDetail: string): string | undefined =>
   FEE_SERVICE_CATALOG.find((item) => item.children?.includes(serviceDetail))?.value;
 
-/** Đầu dùng trên ma trận dòng giá — Kéo/Cẩu gom về category cha */
-export const resolveMatrixServiceHead = (serviceDetail: string): string =>
-  resolveFeeServiceParent(serviceDetail) ?? serviceDetail;
+/** Đầu dùng trên ma trận dòng giá — chỉ Kéo/Cẩu gom về category cha */
+export const resolveMatrixServiceHead = (serviceDetail: string): string => {
+  const parentEntry = FEE_SERVICE_CATALOG.find((item) => item.children?.includes(serviceDetail));
+  if (parentEntry && isMatrixCategoryService(parentEntry.type)) {
+    return parentEntry.value;
+  }
+  return serviceDetail;
+};
 
 /**
- * Chuẩn hóa: dịch vụ con Kéo/Cẩu → appliedServices; serviceRules chỉ giữ đầu ma trận (category).
+ * Chuẩn hóa: dịch vụ con Kéo/Cẩu → applied category cha; ONSITE giữ từng dịch vụ con.
  */
 export const normalizePriceTableServiceHeads = (table: PriceTable): PriceTable => {
   const applied = new Set<string>(table.scope.appliedServices ?? []);
   const rulesByHead = new Map<string, ServicePriceRule[]>();
 
   for (const rule of table.serviceRules) {
-    const parent = resolveFeeServiceParent(rule.serviceDetail);
+    const parentEntry = FEE_SERVICE_CATALOG.find((item) =>
+      item.children?.includes(rule.serviceDetail)
+    );
     const catalog = FEE_SERVICE_CATALOG.find((item) => item.value === rule.serviceDetail);
-    if (parent) {
-      applied.add(rule.serviceDetail);
-      const rewritten = { ...rule, serviceDetail: parent };
-      const list = rulesByHead.get(parent) ?? [];
+
+    if (parentEntry && isMatrixCategoryService(parentEntry.type)) {
+      applied.delete(rule.serviceDetail);
+      applied.add(parentEntry.value);
+      const rewritten = { ...rule, serviceDetail: parentEntry.value };
+      const list = rulesByHead.get(parentEntry.value) ?? [];
       list.push(rewritten);
-      rulesByHead.set(parent, list);
+      rulesByHead.set(parentEntry.value, list);
       continue;
     }
-    if (!catalog?.children?.length) {
+
+    if (parentEntry) {
+      // ONSITE child — mỗi dịch vụ con là một đầu ma trận
+      applied.add(rule.serviceDetail);
+      applied.delete(parentEntry.value);
+      const list = rulesByHead.get(rule.serviceDetail) ?? [];
+      list.push(rule);
+      rulesByHead.set(rule.serviceDetail, list);
+      continue;
+    }
+
+    if (catalog && isMatrixCategoryService(catalog.type)) {
+      applied.add(catalog.value);
+      catalog.children?.forEach((child) => applied.delete(child));
+    } else if (!catalog?.children?.length) {
       applied.add(rule.serviceDetail);
     }
+
     const head = rule.serviceDetail;
     const list = rulesByHead.get(head) ?? [];
     list.push(rule);
@@ -553,63 +751,83 @@ export const normalizePriceTableServiceHeads = (table: PriceTable): PriceTable =
   };
 };
 
+/** Nhóm hiển thị đầu phụ phí theo tiêu chí */
+export const FEE_SURCHARGE_GROUP_ORDER = [
+  'Đơn hàng',
+  'Thời gian & lịch',
+  'Vị trí / khu vực',
+  'Điều kiện sự cố',
+] as const;
+
+export type FeeSurchargeGroup = (typeof FEE_SURCHARGE_GROUP_ORDER)[number];
+
 export const FEE_SURCHARGE_CATALOG = [
   {
     name: 'Hủy đơn',
+    group: 'Đơn hàng' as FeeSurchargeGroup,
     criterionKey: 'orderCancelled',
     criterionLabel: 'Hủy đơn',
     value: 'Có',
   },
   {
     name: 'Bánh phụ',
+    group: 'Điều kiện sự cố' as FeeSurchargeGroup,
     criterionKey: 'spareWheel',
     criterionLabel: 'Bánh phụ',
     value: 'Có',
   },
   {
     name: 'Khu vực',
+    group: 'Vị trí / khu vực' as FeeSurchargeGroup,
     criterionKey: 'area',
     criterionLabel: 'Khu vực',
     value: 'Ngoại thành',
   },
   {
     name: 'Thời tiết',
+    group: 'Điều kiện sự cố' as FeeSurchargeGroup,
     criterionKey: 'weather',
     criterionLabel: 'Thời tiết',
     value: 'Bão',
   },
   {
     name: 'Mức độ nghiêm trọng',
+    group: 'Điều kiện sự cố' as FeeSurchargeGroup,
     criterionKey: 'severity',
     criterionLabel: 'Mức độ nghiêm trọng',
     value: 'Nặng',
   },
   {
     name: 'Thời gian yêu cầu cứu hộ',
+    group: 'Thời gian & lịch' as FeeSurchargeGroup,
     criterionKey: 'timeWindow',
     criterionLabel: 'Thời gian yêu cầu cứu hộ',
     value: '22:00-06:00',
   },
   {
     name: 'Thời gian thực hiện cứu hộ',
+    group: 'Thời gian & lịch' as FeeSurchargeGroup,
     criterionKey: 'executionTimeWindow',
     criterionLabel: 'Thời gian thực hiện cứu hộ',
     value: '22:00-06:00',
   },
   {
     name: 'Khu vực đặc biệt (Hầm)',
+    group: 'Vị trí / khu vực' as FeeSurchargeGroup,
     criterionKey: 'locationType',
     criterionLabel: 'Loại vị trí',
     value: 'Tầng hầm',
   },
   {
     name: 'Tuyến cao tốc',
+    group: 'Vị trí / khu vực' as FeeSurchargeGroup,
     criterionKey: 'isHighway',
     criterionLabel: 'Vị trí trên cao tốc',
     value: 'Cao tốc Bắc – Nam phía Đông (CT.01)',
   },
   {
     name: 'Lễ/Tết',
+    group: 'Thời gian & lịch' as FeeSurchargeGroup,
     criterionKey: 'holiday',
     criterionLabel: 'Loại ngày',
     value: 'Ngày lễ',
@@ -772,7 +990,8 @@ export const FEE_OBJECT_TYPE_LABELS: Record<FeeObjectType, string> = {
 export const FEE_ORDER_TYPE_LABELS: Record<FeeOrderType, string> = {
   PACKAGE: 'Đơn gói',
   SINGLE: 'Đơn lẻ',
-  PACKAGE_SINGLE: 'Đơn gói / đơn lẻ',
+  /** Legacy — không còn chọn trên form; hiển thị như Đơn gói */
+  PACKAGE_SINGLE: 'Đơn gói',
 };
 
 /** Catalog mã DN dùng cho droplist form / filter */
@@ -1690,44 +1909,184 @@ export const feeVersionHistory: FeeVersionHistoryItem[] = [
   {
     id: 'vh1',
     tableId: 'SUP-INTERNAL-001',
+    tableCode: 'SUP-INT-001',
     version: 3,
     status: 'ACTIVE',
+    validFrom: '2026-07-01',
+    validTo: '2026-12-31',
     activatedAt: '2026-07-01 10:00',
     activatedBy: 'admin',
     note: 'Cập nhật giá kéo xe và phụ phí đêm',
-    changes: ['Tăng giá kéo xe mở cửa lên 500,000', 'Phụ phí đêm hệ số 1.15'],
+    changes: [
+      'Tăng giá kéo xe mở cửa lên 500,000',
+      'Phụ phí đêm hệ số 1.15',
+      'Đồng bộ segment_type Bậc thang cho Kéo xe / Cẩu xe',
+      'Điều chỉnh giá kích bình ắc quy',
+      'Cập nhật hiệu lực đến 2026-12-31',
+      'Đổi quy tắc làm tròn NEAREST_1000',
+    ],
   },
   {
     id: 'vh2',
     tableId: 'SUP-INTERNAL-001',
+    tableCode: 'SUP-INT-001',
     version: 2,
     status: 'EXPIRED',
+    validFrom: '2026-03-01',
+    validTo: '2026-06-30',
     activatedAt: '2026-03-01 09:00',
     activatedBy: 'admin',
     note: 'Phiên bản Q1',
-    changes: ['Thêm rule cẩu dưới mặt đường'],
+    changes: [
+      'Thêm rule cẩu dưới mặt đường',
+      'Bổ sung phụ phí cao tốc',
+    ],
+  },
+  {
+    id: 'vh2b',
+    tableId: 'SUP-INTERNAL-001',
+    tableCode: 'SUP-INT-001',
+    version: 1,
+    status: 'EXPIRED',
+    validFrom: '2026-01-01',
+    validTo: '2026-02-28',
+    activatedAt: '2026-01-01 08:00',
+    activatedBy: 'admin',
+    note: 'Phát hành lần đầu bảng NCC nội bộ',
+    changes: [
+      'Khởi tạo đơn giá hỗ trợ tại chỗ / kéo / cẩu',
+      'Thiết lập phụ phí thời tiết, khung giờ',
+    ],
   },
   {
     id: 'vh3',
     tableId: 'CUS-PUBLIC-001',
+    tableCode: 'CUS-PUB-001',
     version: 4,
     status: 'ACTIVE',
+    validFrom: '2026-07-10',
+    validTo: '2026-12-31',
     activatedAt: '2026-07-10 11:00',
     activatedBy: 'admin',
     note: 'Đồng bộ bảng Public với chính sách mới',
-    changes: ['Cập nhật đơn giá hỗ trợ tại chỗ'],
+    changes: [
+      'Cập nhật đơn giá hỗ trợ tại chỗ',
+      'Điều chỉnh hệ số Lễ/Tết',
+    ],
+  },
+  {
+    id: 'vh3b',
+    tableId: 'CUS-PUBLIC-001',
+    tableCode: 'CUS-PUB-001',
+    version: 3,
+    status: 'EXPIRED',
+    validFrom: '2026-04-01',
+    validTo: '2026-07-09',
+    activatedAt: '2026-04-01 10:00',
+    activatedBy: 'ops_fee',
+    note: 'Điều chỉnh Q2',
+    changes: ['Tăng giá vá lốp tại chỗ', 'Thêm phụ phí hầm'],
   },
   {
     id: 'vh4',
     tableId: 'CUS-BUSINESS-FORD',
+    tableCode: 'CUS-DN-FORD',
     version: 2,
     status: 'ACTIVE',
+    validFrom: '2026-04-01',
+    validTo: '2026-12-31',
     activatedAt: '2026-04-01 08:30',
     activatedBy: 'admin',
     note: 'Hiệu lực hợp đồng Ford 2026',
-    changes: ['Áp dụng bảng DN riêng'],
+    changes: ['Áp dụng bảng DN riêng', 'Map tiêu chí seat_number / load_capacity'],
+  },
+  {
+    id: 'vh4b',
+    tableId: 'CUS-BUSINESS-FORD',
+    tableCode: 'CUS-DN-FORD',
+    version: 1,
+    status: 'EXPIRED',
+    validFrom: '2025-01-01',
+    validTo: '2026-03-31',
+    activatedAt: '2025-01-01 09:00',
+    activatedBy: 'admin',
+    note: 'Phiên bản hợp đồng 2025',
+    changes: ['Phát hành bảng phí DN Ford'],
   },
 ];
+
+/** Lịch sử version theo bảng phí (mới → cũ) */
+export const getFeeVersionHistory = (tableId: string): FeeVersionHistoryItem[] =>
+  feeVersionHistory
+    .filter((item) => item.tableId === tableId)
+    .sort((a, b) => b.version - a.version);
+
+/**
+ * Lấy nội dung bảng phí theo version để xem lại trên màn view.
+ * Version hiện hành = bản live; version cũ = snapshot lịch sử (hoặc suy từ live nếu thiếu snapshot).
+ */
+export const getFeeTableAtVersion = (
+  tableId: string,
+  version?: number | null
+): PriceTable | null => {
+  const live = rescueFeeTables.find((table) => table.id === tableId);
+  if (!live) return null;
+  const targetVersion =
+    version != null && Number.isFinite(version) && version > 0 ? version : live.version;
+  if (targetVersion === live.version) return live;
+
+  const hist = feeVersionHistory.find(
+    (item) => item.tableId === tableId && item.version === targetVersion
+  );
+  if (!hist) return null;
+
+  if (hist.snapshot) {
+    return {
+      ...live,
+      ...hist.snapshot,
+      id: live.id,
+      scope: live.scope,
+      criteria: live.criteria,
+      version: hist.version,
+      status: hist.status,
+      validFrom: hist.validFrom ?? hist.snapshot.validFrom,
+      validTo: hist.validTo ?? hist.snapshot.validTo,
+    };
+  }
+
+  const factor = Math.max(0.45, targetVersion / Math.max(live.version, 1));
+  return {
+    ...live,
+    version: hist.version,
+    status: hist.status,
+    code: hist.tableCode ?? live.code,
+    validFrom: hist.validFrom ?? live.validFrom,
+    validTo: hist.validTo ?? live.validTo,
+    updatedAt: hist.activatedAt ?? live.updatedAt,
+    updatedBy: hist.activatedBy ?? live.updatedBy,
+    serviceRules: live.serviceRules
+      .slice(0, Math.max(1, Math.ceil(live.serviceRules.length * factor)))
+      .map((rule, index) => ({
+        ...rule,
+        id: `${rule.id}-hist-v${targetVersion}-${index}`,
+        basePrice: Math.round(Number(rule.basePrice || 0) * (0.8 + targetVersion * 0.05)),
+        conditions: (rule.conditions ?? []).map((condition) => ({ ...condition })),
+      })),
+    surchargeRules: live.surchargeRules
+      .slice(0, Math.max(0, Math.ceil(live.surchargeRules.length * factor)))
+      .map((rule, index) => ({
+        ...rule,
+        id: `${rule.id}-hist-v${targetVersion}-${index}`,
+        conditions: rule.conditions.map((condition) => ({ ...condition })),
+        holidayDates: rule.holidayDates ? [...rule.holidayDates] : undefined,
+        applicableServices: rule.applicableServices
+          ? [...rule.applicableServices]
+          : undefined,
+      })),
+    priceCriteria: (live.priceCriteria ?? []).map((criterion) => ({ ...criterion })),
+    settings: { ...live.settings },
+  };
+};
 
 export const roundMoney = (value: number, mode: RoundMode = 'NEAREST_1000'): number => {
   if (mode === 'NONE') return Math.round(value);
@@ -2461,7 +2820,7 @@ export const emptyPriceTable = (partial?: Partial<PriceTable>): PriceTable => ({
   name: '',
   target: 'PARTNER',
   objectType: 'PARTNER_INTERNAL',
-  orderType: 'PACKAGE_SINGLE',
+  orderType: 'PACKAGE',
   applyFor: '',
   version: 1,
   status: 'ACTIVE',

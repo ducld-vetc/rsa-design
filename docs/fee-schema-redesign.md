@@ -4,7 +4,8 @@
 > **Phạm vi:** tài liệu BA/DBA review. Không thay migration production trong bước này.  
 > **Ngày quan sát Dev:** 2026-08-03.  
 > **Cập nhật thuật ngữ/schema:** 2026-08-07 — `enterprise`→`corporate_customer`, `supplier`→`partner`; `fee_table` dùng `object_type`+`order_type` (bỏ `kind`); `fee_table_version` bỏ `priority`/`status`; `fee_criterion_mapping_field` (`table_mapping`/`field_mapping`).  
-> **Cập nhật 2026-09-22:** `fee_price_line.segment_type` (TIERED/SINGLE) + `valid_from`/`valid_to`; bảng `fee_surcharge_rule_service` (dịch vụ áp dụng phụ phí, 0 hàng = ALL).  
+> **Cập nhật 2026-09-22:** `fee_price_line.segment_type` (TIERED/SINGLE).  
+> **Cập nhật 2026-09-23:** Bỏ hiệu lực theo dòng giá (`fee_price_line.valid_*`) — dùng `fee_table_version.valid_from/to`; bỏ `fee_surcharge_rule_service` — phụ phí áp dụng ALL dịch vụ trên bảng; `order_type` = `PACKAGE` \| `SINGLE` (bỏ `PACKAGE_SINGLE` trên UI); tiêu chí bắt buộc khai báo `fee_criterion_mapping_field` (bảng + trường nguồn).  
 > **BRD nghiệp vụ cấu hình + tính phí đơn:** [BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md](./BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md)
 
 ### Thuật ngữ (map cũ → mới)
@@ -256,11 +257,10 @@ flowchart TB
 | `fee_table_version`        | Phiên bản nội dung bảng phí theo thời gian. Version ACTIVE coi là bất biến; sửa cấu hình = tạo version mới để đơn cũ vẫn audit được. |
 | `fee_table_scope`          | Phạm vi áp dụng của một version: doanh nghiệp, NCC, khu vực, loại dịch vụ/xe. Null = không giới hạn chiều đó.                        |
 | `fee_table_settings`       | Tham số tính của version: hệ số KH lẻ, làm tròn, nhân hệ số vs lấy max, cờ fallback, giá đã bao gồm VAT hay chưa. |
-| `fee_price_line`           | Một dòng trong ma trận / đơn giá: gắn dịch vụ + giá cơ sở + `pricing_mode` (FIXED/PER_UNIT) + **`segment_type`** (TIERED/SINGLE) + hiệu lực dòng (`valid_from`/`valid_to`). Nhiều dòng cùng dịch vụ = các tổ hợp tiêu chí khác nhau. **Không lưu value tiêu chí** — value nằm ở `fee_price_line_condition`. |
+| `fee_price_line`           | Một dòng trong ma trận / đơn giá: gắn dịch vụ + giá cơ sở + `pricing_mode` (FIXED/PER_UNIT) + **`segment_type`** (TIERED/SINGLE). Hiệu lực theo **`fee_table_version`**. Nhiều dòng cùng dịch vụ = các tổ hợp tiêu chí khác nhau. **Không lưu value tiêu chí** — value nằm ở `fee_price_line_condition`. |
 | `fee_price_line_condition` | **Bảng cấu hình value tiêu chí theo từng line.** Mỗi hàng: `fee_price_line_id` + `criterion_key` + `operator` + `value_json`. Nhiều hàng cùng line = AND (vd. PTI kéo: `vehicleType` + `seat_number` + `distanceKm BETWEEN`; cẩu: + `roadDistance BETWEEN`). Line không có hàng condition = khớp mọi context (vd. kích bình). |
-| `fee_surcharge_rule`       | Phụ phí / hệ số điều kiện (FIXED tiền hoặc COEFFICIENT), gồm Lễ/Tết (`holiday_dates_json`), stackable, trần. **Dịch vụ áp dụng** qua `fee_surcharge_rule_service` (0 dòng = ALL dịch vụ đã cấu hình trên bảng). |
+| `fee_surcharge_rule`       | Phụ phí / hệ số điều kiện (FIXED tiền hoặc COEFFICIENT), gồm Lễ/Tết (`holiday_dates_json`), stackable, trần. **Áp dụng ALL dịch vụ** đã cấu hình trên bảng phiên bản. |
 | `fee_surcharge_condition`  | Điều kiện kích hoạt một surcharge (vd. `weather = Mưa`).                                                                             |
-| `fee_surcharge_rule_service` | M:N phụ phí ↔ dịch vụ áp dụng. Không có hàng = áp dụng **ALL** dịch vụ trên bảng phiên bản đó. |
 
 
 **Runtime trên đơn — snapshot kết quả, không dump cả bảng**
@@ -293,6 +293,7 @@ entity fee_criterion_mapping_field {
   * criterion_key : varchar <<FK>>
   * table_mapping : varchar // "order | line | vehicle"
   * field_mapping : varchar // "weather | distanceKm | UI_WEATHER_TO_LABEL"
+  * field_mapping_params_json : jsonb // "nullable"
   * scope : varchar // "ORDER LINE VEHICLE"
   * status : varchar
 }
@@ -320,7 +321,7 @@ entity fee_table {
   * name : varchar
   * target : varchar // "CUSTOMER PARTNER"
   * object_type : varchar // "PARTNER_INTERNAL PARTNER_EXTERNAL CUSTOMER_INDIVIDUAL CUSTOMER_BUSINESS"
-  * order_type : varchar // "PACKAGE SINGLE PACKAGE_SINGLE"
+  * order_type : varchar // "PACKAGE | SINGLE"
   * current_version : int
   * status : varchar // "ACTIVE EXPIRED INACTIVE"
 }
@@ -362,8 +363,6 @@ entity fee_price_line {
   * base_price : numeric
   * pricing_mode : varchar // "FIXED=Co dinh PER_UNIT=Don vi"
   * segment_type : varchar // "TIERED=Bac thang SINGLE=Don le"
-  * valid_from : date // "hieu luc dong gia — nullable"
-  * valid_to : date // "het han dong gia — nullable"
   * unit : varchar // "km nullable"
   * included_qty : numeric
   * price_per_extra : numeric
@@ -391,11 +390,6 @@ entity fee_surcharge_rule {
   * cap_amount : numeric
   * holiday_dates_json : jsonb
   * sort_order : int
-}
-
-entity fee_surcharge_rule_service {
-  * fee_surcharge_rule_id : bigint <<PK/FK>>
-  * service_id : bigint <<PK/FK>> // "0 hang = ALL dich vu tren bang"
 }
 
 entity fee_surcharge_condition {
@@ -476,11 +470,9 @@ fee_table_version     ||--o{ fee_surcharge_rule             : surcharges
 
 service               ||--o{ fee_price_line                 : priced_as
 service               ||--o{ rescue_order_service            : used_on_order
-service               ||--o{ fee_surcharge_rule_service     : surcharge_scope
 
 fee_price_line        ||--o{ fee_price_line_condition       : AND_conditions
 fee_surcharge_rule    ||--o{ fee_surcharge_condition        : AND_conditions
-fee_surcharge_rule    ||--o{ fee_surcharge_rule_service     : applies_to
 
 fee_table             ||--o{ ro_fee_snapshot                : customer_or_partner_table
 rescue_order_v2       ||--o| ro_fee_snapshot                : has_fee_snapshot
@@ -504,9 +496,7 @@ ro_fee_snapshot       ||--o{ ro_fee_adj                     : order_level_adj
 | `fee_table_version`    | `fee_table_scope` / `settings`    | 1:1         | Phạm vi + tham số tính theo version             |
 | `fee_table_version`    | `fee_price_line`                  | 1:N         | Ma trận / đơn giá (nhiều dịch vụ / tổ hợp tiêu chí) |
 | `fee_price_line`       | `fee_price_line_condition`        | 1:N         | Điều kiện AND trên cùng dòng                    |
-| `fee_table_version`    | `fee_surcharge_rule`              | 1:N         | Phụ phí FIXED / COEFFICIENT                     |
-| `fee_surcharge_rule`   | `fee_surcharge_rule_service`      | 0..N        | Dịch vụ áp dụng; **0 hàng = ALL**               |
-| `fee_surcharge_rule_service` | `service`                   | N:1         | FK dịch vụ được phụ phí áp dụng                 |
+| `fee_table_version`    | `fee_surcharge_rule`              | 1:N         | Phụ phí FIXED / COEFFICIENT (áp dụng ALL dịch vụ trên bảng) |
 | `fee_criterion_def`    | `fee_criterion_mapping_field`         | 1:N         | Map `key` → field trên đơn/xe/dòng              |
 | `fee_criterion_def`    | conditions                        | 1:N         | Dùng chung cho price line & surcharge           |
 | `rescue_order_v2`      | `ro_fee_snapshot`                  | 1:0..1      | Header: bảng/version/mode lúc tính              |
@@ -595,7 +585,7 @@ Dùng bảng `service` sẵn có. Loại dịch vụ lấy từ **`category`** (
 | `name`                      | VARCHAR(255)       |                                             |
 | `target`                    | VARCHAR(16)        | `CUSTOMER` | `PARTNER`                      |
 | `object_type`               | VARCHAR(64)        | Xem enum bên dưới                           |
-| `order_type`                | VARCHAR(32)        | `PACKAGE` | `SINGLE` | `PACKAGE_SINGLE`     |
+| `order_type`                | VARCHAR(32)        | `PACKAGE` \| `SINGLE` (UI không còn `PACKAGE_SINGLE`) |
 | `current_version`           | INT                | Bản đang ACTIVE (denormalize)               |
 | `status`                    | VARCHAR(16)        | `ACTIVE` | `EXPIRED` | `INACTIVE` (không dùng DRAFT — cấu hình tạm trên FE đến khi Lưu) |
 | `updated_at` / `updated_by` |                    |                                             |
@@ -612,7 +602,7 @@ Dùng bảng `service` sẵn có. Loại dịch vụ lấy từ **`category`** (
 | `PARTNER_EXTERNAL`     | Partner/NCC ngoài (riêng hoặc fallback qua `settings.is_fallback`) |
 
 
-`**order_type`:** `PACKAGE` | `SINGLE` | `PACKAGE_SINGLE` — loại đơn áp dụng bảng.
+`**order_type`:** `PACKAGE` | `SINGLE` — loại đơn áp dụng bảng. Giá trị legacy `PACKAGE_SINGLE` (nếu còn trong data cũ) map về `PACKAGE` trên UI.
 
 > **Không còn cột `kind`.** Phân loại cũ (`CUSTOMER_PUBLIC`, `CUSTOMER_RETAIL`, `SUPPLIER_*`, …) map sang cặp `(object_type, order_type)` + `settings.is_fallback` / `retail_markup_factor`.
 
@@ -672,8 +662,6 @@ Rule UX: `target=CUSTOMER` → không dùng `partner_*`; `target=PARTNER` → kh
 | `base_price`              | NUMERIC(18,2)    |                                                                       |
 | `pricing_mode`            | VARCHAR(16)      | Phương pháp tính: `FIXED` (Cố định) \| `PER_UNIT` (Đơn vị)          |
 | `segment_type`            | VARCHAR(16)      | Loại đoạn giá: `TIERED` (Bậc thang) \| `SINGLE` (Đơn lẻ). **`TIERED` chỉ Kéo/Cẩu** (`service.category` TOWING/CRANE); ONSITE luôn `SINGLE`. Mặc định: TOWING/CRANE → `TIERED`, còn lại → `SINGLE`. |
-| `valid_from`              | DATE NULL        | Ngày hiệu lực của **dòng** giá (độc lập với hiệu lực bảng)            |
-| `valid_to`                | DATE NULL        | Ngày hết hạn của **dòng** giá                                         |
 | `unit`                    | VARCHAR(16) NULL | `km`, `tấn`, …                                                        |
 | `included_qty`            | NUMERIC NULL     | Km bao gồm (kéo xe)                                                   |
 | `price_per_extra`         | NUMERIC NULL     |                                                                       |
@@ -687,8 +675,10 @@ Với `CUSTOMER_INDIVIDUAL` + chỉ markup: **không bắt buộc** có `fee_pri
 
 | Giá trị | UI | Áp dụng | Ý nghĩa engine |
 | ------- | -- | ------- | -------------- |
-| `TIERED` | Bậc thang | Chỉ TOWING / CRANE | Chuỗi bậc khoảng cách (`distanceKm` / `roadDistance` BETWEEN); thường nhiều line cùng dịch vụ tạo ladder |
-| `SINGLE` | Đơn lẻ | Mọi loại dịch vụ | Một mức giá độc lập theo bộ tiêu chí; không bắt buộc là bậc trong ladder |
+| `TIERED` | Bậc thang | Chỉ TOWING / CRANE | Chuỗi bậc khoảng cách (`distanceKm` / `roadDistance` BETWEEN); nhiều line cùng `service_id` tạo ladder. **UI:** chọn Bậc thang → mọi dòng cùng dịch vụ đồng bộ `TIERED`, không cho lẫn `SINGLE`. |
+| `SINGLE` | Đơn lẻ | Mọi loại dịch vụ (ONSITE luôn `SINGLE`) | Một mức giá độc lập theo bộ tiêu chí; không bắt buộc là bậc trong ladder |
+
+> **Không** có `valid_from` / `valid_to` trên `fee_price_line` — hiệu lực lấy từ `fee_table_version`.
 
 #### `fee_price_line_condition`
 
@@ -718,30 +708,11 @@ Với `CUSTOMER_INDIVIDUAL` + chỉ markup: **không bắt buộc** có `fee_pri
 | `stackable`            | BOOLEAN      |                         |
 | `exclusive_group`      | VARCHAR NULL |                         |
 | `cap_amount`           | NUMERIC NULL |                         |
-| `holiday_dates_json`   | JSONB NULL   | `["2026-01-01", …]`     |
+| `holiday_dates_json`   | JSONB NULL   | `["2026-01-01", …]` (tuỳ chọn / legacy — UI Lễ/Tết ưu tiên tiêu chí `holiday`) |
 | `sort_order`           | INT          |                         |
 
+> **Không** có bảng `fee_surcharge_rule_service`. Mỗi phụ phí trên version áp dụng **ALL** dịch vụ đã có `fee_price_line` trên cùng `fee_table_version`.
 
-#### `fee_surcharge_rule_service`
-
-**Mục đích:** giới hạn phụ phí / hệ số chỉ áp dụng cho một số dịch vụ trên bảng. Đồng bộ UI “Áp dụng dịch vụ”.
-
-
-| Cột                     | Kiểu         | Mô tả |
-| ----------------------- | ------------ | ----- |
-| `fee_surcharge_rule_id` | BIGINT PK/FK | `fee_surcharge_rule.id` |
-| `service_id`            | BIGINT PK/FK | `service.service_id` — dịch vụ được áp dụng |
-
-
-**Rule:**
-
-| Dữ liệu | Ý nghĩa |
-| ------- | ------- |
-| **0 hàng** cho một `fee_surcharge_rule_id` | Áp dụng **ALL** dịch vụ đã có `fee_price_line` trên cùng `fee_table_version` (mặc định UI) |
-| ≥ 1 hàng | Chỉ áp dụng các `service_id` liệt kê |
-
-
-Engine: khi tính phụ phí cho một `rescue_order_service`, nếu rule có scope → chỉ apply khi `service_id` ∈ tập áp dụng; nếu không có hàng scope → apply cho mọi dịch vụ trên đơn thuộc bảng đó.
 
 #### `fee_surcharge_condition`
 
@@ -822,19 +793,19 @@ Engine: khi tính phụ phí cho một `rescue_order_service`, nếu rule có sc
 ### 6.1. `PARTNER_INTERNAL` — `SUP-INT-2026`
 
 ```text
-fee_table: code=SUP-INT-2026, target=PARTNER, object_type=PARTNER_INTERNAL, order_type=PACKAGE_SINGLE
+fee_table: code=SUP-INT-2026, target=PARTNER, object_type=PARTNER_INTERNAL, order_type=PACKAGE
 version 3: stack_surcharges=true
 
 fee_price_line:
-  - Kéo xe về gara | segment=TIERED | FIXED 500000 | valid_from..valid_to | conditions: distanceKm BETWEEN [0,10], vehicleType=Xe chở người
-  - Kéo xe về gara | segment=TIERED | PER_UNIT 10000/km | conditions: distanceKm BETWEEN [10,20]
+  - Kéo xe | segment=TIERED | FIXED 500000 | conditions: distanceKm BETWEEN [0,10], vehicleType=Xe chở người
+  - Kéo xe | segment=TIERED | PER_UNIT 10000/km | conditions: distanceKm BETWEEN [10,20]
 
 fee_surcharge_rule:
   - name=Thời tiết, type=COEFFICIENT, value=1.2
     condition: weather = Mưa
-    fee_surcharge_rule_service: (trống) → ALL dịch vụ trên bảng
+    (áp dụng ALL dịch vụ trên bảng)
   - name=Cao tốc, type=FIXED, value=150000
-    fee_surcharge_rule_service: [service_id=Kéo xe, service_id=Cẩu xe]
+    (áp dụng ALL dịch vụ trên bảng)
 ```
 
 ### 6.2. Public / gói (`CUSTOMER_INDIVIDUAL` + `PACKAGE`) — `CUS-PUB-2026`
@@ -959,8 +930,7 @@ FOR each price_policy_distance_tier t:
   create fee_price_line(
     base_price=flat_price or per_km,
     pricing_mode=FIXED|PER_UNIT,
-    segment_type=TIERED|SINGLE,   -- TIERED cho kéo/cẩu bậc khoảng cách
-    valid_from / valid_to optional
+    segment_type=TIERED|SINGLE   -- TIERED cho kéo/cẩu bậc khoảng cách; hiệu lực theo fee_table_version
   )
   IF t.min_km/max_km set:
     condition distanceKm BETWEEN [min_km, max_km]
@@ -989,10 +959,7 @@ FOR each price_policy_distance_tier t:
 - `fee_table_version (fee_table_id, version, valid_from, valid_to)`
 - `fee_price_line (fee_table_version_id, service_id)`
 - `fee_price_line (fee_table_version_id, service_id, segment_type)`
-- `fee_price_line (valid_from, valid_to)` — lọc dòng còn hiệu lực theo ngày đơn
 - `fee_price_line_condition (fee_price_line_id, criterion_key)`
-- `fee_surcharge_rule_service (fee_surcharge_rule_id, service_id)` UNIQUE/PK
-- `fee_surcharge_rule_service (service_id)` — tra phụ phí theo dịch vụ trên đơn
 - `fee_criterion_mapping_field (criterion_key)`
 - `ro_fee_snapshot (rescue_order_v2_id)`
 - `ro_fee_line (snapshot_id)`, `(rescue_order_v2_id)`, `(service_id)`

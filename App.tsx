@@ -36,7 +36,6 @@ import ShiftMonthlySchedule from './pages/ShiftMonthlySchedule';
 import FloodZoneManagement from './pages/FloodZoneManagement';
 import RescueFeeConfiguration from './pages/RescueFeeConfiguration';
 import RescueFeeForm from './pages/RescueFeeForm';
-import RescueFeeDetail from './pages/RescueFeeDetail';
 import RescueFeeCriteriaManagement from './pages/RescueFeeCriteriaManagement';
 import PartnerVehicleList from './pages/PartnerVehicleList';
 import PartnerVehicleDetail from './pages/PartnerVehicleDetail';
@@ -800,7 +799,7 @@ const App: React.FC = () => {
                   <RescueFeeForm />
                 } />
                 <Route path="/rescue-fee-config/:id" element={
-                  <RescueFeeDetail />
+                  <RescueFeeForm />
                 } />
                 <Route path="/rescue-fee-criteria" element={
                   <RescueFeeCriteriaManagement />

@@ -4,7 +4,7 @@
   "target": "PARTNER",
   "scope": {
     "objectType": "PARTNER_EXTERNAL",
-    "orderType": "PACKAGE_SINGLE"
+    "orderType": "PACKAGE"
   },
   "validFrom": "2026-01-01",
   "validTo": "2099-12-31",

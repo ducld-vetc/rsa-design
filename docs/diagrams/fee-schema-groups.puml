@@ -1,4 +1,6 @@
 @startuml
+' Nhóm bảng phí cứu hộ — cập nhật 2026-09-23
+' Không fee_surcharge_rule_service; hiệu lực ở fee_table_version
 skinparam packageStyle rectangle
 
 package "Catalog" {
@@ -16,7 +18,6 @@ package "Cau_hinh_bang_phi" {
   rectangle fee_price_line as PL
   rectangle fee_price_line_condition as PLC
   rectangle fee_surcharge_rule as SR
-  rectangle fee_surcharge_rule_service as SRS
   rectangle fee_surcharge_condition as SRC
 }
 
@@ -26,20 +27,34 @@ package "Tren_don" {
   rectangle ro_fee_adj as Adj
 }
 
-CritDef --> CritMap
+CritDef --> CritMap : table/field map
 CritDef --> PLC
 CritDef --> SRC
 FT --> FTV
 FTV --> Scope
 FTV --> Settings
-FTV --> PL
-FTV --> SR
+FTV --> PL : segment_type\n(no line valid_*)
+FTV --> SR : ALL services
 PL --> PLC
 SR --> SRC
-SR --> SRS
-SRS --> Svc
 FT --> Snap
 Snap --> Line
 Line --> Adj
 Svc --> PL
+
+note right of CritMap
+  Map criterion_key →
+  order | line | vehicle
+end note
+
+note bottom of FTV
+  valid_from / valid_to
+  = hiệu lực phiên bản bảng
+end note
+
+note bottom of SR
+  Không M:N dịch vụ
+  (ALL trên bảng)
+end note
+
 @enduml

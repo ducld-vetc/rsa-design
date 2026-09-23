@@ -2,9 +2,16 @@
 ' ERD phí cứu hộ — catalog tiêu chí + cấu hình + runtime trên đơn
 ' Dịch vụ: dùng master `service` (category) — không fee_service_catalog
 ' Thuật ngữ: corporate_customer / partner; fee_table = object_type + order_type (không kind)
-' fee_table_version: không priority/status
-' fee_criterion_mapping_field: table_mapping + field_mapping
+' fee_table_version: không priority/status — hiệu lực bảng ở version (valid_from/to)
+' fee_criterion_mapping_field: table_mapping + field_mapping (+ params)
+' fee_price_line: segment_type; KHÔNG có valid_from/to theo dòng
+' Phụ phí: áp dụng ALL dịch vụ trên bảng — KHÔNG có fee_surcharge_rule_service
 ' Runtime rút gọn: ro_fee_snapshot / ro_fee_line / ro_fee_adj
+'
+' Cập nhật 2026-09-23:
+' - Bỏ fee_price_line.valid_* ; bỏ fee_surcharge_rule_service
+' - order_type = PACKAGE | SINGLE (không PACKAGE_SINGLE trên UI)
+' - segment_type TIERED chỉ Kéo/Cẩu; cùng dịch vụ đồng bộ bậc thang
 
 skinparam linetype ortho
 skinparam classAttributeIconSize 0
@@ -28,6 +35,7 @@ entity fee_criterion_mapping_field {
   --
   * table_mapping : varchar
   * field_mapping : varchar
+  * field_mapping_params_json : jsonb
   * scope : varchar
   * status : varchar
 }
@@ -106,8 +114,6 @@ entity fee_price_line {
   * base_price : numeric
   * pricing_mode : varchar
   * segment_type : varchar
-  * valid_from : date
-  * valid_to : date
   * unit : varchar
   * included_qty : numeric
   * price_per_extra : numeric
@@ -137,11 +143,6 @@ entity fee_surcharge_rule {
   * cap_amount : numeric
   * holiday_dates_json : jsonb
   * sort_order : int
-}
-
-entity fee_surcharge_rule_service {
-  * fee_surcharge_rule_id : bigint <<PK/FK>>
-  * service_id : bigint <<PK/FK>>
 }
 
 entity fee_surcharge_condition {
@@ -231,11 +232,9 @@ fee_table_version ||--o{ fee_surcharge_rule : surcharges
 
 service ||--o{ fee_price_line : priced_as
 service ||--o{ rescue_order_service : used_on_order
-service ||--o{ fee_surcharge_rule_service : surcharge_scope
 
 fee_price_line ||--o{ fee_price_line_condition : AND_conditions
 fee_surcharge_rule ||--o{ fee_surcharge_condition : AND_conditions
-fee_surcharge_rule ||--o{ fee_surcharge_rule_service : applies_to
 
 fee_table ||--o{ ro_fee_snapshot : customer_or_partner_table
 rescue_order_v2 ||--o| ro_fee_snapshot : has_fee_snapshot
@@ -244,21 +243,53 @@ rescue_order_service ||--o| ro_fee_line : fee_for_service
 ro_fee_line ||--o{ ro_fee_adj : audit
 ro_fee_snapshot ||--o{ ro_fee_adj : order_level_adj
 
-note right of ro_fee_line
-  customer_line_id / partner_line_id = JSONB array
-  fee_price_line.id đã khớp (1 hoặc N bậc)
-  vd. [10, 11]
+note right of fee_criterion_mapping_field
+  table_mapping: order | line | vehicle
+  field_mapping: cột hoặc hàm transform
+  scope: ORDER | LINE | VEHICLE
+  Bắt buộc khi thêm tiêu chí mới
+  (engine build context)
 end note
 
 note right of fee_table
   object_type + order_type
   (không còn cột kind)
+  order_type: PACKAGE | SINGLE
 end note
 
 note right of fee_table_version
   không priority / status
   ACTIVE = fee_table.status
   + current_version
+  Hiệu lực bảng: valid_from / valid_to
+  (không hiệu lực theo từng dòng giá)
+end note
+
+note right of fee_price_line
+  pricing_mode: FIXED | PER_UNIT
+  segment_type: TIERED | SINGLE
+  TIERED chỉ TOWING/CRANE
+  (cùng service_id đồng bộ bậc thang)
+  ONSITE luôn SINGLE
+  Không có valid_from / valid_to
+end note
+
+note right of fee_surcharge_rule
+  Áp dụng ALL dịch vụ
+  trên cùng fee_table_version
+  (không bảng M:N dịch vụ)
+end note
+
+note right of ro_fee_line
+  customer_line_id / partner_line_id = JSONB array
+  fee_price_line.id đã khớp (1 hoặc N bậc)
+  vd. [10, 11]
+end note
+
+note right of service
+  category: ONSITE | TOWING | CRANE
+  UI gom: Hỗ trợ tại chỗ /
+  Kéo xe / Cẩu xe (cha)
 end note
 
 @enduml

@@ -13,7 +13,7 @@
 
 | id | code | name | target | object_type | order_type | current_version | status |
 |----|------|------|--------|-------------|------------|-----------------|--------|
-| ft-pti-001 | CUS-DN-PTI-2026 | Bảng phí KH DN — PTI (VETC × PTI) | CUSTOMER | CUSTOMER_BUSINESS | PACKAGE_SINGLE | 1 | ACTIVE |
+| ft-pti-001 | CUS-DN-PTI-2026 | Bảng phí KH DN — PTI (VETC × PTI) | CUSTOMER | CUSTOMER_BUSINESS | PACKAGE | 1 | ACTIVE |
 
 ## B. `fee_table_version`
 

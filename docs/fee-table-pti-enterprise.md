@@ -6,7 +6,7 @@
 > **UI xem/lọc ma trận (analysis BA):** [analysis-rescue-fee-matrix-ui.md](./analysis-rescue-fee-matrix-ui.md)  
 > **BRD tổng quan cấu hình + tính phí trên đơn:** [BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md](./BRD-Tong-quan-cau-hinh-va-tinh-phi-don.md)  
 > **Mock portal:** `CUS-DN-PTI-2026` trong `rescueFeeMockData.ts`  
-> **Loại bảng:** `target = CUSTOMER`, `object_type = CUSTOMER_BUSINESS`, `order_type = PACKAGE_SINGLE`  
+> **Loại bảng:** `target = CUSTOMER`, `object_type = CUSTOMER_BUSINESS`, `order_type = PACKAGE`  
 > **Scope:** `corporate_customer_id = PTI`  
 > Giá trong bảng = **chưa VAT** (trừ ghi chú riêng). VAT áp khi xuất thu trên đơn.
 
@@ -20,7 +20,7 @@
 | `name` | Bảng phí KH DN — PTI (VETC × PTI) |
 | `target` | `CUSTOMER` |
 | `object_type` | `CUSTOMER_BUSINESS` |
-| `order_type` | `PACKAGE_SINGLE` |
+| `order_type` | `PACKAGE` |
 | `status` | `ACTIVE` (đề xuất) |
 | `version` | `1` |
 | `valid_from` / `valid_to` | Theo hợp đồng PTI |
