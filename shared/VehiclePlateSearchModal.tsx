@@ -20,6 +20,8 @@ export type VehicleOwnerInfo = {
 export type VehicleRescuePackage = {
   id: string;
   name: string;
+  /** ALWAYS = gói thường; TRIP = bảo hiểm chuyến đi */
+  packageType?: 'ALWAYS' | 'TRIP';
   /** Không có | Active | Expired */
   status: 'active' | 'none' | 'expired';
   remainingServices?: number;
@@ -27,6 +29,27 @@ export type VehicleRescuePackage = {
   validFrom?: string;
   validTo?: string;
   coverageKm?: number;
+  /** ISO yyyy-mm-dd — dùng chọn gói TRIP mới nhất */
+  activatedAt?: string;
+  /** Số dư bảo lãnh còn lại (chỉ TRIP) */
+  remainSponsorAmount?: number;
+};
+
+export type VehicleRescueHistoryItem = {
+  id: string;
+  /** Mã đơn, ví dụ RS12609220069 */
+  orderCode: string;
+  /** Nhóm trạng thái: Tiếp nhận, Điều phối, Thực hiện, Kết thúc */
+  status: string;
+  /** Đơn gói | Đơn lẻ */
+  orderType: string;
+  osa: string;
+  cost: number;
+  /** Trạng thái chi tiết của đơn */
+  orderStatus: string;
+  /** Chờ thanh toán | Đã cọc tiền | Đã thanh toán */
+  paymentStatus: string;
+  createdAt: string;
 };
 
 export type VehicleSearchResult = {
@@ -48,8 +71,10 @@ export type VehicleSearchResult = {
   documentImages?: string[];
   /** Lịch sử xe qua trạm gần nhất */
   stationPassHistory?: VehicleStationPass[];
-  /** Các gói cứu hộ gắn với phương tiện (có thể nhiều gói) */
+  /** Các gói cứu hộ gắn với phương tiện (ALWAYS + TRIP) */
   rescuePackages?: VehicleRescuePackage[];
+  /** Lịch sử cứu hộ theo BSX */
+  rescueHistory?: VehicleRescueHistoryItem[];
 };
 
 const DEFAULT_STATION_HISTORY: VehicleStationPass[] = [
@@ -107,34 +132,97 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
     stationPassHistory: DEFAULT_STATION_HISTORY,
     rescuePackages: [
       {
+        id: 'pkg-v0-trip-new',
+        name: 'Bảo hiểm chuyến đi DIG + CHUBB',
+        packageType: 'TRIP',
+        status: 'active',
+        validFrom: '20/09/2026',
+        validTo: '20/09/2027',
+        coverageKm: 200,
+        activatedAt: '2026-09-20',
+        remainSponsorAmount: 8500000,
+      },
+      {
+        id: 'pkg-v0-trip-old',
+        name: 'Bảo hiểm chuyến đi PVI',
+        packageType: 'TRIP',
+        status: 'active',
+        validFrom: '01/08/2026',
+        validTo: '31/07/2027',
+        coverageKm: 150,
+        activatedAt: '2026-08-01',
+        remainSponsorAmount: 2000000,
+      },
+      {
         id: 'pkg-v0-1',
         name: 'Gói cơ bản 10 dịch vụ',
+        packageType: 'ALWAYS',
         status: 'active',
         remainingServices: 7,
         totalServices: 10,
         validFrom: '01/01/2026',
         validTo: '31/12/2026',
         coverageKm: 100,
+        activatedAt: '2026-01-01',
       },
       {
         id: 'pkg-v0-2',
         name: 'Gói cao cấp 20 dịch vụ',
+        packageType: 'ALWAYS',
         status: 'active',
         remainingServices: 18,
         totalServices: 20,
         validFrom: '01/03/2026',
         validTo: '28/02/2027',
         coverageKm: 150,
+        activatedAt: '2026-03-01',
       },
       {
         id: 'pkg-v0-3',
         name: 'Gói doanh nghiệp VETC',
+        packageType: 'ALWAYS',
         status: 'expired',
         remainingServices: 0,
         totalServices: 15,
         validFrom: '01/01/2025',
         validTo: '31/12/2025',
         coverageKm: 100,
+        activatedAt: '2025-01-01',
+      },
+    ],
+    rescueHistory: [
+      {
+        id: 'rh-v0-1',
+        orderCode: 'RS12609220069',
+        status: 'Kết thúc',
+        orderType: 'Đơn gói',
+        osa: 'Nguyễn Thị Hoa',
+        cost: 1250000,
+        orderStatus: 'Hoàn thành',
+        paymentStatus: 'Đã thanh toán',
+        createdAt: '22/09/2026 08:40',
+      },
+      {
+        id: 'rh-v0-2',
+        orderCode: 'RS12607030012',
+        status: 'Kết thúc',
+        orderType: 'Đơn lẻ',
+        osa: 'Trần Văn Nam',
+        cost: 350000,
+        orderStatus: 'Hoàn thành',
+        paymentStatus: 'Đã thanh toán',
+        createdAt: '03/07/2026 16:15',
+      },
+      {
+        id: 'rh-v0-3',
+        orderCode: 'RS12604180008',
+        status: 'Kết thúc',
+        orderType: 'Đơn gói',
+        osa: 'Lê Minh Tuấn',
+        cost: 0,
+        orderStatus: 'Hủy đơn',
+        paymentStatus: 'Chờ thanh toán',
+        createdAt: '18/04/2026 11:02',
       },
     ],
   },

@@ -34,7 +34,12 @@ import { FloodWarningBadge } from '../shared/OrderAlertBadges';
 import { isPriorityCustomerPhone, normalizePhone } from '../shared/priorityCustomer';
 import {analyzeIncident} from '../data/aiDataMock';
 import VehicleInfoLookupModal from '../shared/VehicleInfoLookupModal';
-import { VehicleRescuePackage, VehicleSearchResult } from '../shared/VehiclePlateSearchModal';
+import {
+  MOCK_VEHICLE_REGISTRY,
+  normalizeVehicleQuery,
+  VehicleRescuePackage,
+  VehicleSearchResult,
+} from '../shared/VehiclePlateSearchModal';
 import WorkshopSelect from '../shared/WorkshopSelect';
 
 interface CreateRescueOrderProps {
@@ -90,6 +95,26 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
     setVehicleLookupMode(mode);
     setVehicleLookupQuery(q);
     setIsVehicleLookupOpen(true);
+  };
+
+  const usablePackageName = (plate: string, phone?: string) => {
+    const plateKey = normalizeVehicleQuery(plate);
+    const phoneKey = (phone ?? '').replace(/\D/g, '');
+    const vehicle = MOCK_VEHICLE_REGISTRY.find((item) => {
+      if (plateKey && normalizeVehicleQuery(item.plate) === plateKey) return true;
+      if (phoneKey && item.owner.phone.replace(/\D/g, '') === phoneKey) return true;
+      return false;
+    });
+    const packages = vehicle?.rescuePackages ?? [];
+    const newestTrip = packages
+      .filter((pkg) => (pkg.packageType ?? 'ALWAYS') === 'TRIP' && pkg.status === 'active')
+      .slice()
+      .sort((a, b) => (b.activatedAt ?? '').localeCompare(a.activatedAt ?? ''))[0];
+    if (newestTrip) return newestTrip.name;
+    const activeAlways = packages.find(
+      (pkg) => (pkg.packageType ?? 'ALWAYS') === 'ALWAYS' && pkg.status === 'active'
+    );
+    return activeAlways?.name ?? 'Không có';
   };
 
   const handleApplyVehicleInfo = (
@@ -201,7 +226,7 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
         onUpdateCustomer({
           name: customerName,
           phone: rawValue,
-          servicePackage: 'Gói cơ bản 10 dịch vụ',
+          servicePackage: usablePackageName(type === 'plate' ? rawValue : '29E366666', rawValue),
           plate: type === 'plate' ? rawValue : '29E366666',
           vin: 'R7C2X9M4A8',
           vehicleBrand: 'TOYOTA',
@@ -221,7 +246,10 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
         onUpdateCustomer({
           name: 'TRAN DINH LAN ANH',
           phone: type === 'phone' ? rawValue : '0960123123',
-          servicePackage: 'Gói cơ bản 10 dịch vụ',
+          servicePackage: usablePackageName(
+            type === 'plate' ? rawValue : '38A58531',
+            type === 'phone' ? rawValue : '0960123123'
+          ),
           plate: type === 'plate' ? rawValue : '38A58531',
           vin: 'R7C2X9M4A8',
           vehicleBrand: 'TOYOTA',
@@ -536,16 +564,14 @@ const CreateRescueOrder: React.FC<CreateRescueOrderProps> = ({ data, onNext, onU
                 </div>
                 {/* Package info */}
                 <div className="pb-4 border-b border-gray-100 space-y-2">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-12 gap-y-4">
-                    <div className="flex items-center">
-                      <label className="w-40 text-[10px] font-bold text-gray-500 uppercase">Gói cứu hộ sử dụng</label>
-                      <div className="flex-1 flex items-center space-x-2">
-                        <div className={`flex-1 border rounded px-3 py-1.5 text-xs font-bold flex items-center justify-between ${data.customer.servicePackage === 'Không có' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                          <span>{data.customer.servicePackage}</span>
-                          {data.customer.servicePackage === 'Không có' ? <UserX size={14} /> : <UserCheck size={14} />}
-                        </div>
-                        <button onClick={() => setIsPackageModalOpen(true)} className="text-[10px] text-blue-600 font-bold underline whitespace-nowrap">Chi tiết gói</button>
+                  <div className="flex items-center min-w-0">
+                    <label className="w-40 shrink-0 text-[10px] font-bold text-gray-500 uppercase">Gói cứu hộ sử dụng</label>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-max max-w-full border rounded px-3 py-1.5 text-xs font-bold flex items-center justify-between gap-2 whitespace-nowrap ${data.customer.servicePackage === 'Không có' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                        <span>{data.customer.servicePackage}</span>
+                        {data.customer.servicePackage === 'Không có' ? <UserX size={14} /> : <UserCheck size={14} />}
                       </div>
+                      <button onClick={() => setIsPackageModalOpen(true)} className="text-[10px] text-blue-600 font-bold underline whitespace-nowrap">Chi tiết gói</button>
                     </div>
                   </div>
                   {hasOrderToday && (
