@@ -12,6 +12,8 @@ import {
 import {
   MOCK_VEHICLE_REGISTRY,
   normalizeVehicleQuery,
+  VehicleDataSource,
+  VehicleFieldKey,
   VehicleRescuePackage,
   VehicleSearchResult,
 } from './VehiclePlateSearchModal';
@@ -43,16 +45,11 @@ type Props = {
    * false = Chi tiết/Sửa đơn — chỉ xem danh sách gói, không áp dụng gói.
    */
   applyPackage?: boolean;
+  /** false = chỉ xem, không hiện «Lấy thông tin» */
+  allowApply?: boolean;
   onClose: () => void;
   onApply: (vehicle: VehicleSearchResult, selectedPackage: VehicleRescuePackage | null) => void;
 };
-
-const InfoRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="min-w-0">
-    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide">{label}</p>
-    <p className="text-xs font-bold text-gray-800 mt-0.5 break-words">{value || '—'}</p>
-  </div>
-);
 
 const packageStatusLabel = (status?: string) => {
   if (status === 'active') return { text: 'Đang hiệu lực', className: 'bg-green-50 text-green-700 border-green-200' };
@@ -69,6 +66,136 @@ const historyTextClass = (value: string) => {
 };
 
 const formatMoney = (value: number) => `${value.toLocaleString('en-US')} đ`;
+
+const sourceOf = (row: VehicleSearchResult): VehicleDataSource => row.recordSource ?? 'VEHICLE';
+
+const PROFILE_FIELDS: { key: VehicleFieldKey; label: string }[] = [
+  { key: 'plate', label: 'BSX' },
+  { key: 'vin', label: 'Số khung' },
+  { key: 'brand', label: 'Hãng xe' },
+  { key: 'model', label: 'Dòng' },
+  { key: 'loadTons', label: 'Trọng tải' },
+  { key: 'seats', label: 'Số chỗ' },
+  { key: 'vehicleType', label: 'Loại xe' },
+];
+
+const fieldText = (row: VehicleSearchResult, key: VehicleFieldKey) => {
+  if (key === 'plate') return row.plate;
+  if (key === 'vin') return row.vin;
+  if (key === 'brand') return row.brand;
+  if (key === 'model') return row.model;
+  if (key === 'loadTons') return row.loadTons ? `${row.loadTons} tấn` : '';
+  if (key === 'seats') return row.seats ? String(row.seats) : '';
+  return row.vehicleType;
+};
+
+/** Nội bộ không hiện những trường đã ghi là lấy từ One Vehicle. */
+const visibleField = (row: VehicleSearchResult, key: VehicleFieldKey) => {
+  if (sourceOf(row) === 'VEHICLE' && row.fieldSources?.[key] === 'ONE_VEHICLE') return '';
+  return fieldText(row, key);
+};
+
+const filled = (value: string) => value.trim() !== '';
+
+const sameOrBlank = (left: string, right: string) => {
+  if (!filled(left) || !filled(right)) return true;
+  return left.trim().toUpperCase() === right.trim().toUpperCase();
+};
+
+type SourceView = {
+  id: string;
+  plate: string;
+  label: string;
+  internal: VehicleSearchResult | null;
+  oneVehicle: VehicleSearchResult[];
+};
+
+const canMergePair = (internal: VehicleSearchResult | null, external: VehicleSearchResult | null) => {
+  if (!internal || !external) return false;
+  const vinA = normalizeVehicleQuery(visibleField(internal, 'vin'));
+  const vinB = normalizeVehicleQuery(visibleField(external, 'vin'));
+  if (!vinA || !vinB || vinA !== vinB) return false;
+  if (!sameOrBlank(visibleField(internal, 'plate'), visibleField(external, 'plate'))) return false;
+  return !PROFILE_FIELDS.some((field) => {
+    if (field.key === 'plate' || field.key === 'vin') return false;
+    const left = visibleField(internal, field.key);
+    const right = visibleField(external, field.key);
+    return filled(left) && filled(right) && left.trim().toUpperCase() !== right.trim().toUpperCase();
+  });
+};
+
+const buildViews = (rows: VehicleSearchResult[], kind: LookupKind): SourceView[] => {
+  const buckets = new Map<string, VehicleSearchResult[]>();
+  rows.forEach((row) => {
+    const key =
+      kind === 'phone'
+        ? normalizeVehicleQuery(row.plate) || row.id
+        : kind === 'vin'
+          ? normalizeVehicleQuery(row.vin) || row.id
+          : normalizeVehicleQuery(row.plate) || 'plate';
+    buckets.set(key, [...(buckets.get(key) ?? []), row]);
+  });
+  return [...buckets.entries()].map(([id, list]) => {
+    const internal = list.find((row) => sourceOf(row) === 'VEHICLE') ?? null;
+    const oneVehicle = list.filter((row) => sourceOf(row) === 'ONE_VEHICLE');
+    const named = internal ?? oneVehicle[0];
+    const model = named ? visibleField(named, 'model') || visibleField(named, 'brand') : '';
+    return {
+      id,
+      plate: named?.plate ?? '',
+      label: [named?.plate, model].filter(Boolean).join(' · ') || 'Xe',
+      internal,
+      oneVehicle,
+    };
+  });
+};
+
+const defaultChoiceForView = (view: SourceView): string | 'merged' | null => {
+  if (view.internal && view.oneVehicle.some((row) => canMergePair(view.internal, row))) return 'merged';
+  return view.oneVehicle[0]?.id ?? view.internal?.id ?? null;
+};
+
+const chosenExternal = (view: SourceView, choice: string | 'merged' | null) => {
+  if (choice === 'merged') {
+    return view.oneVehicle.find((row) => canMergePair(view.internal, row)) ?? view.oneVehicle[0] ?? null;
+  }
+  return view.oneVehicle.find((row) => row.id === choice) ?? null;
+};
+
+const buildApplyVehicle = (view: SourceView, choice: string | 'merged'): VehicleSearchResult => {
+  const base = view.internal ?? view.oneVehicle[0];
+  const external =
+    choice === 'merged'
+      ? view.oneVehicle.find((row) => canMergePair(view.internal, row)) ?? null
+      : view.oneVehicle.find((row) => row.id === choice) ?? null;
+  const picked = choice === 'merged' || !external ? base : view.oneVehicle.some((row) => row.id === choice) ? external : base;
+  const internal = view.internal;
+  if (choice === 'merged' && internal && external) {
+    const pick = (key: VehicleFieldKey) => visibleField(internal, key) || visibleField(external, key);
+    return {
+      ...base,
+      plate: pick('plate') || base.plate,
+      vin: pick('vin') || base.vin,
+      brand: pick('brand'),
+      model: pick('model'),
+      vehicleType: pick('vehicleType'),
+      loadTons: (pick('loadTons') || '').replace(' tấn', ''),
+      seats: Number(pick('seats') || 0),
+    };
+  }
+  const sourceRow = picked ?? base;
+  return {
+    ...base,
+    plate: sourceRow.plate || base.plate,
+    vin: sourceRow.vin || base.vin,
+    brand: visibleField(sourceRow, 'brand'),
+    model: visibleField(sourceRow, 'model'),
+    vehicleType: visibleField(sourceRow, 'vehicleType'),
+    loadTons: (visibleField(sourceRow, 'loadTons') || '').replace(' tấn', ''),
+    seats: Number(visibleField(sourceRow, 'seats') || 0),
+    owner: base.owner?.name ? base.owner : sourceRow.owner,
+  };
+};
 
 /** Gói TRIP active mới nhất theo activatedAt — chỉ gói này được dùng. */
 const newestActiveTripId = (packages: VehicleRescuePackage[]): string | null => {
@@ -96,6 +223,7 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
   initialQuery = '',
   searchMode = 'auto',
   applyPackage = false,
+  allowApply = true,
   onClose,
   onApply,
 }) => {
@@ -103,7 +231,8 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
   const [lookupKind, setLookupKind] = useState<LookupKind>(lookupKindFromMode(searchMode));
   const [searched, setSearched] = useState(false);
   const [results, setResults] = useState<VehicleSearchResult[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [profileChoice, setProfileChoice] = useState<string | 'merged' | null>(null);
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
   const [packageFilter, setPackageFilter] = useState<'applicable' | 'all'>('applicable');
 
@@ -111,7 +240,8 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
     const normalized = kind === 'phone' ? raw.replace(/\D/g, '') : normalizeVehicleQuery(raw);
     if (!normalized) {
       setResults([]);
-      setSelectedId(null);
+      setSelectedGroupId(null);
+      setProfileChoice(null);
       setSelectedPackageId(null);
       setSearched(true);
       return;
@@ -121,11 +251,12 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
       if (kind === 'phone') return v.owner.phone.replace(/\D/g, '').includes(normalized);
       return normalizeVehicleQuery(v.plate).includes(normalized);
     });
+    const nextViews = buildViews(matched, kind);
+    const first = nextViews[0] ?? null;
     setResults(matched);
-    const first = matched[0] ?? null;
-    setSelectedId(first?.id ?? null);
-    // Chỉ auto-chọn khi đúng 1 gói; nhiều gói → bắt buộc user chọn
-    const pkgs = first?.rescuePackages ?? [];
+    setSelectedGroupId(first?.id ?? null);
+    setProfileChoice(first ? defaultChoiceForView(first) : null);
+    const pkgs = first?.internal?.rescuePackages ?? [];
     setSelectedPackageId(pkgs.length === 1 ? pkgs[0].id : null);
     setSearched(true);
   };
@@ -137,7 +268,8 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
     setQuery(initialQuery);
     setSearched(false);
     setResults([]);
-    setSelectedId(null);
+    setSelectedGroupId(null);
+    setProfileChoice(null);
     setSelectedPackageId(null);
     setPackageFilter('applicable');
     if (initialQuery.trim()) {
@@ -146,10 +278,10 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialQuery, searchMode]);
 
-  const selected = useMemo(
-    () => results.find((v) => v.id === selectedId) ?? null,
-    [results, selectedId]
-  );
+  const views = useMemo(() => buildViews(results, lookupKind), [results, lookupKind]);
+  const selectedView = views.find((view) => view.id === selectedGroupId) ?? null;
+  const activeExternal = selectedView ? chosenExternal(selectedView, profileChoice) : null;
+  const selected = selectedView?.internal ?? selectedView?.oneVehicle[0] ?? null;
 
   const packages = selected?.rescuePackages ?? [];
   const usableTripId = newestActiveTripId(packages);
@@ -161,12 +293,14 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
     [packages, selectedPackageId]
   );
 
-  const canApply = Boolean(selected) && (!applyPackage || Boolean(selectedPackageId));
+  const canApply = Boolean(selectedView && profileChoice) && (!applyPackage || Boolean(selectedPackageId));
 
-  const handleSelectVehicle = (vehicleId: string) => {
-    setSelectedId(vehicleId);
-    const vehicle = results.find((v) => v.id === vehicleId);
-    const pkgs = vehicle?.rescuePackages ?? [];
+  const handleSelectView = (viewId: string) => {
+    const view = views.find((item) => item.id === viewId);
+    if (!view) return;
+    setSelectedGroupId(viewId);
+    setProfileChoice(defaultChoiceForView(view));
+    const pkgs = view.internal?.rescuePackages ?? [];
     setSelectedPackageId(pkgs.length === 1 ? pkgs[0].id : null);
     setPackageFilter('applicable');
   };
@@ -285,42 +419,138 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
                 </div>
               ) : (
                 <>
-                  {results.length > 1 && (
+                  {lookupKind === 'phone' && views.length > 1 && (
                     <div className="flex flex-wrap gap-2">
-                      {results.map((v) => (
+                      {views.map((view) => (
                         <button
-                          key={v.id}
+                          key={view.id}
                           type="button"
-                          onClick={() => handleSelectVehicle(v.id)}
-                          className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-colors ${
-                            selectedId === v.id
-                              ? 'bg-green-50 border-vetc-green text-vetc-green'
+                          onClick={() => handleSelectView(view.id)}
+                          className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors ${
+                            selectedGroupId === view.id
+                              ? 'bg-gray-900 text-white border-gray-900'
                               : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                           }`}
                         >
-                          {v.plate} · {v.model}
+                          {view.label}
                         </button>
                       ))}
                     </div>
                   )}
 
-                  {selected && (
+                  {selectedView && (
                     <>
-                      {/* Thông tin xe */}
-                      <section className="rounded-xl border border-gray-100 overflow-hidden">
-                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
-                          <p className="text-[10px] font-black text-gray-500 uppercase tracking-wide">
-                            Thông tin xe
-                          </p>
+                      <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                        <div className="px-4 py-3 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-xl bg-green-50 text-vetc-green flex items-center justify-center shrink-0">
+                              <Car size={16} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-black text-gray-900 tracking-wide truncate">
+                                {selectedView.plate || 'Thông tin xe'}
+                              </p>
+                              <p className="text-[10px] text-gray-400">
+                                Nội bộ 1 bản · One Vehicle {selectedView.oneVehicle.length} bản
+                              </p>
+                            </div>
+                          </div>
+                          {selectedView.internal &&
+                            activeExternal &&
+                            canMergePair(selectedView.internal, activeExternal) && (
+                              <button
+                                type="button"
+                                onClick={() => setProfileChoice('merged')}
+                                className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-bold ${
+                                  profileChoice === 'merged'
+                                    ? 'bg-vetc-green text-white'
+                                    : 'border border-gray-200 text-gray-600'
+                                }`}
+                              >
+                                Dùng bản gộp
+                              </button>
+                            )}
                         </div>
-                        <div className="p-4 grid grid-cols-4 gap-4">
-                          <InfoRow label="BSX" value={selected.plate} />
-                          <InfoRow label="Số khung" value={selected.vin} />
-                          <InfoRow label="Hãng xe" value={selected.brand} />
-                          <InfoRow label="Dòng" value={selected.model} />
-                          <InfoRow label="Trọng tải" value={`${selected.loadTons} tấn`} />
-                          <InfoRow label="Số chỗ" value={String(selected.seats)} />
-                          <InfoRow label="Loại xe" value={selected.vehicleType} />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 px-4 pb-4">
+                          <div
+                            className={`rounded-xl p-3 ${
+                              profileChoice === selectedView.internal?.id ? 'ring-1 ring-vetc-green bg-green-50/40' : 'bg-gray-50'
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              disabled={!selectedView.internal}
+                              onClick={() => selectedView.internal && setProfileChoice(selectedView.internal.id)}
+                              className="w-full text-left"
+                            >
+                              <p className="text-[10px] font-black uppercase tracking-wide text-gray-500 mb-2">Nội bộ</p>
+                              {selectedView.internal ? (
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                                  {PROFILE_FIELDS.map((field) => (
+                                    <div key={field.key}>
+                                      <p className="text-[9px] font-bold text-gray-400 uppercase">{field.label}</p>
+                                      <p className="text-xs font-bold text-gray-800">
+                                        {visibleField(selectedView.internal as VehicleSearchResult, field.key) || '—'}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-[11px] text-gray-400 italic">Không có bản ghi nội bộ</p>
+                              )}
+                            </button>
+                          </div>
+                          <div className="rounded-xl border border-blue-100 p-3 min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-wide text-blue-600 mb-2">One Vehicle</p>
+                            {selectedView.oneVehicle.length === 0 ? (
+                              <p className="text-[11px] text-gray-400 italic">Không có bản ghi One Vehicle</p>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {selectedView.oneVehicle.map((row, index) => {
+                                    const active = activeExternal?.id === row.id;
+                                    const title = visibleField(row, 'model') || visibleField(row, 'brand') || `Bản ${index + 1}`;
+                                    return (
+                                      <button
+                                        key={row.id}
+                                        type="button"
+                                        onClick={() => setProfileChoice(row.id)}
+                                        className={`rounded-full px-2.5 py-1 text-[10px] font-bold border ${
+                                          active
+                                            ? 'bg-blue-600 text-white border-blue-600'
+                                            : 'bg-white text-gray-600 border-gray-200'
+                                        }`}
+                                      >
+                                        {title}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {activeExternal && (
+                                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                                    {PROFILE_FIELDS.map((field) => {
+                                      const value = visibleField(activeExternal, field.key);
+                                      const internalValue = selectedView.internal
+                                        ? visibleField(selectedView.internal, field.key)
+                                        : '';
+                                      const diverges =
+                                        filled(value) &&
+                                        filled(internalValue) &&
+                                        value.trim().toUpperCase() !== internalValue.trim().toUpperCase();
+                                      return (
+                                        <div key={field.key}>
+                                          <p className="text-[9px] font-bold text-gray-400 uppercase">{field.label}</p>
+                                          <p className={`text-xs font-bold ${diverges ? 'text-red-600' : 'text-gray-800'}`}>
+                                            {value || '—'}
+                                          </p>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </section>
 
@@ -367,7 +597,7 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
                             </button>
                             {!applyPackage && (
                               <span className="text-[9px] font-bold text-gray-400 italic">
-                                Chỉ xem — không áp vào đơn đang sửa
+                                {allowApply ? 'Chỉ xem — không áp vào đơn đang sửa' : 'Chỉ xem thông tin xe ban đầu'}
                               </span>
                             )}
                           </div>
@@ -571,7 +801,12 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
             </div>
 
             <div className="shrink-0 px-4 py-3 border-t bg-white flex flex-col sm:flex-row sm:items-center justify-end gap-2">
-              {applyPackage && selected && !selectedPackageId && (
+              {allowApply && selectedView && !profileChoice && (
+                <p className="text-[10px] text-amber-600 font-bold sm:mr-auto">
+                  Chọn nguồn trước khi lấy thông tin
+                </p>
+              )}
+              {allowApply && applyPackage && selected && !selectedPackageId && (
                 <p className="text-[10px] text-amber-600 font-bold sm:mr-auto">
                   Chọn gói trước khi lấy thông tin
                 </p>
@@ -583,15 +818,21 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
               >
                 Đóng
               </button>
+              {allowApply && (
               <button
                 type="button"
                 disabled={!canApply}
-                onClick={() => selected && onApply(selected, selectedPackage)}
+                onClick={() =>
+                  selectedView &&
+                  profileChoice &&
+                  onApply(buildApplyVehicle(selectedView, profileChoice), selectedPackage)
+                }
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-vetc-green text-white text-xs font-black hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <Check size={14} />
                 Lấy thông tin
               </button>
+              )}
             </div>
           </motion.div>
         </div>

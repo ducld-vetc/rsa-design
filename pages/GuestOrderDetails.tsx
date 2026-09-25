@@ -2978,7 +2978,6 @@ const GuestOrderDetails: React.FC<{
                       <button
                         type="button"
                         title="Tra cứu thông tin xe theo BSX"
-                        disabled={!isEditing}
                         onClick={() => openVehicleLookup('plate')}
                         className="shrink-0 flex items-center gap-1 bg-white border border-vetc-green text-vetc-green px-2.5 py-1.5 rounded text-[10px] font-bold hover:bg-green-50 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
                       >
@@ -2999,7 +2998,6 @@ const GuestOrderDetails: React.FC<{
                       <button
                         type="button"
                         title="Tra cứu thông tin xe theo số khung"
-                        disabled={!isEditing}
                         onClick={() => openVehicleLookup('vin')}
                         className="shrink-0 flex items-center gap-1 bg-white border border-vetc-green text-vetc-green px-2.5 py-1.5 rounded text-[10px] font-bold hover:bg-green-50 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
                       >
@@ -4633,6 +4631,7 @@ const GuestOrderDetails: React.FC<{
           initialQuery={vehicleLookupQuery}
           searchMode={vehicleLookupMode}
           applyPackage={false}
+          allowApply={isEditing}
           onClose={() => setIsVehicleSearchOpen(false)}
           onApply={handleApplyVehicleInfo}
         />

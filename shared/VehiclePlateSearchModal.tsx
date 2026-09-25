@@ -52,6 +52,11 @@ export type VehicleRescueHistoryItem = {
   createdAt: string;
 };
 
+/** VEHICLE = bảng vehicle nội bộ (thường thiếu). ONE_VEHICLE = One Vehicle chuẩn hóa dữ liệu xe. */
+export type VehicleDataSource = 'VEHICLE' | 'ONE_VEHICLE';
+
+export type VehicleFieldKey = 'plate' | 'vin' | 'brand' | 'model' | 'loadTons' | 'seats' | 'vehicleType';
+
 export type VehicleSearchResult = {
   id: string;
   plate: string;
@@ -75,6 +80,10 @@ export type VehicleSearchResult = {
   rescuePackages?: VehicleRescuePackage[];
   /** Lịch sử cứu hộ theo BSX */
   rescueHistory?: VehicleRescueHistoryItem[];
+  /** Nguồn từng trường thông tin xe */
+  fieldSources?: Partial<Record<VehicleFieldKey, VehicleDataSource>>;
+  /** Bản ghi thuộc Nội bộ hay One Vehicle. Mặc định Nội bộ. */
+  recordSource?: VehicleDataSource;
 };
 
 const DEFAULT_STATION_HISTORY: VehicleStationPass[] = [
@@ -110,6 +119,15 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
     seats: 5,
     loadTons: '1.4',
     vehicleType: 'Xe chở người',
+    fieldSources: {
+      plate: 'VEHICLE',
+      vin: 'VEHICLE',
+      brand: 'ONE_VEHICLE',
+      model: 'ONE_VEHICLE',
+      loadTons: 'ONE_VEHICLE',
+      seats: 'ONE_VEHICLE',
+      vehicleType: 'ONE_VEHICLE',
+    },
     vin: 'R7C2X9M4A8',
     imageUrl: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=240&h=160&fit=crop',
     registrationUrl: '#',
@@ -232,6 +250,15 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
     brand: 'Toyota',
     model: 'Camry 2.5Q',
     seats: 5,
+    fieldSources: {
+      plate: 'VEHICLE',
+      vin: 'VEHICLE',
+      brand: 'VEHICLE',
+      model: 'VEHICLE',
+      loadTons: 'VEHICLE',
+      seats: 'VEHICLE',
+      vehicleType: 'VEHICLE',
+    },
     loadTons: '1.5',
     vehicleType: 'Xe chở người',
     vin: 'R7C2X9M4A8',
@@ -281,6 +308,15 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
     brand: 'Honda',
     model: 'CR-V L',
     seats: 7,
+    fieldSources: {
+      plate: 'ONE_VEHICLE',
+      vin: 'ONE_VEHICLE',
+      brand: 'ONE_VEHICLE',
+      model: 'ONE_VEHICLE',
+      loadTons: 'ONE_VEHICLE',
+      seats: 'ONE_VEHICLE',
+      vehicleType: 'ONE_VEHICLE',
+    },
     loadTons: '1.8',
     vehicleType: 'Xe chở người',
     vin: 'JHLRD7780PC012345',
@@ -398,6 +434,86 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
         status: 'none',
       },
     ],
+  },
+  {
+    id: 'v0-ov',
+    recordSource: 'ONE_VEHICLE',
+    plate: '38A58531',
+    brand: 'Toyota',
+    model: 'Corolla Cross',
+    seats: 5,
+    loadTons: '1.4',
+    vehicleType: 'Xe chở người',
+    vin: 'R7C2X9M4A8',
+    imageUrl: '',
+    registrationUrl: '#',
+    registrationLabel: '',
+    owner: {
+      name: 'TRAN DINH LAN ANH',
+      phone: '0960123123',
+      address: '210 Phố Xã Đàn, Đống Đa, Hà Nội',
+      idNumber: '',
+    },
+  },
+  {
+    id: 'v0-ov-old-plate',
+    recordSource: 'ONE_VEHICLE',
+    plate: '30H88888',
+    brand: 'Toyota',
+    model: 'Corolla Cross',
+    seats: 5,
+    loadTons: '1.4',
+    vehicleType: 'Xe chở người',
+    vin: 'R7C2X9M4A8',
+    imageUrl: '',
+    registrationUrl: '#',
+    registrationLabel: '',
+    owner: {
+      name: 'CHU CU',
+      phone: '0900111222',
+      address: '',
+      idNumber: '',
+    },
+  },
+  {
+    id: 'v0-truck-ov',
+    recordSource: 'ONE_VEHICLE',
+    plate: '38A58531',
+    brand: 'Ford',
+    model: 'Transit',
+    seats: 16,
+    loadTons: '2.5',
+    vehicleType: 'Xe chở người',
+    vin: 'KMHDN45D5KU999111',
+    imageUrl: '',
+    registrationUrl: '#',
+    registrationLabel: '',
+    owner: {
+      name: 'NGUYEN VAN B',
+      phone: '0911222333',
+      address: '',
+      idNumber: '',
+    },
+  },
+  {
+    id: 'v-owner-2',
+    recordSource: 'VEHICLE',
+    plate: '51G22222',
+    brand: 'Honda',
+    model: 'City',
+    seats: 5,
+    loadTons: '1.2',
+    vehicleType: 'Xe chở người',
+    vin: 'RLHJK1234567890AB',
+    imageUrl: '',
+    registrationUrl: '#',
+    registrationLabel: '',
+    owner: {
+      name: 'TRAN DINH LAN ANH',
+      phone: '0960123123',
+      address: '210 Phố Xã Đàn, Đống Đa, Hà Nội',
+      idNumber: '001088056789',
+    },
   },
 ];
 
