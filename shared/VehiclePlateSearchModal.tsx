@@ -24,8 +24,10 @@ export type VehicleRescuePackage = {
   packageType?: 'ALWAYS' | 'TRIP';
   /** Không có | Active | Expired */
   status: 'active' | 'none' | 'expired';
-  remainingServices?: number;
-  totalServices?: number;
+  /** Lượt cứu hộ còn lại theo gói — không đếm theo từng dịch vụ */
+  remainingUses?: number;
+  /** Hạn mức lượt cứu hộ của gói */
+  totalUses?: number;
   validFrom?: string;
   validTo?: string;
   coverageKm?: number;
@@ -159,6 +161,8 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
         coverageKm: 200,
         activatedAt: '2026-09-20',
         remainSponsorAmount: 8500000,
+        remainingUses: 1,
+        totalUses: 1,
       },
       {
         id: 'pkg-v0-trip-old',
@@ -170,14 +174,16 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
         coverageKm: 150,
         activatedAt: '2026-08-01',
         remainSponsorAmount: 2000000,
+        remainingUses: 1,
+        totalUses: 1,
       },
       {
         id: 'pkg-v0-1',
         name: 'Gói cơ bản 10 dịch vụ',
         packageType: 'ALWAYS',
         status: 'active',
-        remainingServices: 7,
-        totalServices: 10,
+        remainingUses: 7,
+        totalUses: 10,
         validFrom: '01/01/2026',
         validTo: '31/12/2026',
         coverageKm: 100,
@@ -188,8 +194,8 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
         name: 'Gói cao cấp 20 dịch vụ',
         packageType: 'ALWAYS',
         status: 'active',
-        remainingServices: 18,
-        totalServices: 20,
+        remainingUses: 18,
+        totalUses: 20,
         validFrom: '01/03/2026',
         validTo: '28/02/2027',
         coverageKm: 150,
@@ -200,8 +206,8 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
         name: 'Gói doanh nghiệp VETC',
         packageType: 'ALWAYS',
         status: 'expired',
-        remainingServices: 0,
-        totalServices: 15,
+        remainingUses: 0,
+        totalUses: 15,
         validFrom: '01/01/2025',
         validTo: '31/12/2025',
         coverageKm: 100,
@@ -284,8 +290,8 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
         id: 'pkg-v1-1',
         name: 'Gói cơ bản 10 dịch vụ',
         status: 'active',
-        remainingServices: 4,
-        totalServices: 10,
+        remainingUses: 4,
+        totalUses: 10,
         validFrom: '15/03/2026',
         validTo: '14/03/2027',
         coverageKm: 100,
@@ -294,8 +300,8 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
         id: 'pkg-v1-2',
         name: 'Gói ưu tiên khách hàng',
         status: 'active',
-        remainingServices: 2,
-        totalServices: 5,
+        remainingUses: 2,
+        totalUses: 5,
         validFrom: '01/07/2026',
         validTo: '30/06/2027',
         coverageKm: 120,
@@ -341,8 +347,8 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
         id: 'pkg-v2-1',
         name: 'Gói cao cấp 20 dịch vụ',
         status: 'active',
-        remainingServices: 15,
-        totalServices: 20,
+        remainingUses: 15,
+        totalUses: 20,
         validFrom: '01/06/2026',
         validTo: '31/05/2027',
         coverageKm: 150,
@@ -351,8 +357,8 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
         id: 'pkg-v2-2',
         name: 'Gói cơ bản 10 dịch vụ',
         status: 'active',
-        remainingServices: 9,
-        totalServices: 10,
+        remainingUses: 9,
+        totalUses: 10,
         validFrom: '01/04/2026',
         validTo: '31/03/2027',
         coverageKm: 100,
@@ -422,8 +428,8 @@ export const MOCK_VEHICLE_REGISTRY: VehicleSearchResult[] = [
         id: 'pkg-v4-1',
         name: 'Gói cơ bản 10 dịch vụ',
         status: 'expired',
-        remainingServices: 0,
-        totalServices: 10,
+        remainingUses: 0,
+        totalUses: 10,
         validFrom: '01/01/2025',
         validTo: '31/12/2025',
         coverageKm: 100,

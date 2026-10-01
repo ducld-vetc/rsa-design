@@ -19,6 +19,7 @@ import {
 } from './VehiclePlateSearchModal';
 
 type LookupKind = 'plate' | 'vin' | 'phone';
+type DetailTab = 'package' | 'vehicle' | 'history';
 
 const LOOKUP_OPTIONS: { value: LookupKind; label: string; placeholder: string }[] = [
   { value: 'plate', label: 'Biển số xe', placeholder: 'Nhập biển số xe...' },
@@ -235,6 +236,7 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
   const [profileChoice, setProfileChoice] = useState<string | 'merged' | null>(null);
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
   const [packageFilter, setPackageFilter] = useState<'applicable' | 'all'>('applicable');
+  const [detailTab, setDetailTab] = useState<DetailTab>('package');
 
   const runSearch = (raw: string, kind: LookupKind = lookupKind) => {
     const normalized = kind === 'phone' ? raw.replace(/\D/g, '') : normalizeVehicleQuery(raw);
@@ -272,6 +274,7 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
     setProfileChoice(null);
     setSelectedPackageId(null);
     setPackageFilter('applicable');
+    setDetailTab('package');
     if (initialQuery.trim()) {
       runSearch(initialQuery, kind);
     }
@@ -293,6 +296,21 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
     [packages, selectedPackageId]
   );
 
+  const comparisonRows = useMemo(() => {
+    if (!selectedView) return [];
+    return PROFILE_FIELDS.map((field) => {
+      const internalValue = selectedView.internal
+        ? visibleField(selectedView.internal, field.key)
+        : '';
+      const externalValue = activeExternal ? visibleField(activeExternal, field.key) : '';
+      const diverges =
+        filled(internalValue) &&
+        filled(externalValue) &&
+        internalValue.trim().toUpperCase() !== externalValue.trim().toUpperCase();
+      return { ...field, internalValue, externalValue, diverges };
+    }).filter((row) => filled(row.internalValue) || filled(row.externalValue));
+  }, [selectedView, activeExternal]);
+
   const canApply = Boolean(selectedView && profileChoice) && (!applyPackage || Boolean(selectedPackageId));
 
   const handleSelectView = (viewId: string) => {
@@ -303,6 +321,7 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
     const pkgs = view.internal?.rescuePackages ?? [];
     setSelectedPackageId(pkgs.length === 1 ? pkgs[0].id : null);
     setPackageFilter('applicable');
+    setDetailTab('package');
   };
 
   const displayedPackages = useMemo(() => {
@@ -408,7 +427,7 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col p-4 gap-3">
               {!searched ? (
                 <div className="py-16 text-center text-sm text-gray-400">
                   Nhập {lookupOption.label.toLowerCase()} rồi bấm Tìm kiếm
@@ -439,9 +458,39 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
                   )}
 
                   {selectedView && (
-                    <>
-                      <section className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-                        <div className="px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="flex-1 min-h-0 flex flex-col gap-3">
+                      <div className="shrink-0 flex border-b border-gray-200">
+                        {(
+                          [
+                            { id: 'package' as const, label: 'Gói cứu hộ', count: packages.length },
+                            { id: 'vehicle' as const, label: 'Thông tin xe' },
+                            {
+                              id: 'history' as const,
+                              label: 'Lịch sử cứu hộ',
+                              count: selected?.rescueHistory?.length ?? 0,
+                            },
+                          ]
+                        ).map((tab) => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setDetailTab(tab.id)}
+                            className={`px-4 py-2 text-xs font-bold border-b-2 -mb-px ${
+                              detailTab === tab.id
+                                ? 'border-vetc-green text-vetc-green'
+                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                            }`}
+                          >
+                            {tab.label}
+                            {tab.count != null && (
+                              <span className="ml-1.5 text-[10px] font-bold text-gray-400">({tab.count})</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                      {detailTab === 'vehicle' && (
+                      <section className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                        <div className="shrink-0 px-4 py-3 flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="w-9 h-9 rounded-xl bg-green-50 text-vetc-green flex items-center justify-center shrink-0">
                               <Car size={16} />
@@ -471,92 +520,104 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
                               </button>
                             )}
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 px-4 pb-4">
-                          <div
-                            className={`rounded-xl p-3 ${
-                              profileChoice === selectedView.internal?.id ? 'ring-1 ring-vetc-green bg-green-50/40' : 'bg-gray-50'
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              disabled={!selectedView.internal}
-                              onClick={() => selectedView.internal && setProfileChoice(selectedView.internal.id)}
-                              className="w-full text-left"
-                            >
-                              <p className="text-[10px] font-black uppercase tracking-wide text-gray-500 mb-2">Nội bộ</p>
-                              {selectedView.internal ? (
-                                <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                                  {PROFILE_FIELDS.map((field) => (
-                                    <div key={field.key}>
-                                      <p className="text-[9px] font-bold text-gray-400 uppercase">{field.label}</p>
-                                      <p className="text-xs font-bold text-gray-800">
-                                        {visibleField(selectedView.internal as VehicleSearchResult, field.key) || '—'}
-                                      </p>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-[11px] text-gray-400 italic">Không có bản ghi nội bộ</p>
-                              )}
-                            </button>
-                          </div>
-                          <div className="rounded-xl border border-blue-100 p-3 min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-wide text-blue-600 mb-2">One Vehicle</p>
-                            {selectedView.oneVehicle.length === 0 ? (
-                              <p className="text-[11px] text-gray-400 italic">Không có bản ghi One Vehicle</p>
-                            ) : (
-                              <div className="space-y-2">
-                                <div className="flex flex-wrap gap-1.5">
-                                  {selectedView.oneVehicle.map((row, index) => {
-                                    const active = activeExternal?.id === row.id;
-                                    const title = visibleField(row, 'model') || visibleField(row, 'brand') || `Bản ${index + 1}`;
-                                    return (
-                                      <button
-                                        key={row.id}
-                                        type="button"
-                                        onClick={() => setProfileChoice(row.id)}
-                                        className={`rounded-full px-2.5 py-1 text-[10px] font-bold border ${
-                                          active
-                                            ? 'bg-blue-600 text-white border-blue-600'
-                                            : 'bg-white text-gray-600 border-gray-200'
-                                        }`}
-                                      >
-                                        {title}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                                {activeExternal && (
-                                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                                    {PROFILE_FIELDS.map((field) => {
-                                      const value = visibleField(activeExternal, field.key);
-                                      const internalValue = selectedView.internal
-                                        ? visibleField(selectedView.internal, field.key)
-                                        : '';
-                                      const diverges =
-                                        filled(value) &&
-                                        filled(internalValue) &&
-                                        value.trim().toUpperCase() !== internalValue.trim().toUpperCase();
-                                      return (
-                                        <div key={field.key}>
-                                          <p className="text-[9px] font-bold text-gray-400 uppercase">{field.label}</p>
-                                          <p className={`text-xs font-bold ${diverges ? 'text-red-600' : 'text-gray-800'}`}>
-                                            {value || '—'}
-                                          </p>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                        <div className="min-h-0 overflow-y-auto px-4 pb-3">
+                          {selectedView.oneVehicle.length > 1 && (
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              {selectedView.oneVehicle.map((row, index) => {
+                                const active = activeExternal?.id === row.id;
+                                const title = visibleField(row, 'model') || visibleField(row, 'brand') || `Bản ${index + 1}`;
+                                return (
+                                  <button
+                                    key={row.id}
+                                    type="button"
+                                    onClick={() => setProfileChoice(row.id)}
+                                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold border ${
+                                      active
+                                        ? 'bg-blue-600 text-white border-blue-600'
+                                        : 'bg-white text-gray-600 border-gray-200'
+                                    }`}
+                                  >
+                                    {title}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {comparisonRows.length === 0 ? (
+                            <p className="text-[11px] text-gray-400 italic py-2">Không có trường để so sánh</p>
+                          ) : (
+                            <table className="w-full border-collapse text-xs">
+                              <thead>
+                                <tr className="text-left">
+                                  <th className="w-24 px-2 py-1.5" />
+                                  <th className="px-2 py-1.5">
+                                    <button
+                                      type="button"
+                                      disabled={!selectedView.internal}
+                                      onClick={() => selectedView.internal && setProfileChoice(selectedView.internal.id)}
+                                      className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
+                                        profileChoice === selectedView.internal?.id
+                                          ? 'bg-vetc-green text-white'
+                                          : 'bg-gray-100 text-gray-500'
+                                      } disabled:opacity-40`}
+                                    >
+                                      Nội bộ
+                                    </button>
+                                  </th>
+                                  <th className="px-2 py-1.5">
+                                    <button
+                                      type="button"
+                                      disabled={!activeExternal}
+                                      onClick={() => activeExternal && setProfileChoice(activeExternal.id)}
+                                      className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
+                                        activeExternal && profileChoice === activeExternal.id
+                                          ? 'bg-blue-600 text-white'
+                                          : 'bg-blue-50 text-blue-600'
+                                      } disabled:opacity-40`}
+                                    >
+                                      One Vehicle
+                                    </button>
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {comparisonRows.map((row) => (
+                                  <tr key={row.key} className="border-t border-gray-100">
+                                    <td className="px-2 py-1.5 text-[10px] font-bold uppercase text-gray-400 whitespace-nowrap">
+                                      {row.label}
+                                    </td>
+                                    <td
+                                      className={`px-2 py-1.5 font-bold ${
+                                        profileChoice === selectedView.internal?.id ? 'bg-green-50/70' : ''
+                                      } ${row.diverges ? 'text-red-600' : 'text-gray-800'}`}
+                                    >
+                                      {row.internalValue || '—'}
+                                    </td>
+                                    <td
+                                      className={`px-2 py-1.5 font-bold ${
+                                        activeExternal && profileChoice === activeExternal.id ? 'bg-blue-50/70' : ''
+                                      } ${row.diverges ? 'text-red-600' : 'text-gray-800'}`}
+                                    >
+                                      {row.externalValue || '—'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                          {!selectedView.internal && (
+                            <p className="text-[11px] text-gray-400 italic mt-1">Không có bản ghi nội bộ</p>
+                          )}
+                          {selectedView.oneVehicle.length === 0 && (
+                            <p className="text-[11px] text-gray-400 italic mt-1">Không có bản ghi One Vehicle</p>
+                          )}
                         </div>
                       </section>
+                      )}
 
-                      {/* Gói cứu hộ */}
-                      <section className="rounded-xl border border-gray-100 overflow-hidden">
-                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
+                      {detailTab === 'package' && (
+                      <section className="flex-1 min-h-0 flex flex-col rounded-xl border border-gray-100 overflow-hidden">
+                        <div className="shrink-0 px-3 py-2 bg-gray-50 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
                             <Package size={12} className="text-vetc-green" />
                             <p className="text-[10px] font-black text-gray-500 uppercase tracking-wide">
@@ -602,7 +663,7 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
                             )}
                           </div>
                         </div>
-                        <div className="p-3 space-y-2">
+                        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
                           {packageFilter === 'all' && activeTripCount > 1 && (
                             <p className="text-[10px] leading-relaxed text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-2">
                               Xe có {activeTripCount} gói bảo hiểm chuyến đi đang hiệu lực. Khi tạo đơn chỉ dùng gói kích hoạt mới nhất.
@@ -684,10 +745,9 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
                                         )}
                                         {pkg.status !== 'none' && (
                                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
-                                            {pkg.remainingServices != null &&
-                                              pkg.totalServices != null && (
+                                            {pkg.remainingUses != null && pkg.totalUses != null && (
                                                 <span className="text-[10px] font-bold text-gray-600">
-                                                  Còn {pkg.remainingServices}/{pkg.totalServices} dịch vụ
+                                                  Còn {pkg.remainingUses}/{pkg.totalUses} lượt cứu hộ
                                                 </span>
                                               )}
                                             {pkg.coverageKm != null && (
@@ -726,20 +786,20 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
                           ) : null}
                         </div>
                       </section>
+                      )}
 
-                      <section className="rounded-xl border border-gray-100 overflow-hidden">
-                        <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-1.5">
+                      {detailTab === 'history' && (
+                      <section className="flex-1 min-h-0 flex flex-col rounded-xl border border-gray-100 overflow-hidden">
+                        <div className="shrink-0 px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-1.5">
                           <History size={12} className="text-vetc-green" />
                           <p className="text-[10px] font-black text-gray-500 uppercase tracking-wide">
                             Lịch sử cứu hộ
-                            {(selected.rescueHistory ?? []).length > 0 && (
-                              <span className="ml-1.5 normal-case tracking-normal text-gray-400 font-bold">
-                                ({selected.rescueHistory?.length})
-                              </span>
-                            )}
+                            <span className="ml-1.5 normal-case tracking-normal text-gray-400 font-bold">
+                              ({selected?.rescueHistory?.length ?? 0})
+                            </span>
                           </p>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="flex-1 min-h-0 overflow-auto">
                           <table className="w-full min-w-[980px] border-collapse text-xs">
                             <thead>
                               <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-600">
@@ -754,14 +814,14 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
                               </tr>
                             </thead>
                             <tbody>
-                              {(selected.rescueHistory ?? []).length === 0 ? (
+                              {(selected?.rescueHistory ?? []).length === 0 ? (
                                 <tr>
                                   <td colSpan={8} className="px-3 py-6 text-center text-gray-400">
                                     Chưa có lịch sử cứu hộ
                                   </td>
                                 </tr>
                               ) : (
-                                (selected.rescueHistory ?? []).map((item) => (
+                                (selected?.rescueHistory ?? []).map((item) => (
                                   <tr key={item.id} className="border-b align-top hover:bg-gray-50">
                                     <td className="px-3 py-2">
                                       <Link
@@ -769,10 +829,10 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
                                         state={{
                                           orderId: item.orderCode,
                                           portalStatusId: historyPortalStatus(item.orderStatus),
-                                          customerName: selected.owner.name,
-                                          customerPhone: selected.owner.phone,
-                                          plate: selected.plate,
-                                          address: selected.owner.address,
+                                          customerName: selected?.owner.name,
+                                          customerPhone: selected?.owner.phone,
+                                          plate: selected?.plate,
+                                          address: selected?.owner.address,
                                           mainService: item.orderType,
                                         }}
                                         className="font-semibold text-vetc-green underline underline-offset-2 hover:text-green-700"
@@ -794,7 +854,8 @@ const VehicleInfoLookupModal: React.FC<Props> = ({
                           </table>
                         </div>
                       </section>
-                    </>
+                      )}
+                    </div>
                   )}
                 </>
               )}
