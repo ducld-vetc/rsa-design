@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves, Settings2, SlidersHorizontal, Handshake, BarChart3, GitBranch, Car, Store, FileSpreadsheet, Wrench } from 'lucide-react';
+import { HelpCircle, ChevronDown, Users, ShieldCheck, Truck, Activity, PlusCircle, ClipboardList, PlayCircle, Building2, DollarSign, LayoutDashboard, Briefcase, Package, Wallet, FileText, MapPin, Calendar, CalendarDays, Waves, Settings2, SlidersHorizontal, Handshake, BarChart3, GitBranch, Car, Store, FileSpreadsheet, Wrench, UserRound } from 'lucide-react';
 import { Step } from '../types';
 
 interface SidebarProps {
@@ -19,6 +19,7 @@ interface SidebarProps {
   onNavigatePricingPolicy: () => void;
   onNavigateBusinessManagement: () => void;
   onNavigatePackagePurchaseManagement: () => void;
+  onNavigateCustomerManagement: () => void;
   onNavigatePackageImport: () => void;
   onNavigatePaymentRequestManagement: () => void;
   onNavigateLocationSearch: () => void;
@@ -47,6 +48,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigatePricingPolicy,
   onNavigateBusinessManagement,
   onNavigatePackagePurchaseManagement,
+  onNavigateCustomerManagement,
   onNavigatePackageImport,
   onNavigatePaymentRequestManagement,
   onNavigateLocationSearch,
@@ -93,6 +95,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const isRescuePackageActive =
     currentStep === Step.PRICING_POLICY ||
     currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT ||
+    currentStep === Step.CUSTOMER_MANAGEMENT ||
     currentStep === Step.PACKAGE_IMPORT ||
     currentStep === Step.SERVICE_MANAGEMENT ||
     currentStep === Step.PACKAGE_CATALOG;
@@ -215,6 +218,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <Package size={13} className="shrink-0" />
                       <span className="whitespace-nowrap">Quản lý mua gói</span>
+                    </div>
+                    <div
+                      onClick={onNavigateCustomerManagement}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.CUSTOMER_MANAGEMENT ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <UserRound size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Quản lý khách hàng</span>
                     </div>
                     <div
                       onClick={onNavigatePackageImport}

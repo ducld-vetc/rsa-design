@@ -27,6 +27,7 @@ import PricingPolicyCreate from './pages/PricingPolicyCreate';
 import BusinessManagement from './pages/BusinessManagement';
 import BusinessForm from './pages/BusinessForm';
 import PackagePurchaseManagement from './pages/PackagePurchaseManagement';
+import CustomerManagement from './pages/CustomerManagement';
 import PackageImportManagement from './pages/PackageImportManagement';
 import PaymentRequestManagement from './pages/PaymentRequestManagement';
 import PaymentRequestDetail from './pages/PaymentRequestDetail';
@@ -133,6 +134,7 @@ const App: React.FC = () => {
     if (path.includes('/pricing-policy')) return Step.PRICING_POLICY;
     if (path.includes('/payment-request-management')) return Step.PAYMENT_REQUEST_MANAGEMENT;
     if (path.includes('/package-import')) return Step.PACKAGE_IMPORT;
+    if (path.includes('/customer-management')) return Step.CUSTOMER_MANAGEMENT;
     if (path.includes('/package-purchase-management')) return Step.PACKAGE_PURCHASE_MANAGEMENT;
     if (path.includes('/business-management')) return Step.BUSINESS_MANAGEMENT;
     if (path.includes('/rsa-dashboard')) return Step.RSA_DASHBOARD;
@@ -329,6 +331,7 @@ const App: React.FC = () => {
   const handleNavigateToPricingPolicy = () => navigate('/pricing-policy');
   const handleNavigateToBusinessManagement = () => navigate('/business-management');
   const handleNavigateToPackagePurchaseManagement = () => navigate('/package-purchase-management');
+  const handleNavigateToCustomerManagement = () => navigate('/customer-management');
   const handleNavigateToPackageImport = () => navigate('/package-import');
   const handleNavigateToPaymentRequestManagement = () => navigate('/payment-request-management');
   const handleNavigateToLocationSearch = () => navigate('/location-search');
@@ -436,6 +439,7 @@ const App: React.FC = () => {
     Step.PRICING_POLICY,
     Step.BUSINESS_MANAGEMENT,
     Step.PACKAGE_PURCHASE_MANAGEMENT,
+    Step.CUSTOMER_MANAGEMENT,
     Step.PACKAGE_IMPORT,
     Step.PAYMENT_REQUEST_MANAGEMENT,
     Step.LOCATION_SEARCH,
@@ -476,6 +480,9 @@ const App: React.FC = () => {
     }
     if (currentStep === Step.PACKAGE_PURCHASE_MANAGEMENT) {
       return ['Quản trị hệ thống', 'Quản lý mua gói'];
+    }
+    if (currentStep === Step.CUSTOMER_MANAGEMENT) {
+      return ['Quản trị hệ thống', 'Gói cứu hộ', 'Quản lý khách hàng'];
     }
     if (currentStep === Step.PACKAGE_IMPORT) {
       return ['Quản trị hệ thống', 'Gói cứu hộ', 'Import gói cứu hộ'];
@@ -601,6 +608,7 @@ const App: React.FC = () => {
         onNavigatePricingPolicy={handleNavigateToPricingPolicy}
         onNavigateBusinessManagement={handleNavigateToBusinessManagement}
         onNavigatePackagePurchaseManagement={handleNavigateToPackagePurchaseManagement}
+        onNavigateCustomerManagement={handleNavigateToCustomerManagement}
         onNavigatePackageImport={handleNavigateToPackageImport}
         onNavigatePaymentRequestManagement={handleNavigateToPaymentRequestManagement}
         onNavigateLocationSearch={handleNavigateToLocationSearch}
@@ -767,6 +775,9 @@ const App: React.FC = () => {
                 } />
                 <Route path="/package-purchase-management" element={
                   <PackagePurchaseManagement />
+                } />
+                <Route path="/customer-management" element={
+                  <CustomerManagement />
                 } />
                 <Route path="/package-import" element={
                   <PackageImportManagement />

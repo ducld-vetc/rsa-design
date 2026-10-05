@@ -125,6 +125,7 @@ export enum Step {
   PACKAGE_IMPORT = 58,
   SERVICE_MANAGEMENT = 59,
   PACKAGE_CATALOG = 60,
+  CUSTOMER_MANAGEMENT = 61,
 }
 
 export interface MonitoringOrder {
