@@ -3612,8 +3612,9 @@ const RescueFeeForm: React.FC = () => {
                 <div>
                   <label className={labelClass}>Mã bảng *</label>
                   <input
-                    className={inputClass}
+                    className={`${inputClass} ${isEdit ? 'cursor-not-allowed bg-gray-100 text-gray-500' : ''}`}
                     value={form.code}
+                    disabled={isEdit}
                     onChange={(e) => update('code', e.target.value)}
                   />
                 </div>
@@ -3628,6 +3629,7 @@ const RescueFeeForm: React.FC = () => {
                 <div>
                   <label className={labelClass}>Đối tượng tính</label>
                   <AppSelect
+                    disabled={isEdit}
                     value={form.target}
                     options={[
                       { value: 'CUSTOMER', label: 'Khách hàng' },
@@ -3657,6 +3659,7 @@ const RescueFeeForm: React.FC = () => {
                 <div>
                   <label className={labelClass}>Loại đối tượng</label>
                   <AppSelect
+                    disabled={isEdit}
                     value={form.objectType ?? defaultObjectTypeByTarget(form.target)}
                     options={OBJECT_TYPE_OPTIONS_BY_TARGET[form.target]}
                     onChange={(value) => {
@@ -3696,6 +3699,7 @@ const RescueFeeForm: React.FC = () => {
                       'PARTNER_'
                     ) ? (
                       <AppSelect
+                        disabled={isEdit}
                         value={form.scope.partnerId ?? ''}
                         placeholder="Chọn đối tác cứu hộ"
                         options={[
@@ -3773,6 +3777,7 @@ const RescueFeeForm: React.FC = () => {
                 <div>
                   <label className={labelClass}>Loại đơn</label>
                   <AppSelect
+                    disabled={isEdit}
                     value={
                       form.orderType === 'PACKAGE_SINGLE'
                         ? 'PACKAGE'
