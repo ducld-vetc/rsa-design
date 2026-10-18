@@ -56,7 +56,8 @@ import {
 } from 'lucide-react';
 import ImageUploadSection from '../shared/ImageUploadSection';
 import RescueVehicleCameraSection from '../shared/RescueVehicleCameraSection';
-import RescueGpsPlaybackSection from '../shared/RescueGpsPlaybackSection';
+import RescueOrderLocationSection from '../shared/RescueOrderLocationSection';
+import OrderStatusHistory from '../shared/OrderStatusHistory';
 import ServiceSelectionField from '../shared/ServiceSelectionField';
 import AISuggestionSection from '../shared/AISuggestionSection';
 import RescueList from './RescueList';
@@ -65,8 +66,12 @@ import MapSelectionModal from '../shared/MapSelectionModal';
 import CancellationDialog from '../shared/CancellationDialog';
 import InvoicePreviewModal from '../shared/InvoicePreviewModal';
 import CustomerPaymentModal, {
-  CustomerPaymentSession,
-  CustomerPaymentType
+  CustomerPaymentType,
+  PaymentTransaction,
+  PaymentTransactionDetailModal,
+  PAYMENT_METHOD_LABEL,
+  PAYMENT_TXN_STATE_LABEL,
+  PAYMENT_TYPE_LABEL
 } from '../shared/CustomerPaymentModal';
 import CustomerFeeChangeWarningModal, {
   CustomerFeeWarningType
@@ -1294,6 +1299,51 @@ const AppliedFeeTablesModal: React.FC<{
 const SAMPLE_ISSUED_INVOICE_URL =
   'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
 
+const INITIAL_PAYMENT_TRANSACTIONS: PaymentTransaction[] = [
+  {
+    id: 'pt-seed-qr',
+    paymentType: 'deposit',
+    method: 'qr',
+    amount: 20_000,
+    state: 'PENDING',
+    createdAt: '17:03:29 08/10/2026',
+    qrData: 'VETC_PAYMENT_DEPOSIT_RS12602020002_20000_pt-seed-qr',
+    paymentCheckStatus: 'unpaid',
+    lastCheckedAt: '17:05:00 08/10/2026'
+  },
+  {
+    id: 'pt-seed-push',
+    paymentType: 'deposit',
+    method: 'push',
+    amount: 15_000,
+    state: 'SUCCESS',
+    createdAt: '16:40:12 08/10/2026',
+    pushStatus: 'success',
+    pushTime: '16:40:18 08/10/2026',
+    paymentCheckStatus: 'paid'
+  },
+  {
+    id: 'pt-seed-cash',
+    paymentType: 'deposit',
+    method: 'cash',
+    amount: 5_000,
+    state: 'CANCELLED',
+    createdAt: '16:12:05 08/10/2026',
+    cashStatus: 'pending',
+    cashProofImages: []
+  },
+  {
+    id: 'pt-seed-remaining',
+    paymentType: 'remaining',
+    method: 'qr',
+    amount: 30_000,
+    state: 'PENDING',
+    createdAt: '15:20:44 08/10/2026',
+    qrData: 'VETC_PAYMENT_REMAINING_RS12602020002_30000_pt-seed-remaining',
+    paymentCheckStatus: 'pending'
+  }
+];
+
 const GuestOrderDetails: React.FC<{
   role?: 'OSA' | 'ADMIN' | 'CSKH' | 'STATION' | 'DRIVER';
 }> = ({ role = 'CSKH' }) => {
@@ -1673,14 +1723,20 @@ const GuestOrderDetails: React.FC<{
   const [weather, setWeather] = useState('Bình thường');
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [activePaymentType, setActivePaymentType] = useState<CustomerPaymentType>('deposit');
-  const [depositPaymentSession, setDepositPaymentSession] = useState<CustomerPaymentSession>({ method: null });
-  const [remainingPaymentSession, setRemainingPaymentSession] = useState<CustomerPaymentSession>({ method: null });
+  const [paymentTransactions, setPaymentTransactions] = useState<PaymentTransaction[]>(INITIAL_PAYMENT_TRANSACTIONS);
+  const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = useState(false);
+  const [detailPaymentId, setDetailPaymentId] = useState<string | null>(null);
   const DEPOSIT_AMOUNT = 50_000;
-  const isDepositPaid =
-    depositPaymentSession.pushStatus === 'success' ||
-    depositPaymentSession.paymentCheckStatus === 'paid' ||
-    depositPaymentSession.cashStatus === 'confirmed';
-  const paidAmount = isDepositPaid ? DEPOSIT_AMOUNT : 0;
+  const sumTransactions = (type: CustomerPaymentType, states: Array<PaymentTransaction['state']>) =>
+    paymentTransactions
+      .filter((item) => item.paymentType === type && states.includes(item.state))
+      .reduce((total, item) => total + item.amount, 0);
+  const depositSuccess = sumTransactions('deposit', ['SUCCESS']);
+  const remainingSuccess = sumTransactions('remaining', ['SUCCESS']);
+  const depositAllocated = sumTransactions('deposit', ['PENDING', 'SUCCESS']);
+  const remainingPending = sumTransactions('remaining', ['PENDING']);
+  const isDepositPaid = depositSuccess >= DEPOSIT_AMOUNT;
+  const paidAmount = depositSuccess + remainingSuccess;
   const [refundAmount, setRefundAmount] = useState(0);
   const hasDeposited = isDepositPaid;
   const hasPartialPayment = hasDeposited || paidAmount > 0;
@@ -1700,6 +1756,12 @@ const GuestOrderDetails: React.FC<{
     }
     setActivePaymentType(type);
     setIsPaymentModalOpen(true);
+  };
+
+  const cancelPaymentTransaction = (id: string) => {
+    setPaymentTransactions((current) =>
+      current.map((item) => (item.id === id && item.state === 'PENDING' ? { ...item, state: 'CANCELLED' } : item))
+    );
   };
 
   const handleConfirmUnpaidDepositRemaining = () => {
@@ -1913,6 +1975,8 @@ const GuestOrderDetails: React.FC<{
   const individualCustomerPrice = tableTotals.customerPaidKhcn;
 
   const remainingAmount = refundAmount > 0 ? 0 : Math.max(0, individualCustomerPrice - paidAmount);
+  const depositUnallocated = Math.max(0, DEPOSIT_AMOUNT - depositAllocated);
+  const remainingUnallocated = Math.max(0, remainingAmount - remainingPending);
   const orderPaymentStatus = resolveOrderPaymentStatus(
     individualCustomerPrice,
     paidAmount,
@@ -2682,6 +2746,11 @@ const GuestOrderDetails: React.FC<{
                     );
                   })()}
                 </button>
+                <OrderStatusHistory
+                  currentStatus={currentStatus}
+                  canUpdate={!isOrderCancelled}
+                  onUpdate={() => setIsStatusUpdateModalOpen(true)}
+                />
               </div>
 
               <div className="h-10 w-px bg-gray-100 hidden md:block"></div>
@@ -3711,8 +3780,8 @@ const GuestOrderDetails: React.FC<{
                           />
                           <button
                               title="Thanh toán tiền cọc"
-                              disabled={isEditing}
-                              className={`shrink-0 bg-green-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center gap-1 transition-all hover:bg-green-700 active:scale-95 whitespace-nowrap ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              disabled={isEditing || Math.max(0, DEPOSIT_AMOUNT - depositAllocated) <= 0}
+                              className={`shrink-0 bg-green-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center gap-1 transition-all hover:bg-green-700 active:scale-95 whitespace-nowrap ${isEditing || Math.max(0, DEPOSIT_AMOUNT - depositAllocated) <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => openPaymentModal('deposit')}
                           >
                             <CreditCard size={14} />
@@ -3726,11 +3795,22 @@ const GuestOrderDetails: React.FC<{
 
                       <div className="min-w-0">
                         <Label>Đã thanh toán</Label>
-                        <Input
-                            value={paidAmount.toLocaleString('en-US')}
-                            className="w-full text-right text-blue-600 font-bold"
-                            readOnly
-                        />
+                        <div className="flex gap-2">
+                          <Input
+                              value={paidAmount.toLocaleString('en-US')}
+                              className="flex-1 min-w-0 text-right text-blue-600 font-bold"
+                              readOnly
+                          />
+                          <button
+                              type="button"
+                              title="Lịch sử giao dịch"
+                              aria-expanded={isPaymentHistoryOpen}
+                              onClick={() => setIsPaymentHistoryOpen(true)}
+                              className={`shrink-0 border px-2.5 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center gap-1 whitespace-nowrap transition-all active:scale-95 ${isPaymentHistoryOpen ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700' : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50'}`}
+                          >
+                            <span>Lịch sử</span>
+                          </button>
+                        </div>
                       </div>
 
                       <div className="min-w-0">
@@ -3743,8 +3823,8 @@ const GuestOrderDetails: React.FC<{
                           />
                           <button
                               title="Thanh toán phần còn lại"
-                              disabled={isEditing}
-                              className={`shrink-0 bg-green-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center gap-1 transition-all hover:bg-green-700 active:scale-95 whitespace-nowrap ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              disabled={isEditing || remainingUnallocated <= 0}
+                              className={`shrink-0 bg-green-600 text-white px-2.5 py-1.5 rounded text-[10px] font-bold shadow-sm flex items-center justify-center gap-1 transition-all hover:bg-green-700 active:scale-95 whitespace-nowrap ${isEditing || remainingUnallocated <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => openPaymentModal('remaining')}
                           >
                             <CreditCard size={14} />
@@ -4129,59 +4209,7 @@ const GuestOrderDetails: React.FC<{
           <div id="section-process" className={`scroll-mt-40 ${isVisible('process') ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
               <SectionHeader title="Quá trình cứu hộ" number={4} icon={<Activity size={18} />} />
-              <div className="grid grid-cols-1 lg:grid-cols-12 h-[600px]">
-                {/* Map Container */}
-                <div className="lg:col-span-8 bg-gray-100 relative group text-left">
-                  <iframe
-                      src="https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d15000!2d105.8452!3d21.0285!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1svi!2s!4v1700000000000!5m2!1svi!2s"
-                      width="100%"
-                      height="100%"
-                      style={{ border: 0 }}
-                      allowFullScreen
-                      loading="lazy"
-                      className="grayscale-[0.1] contrast-[1.05]"
-                  ></iframe>
-
-                  {/* Overlay Map UI */}
-                  <div className="absolute top-4 left-4 flex flex-col space-y-2">
-                    <div className="bg-white/95 p-3 rounded-xl shadow-lg border border-gray-100 backdrop-blur-sm">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                          <Truck size={20} />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-[10px] font-black text-gray-400 uppercase leading-none">Vị trí xe cứu hộ</p>
-                          <p className="text-xs font-bold text-gray-800 mt-1">Cách hiện trường 2.5 km</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="absolute top-4 right-4">
-                  </div>
-
-                  <div className="absolute bottom-6 right-6 flex flex-col space-y-2">
-                    <button className="bg-white p-2 rounded-lg shadow-xl hover:bg-gray-50 active:scale-95 transition-all"><Plus size={20} /></button>
-                    <button className="bg-white p-2 rounded-lg shadow-xl hover:bg-gray-50 active:scale-95 transition-all border-t"><X size={20} /></button>
-                  </div>
-                </div>
-
-                {/* Timeline — VnetGPS map/playback */}
-                <div className="lg:col-span-4 border-l flex flex-col bg-white overflow-hidden text-left min-h-0">
-                  <RescueGpsPlaybackSection />
-                  <div className="p-4 bg-gray-50 border-t shrink-0">
-                    {!isOrderCancelled && (
-                    <button 
-                      onClick={() => setIsStatusUpdateModalOpen(true)}
-                      className="w-full bg-vetc-green text-white py-2.5 rounded-xl font-bold text-xs shadow-lg hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center space-x-2"
-                    >
-                      <Pencil size={14} />
-                      <span>Cập nhật trạng thái thủ công</span>
-                    </button>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <RescueOrderLocationSection />
             </div>
           </div>
 
@@ -4658,14 +4686,116 @@ const GuestOrderDetails: React.FC<{
           onApply={handleApplyVehicleInfo}
         />
 
+        {isPaymentHistoryOpen && createPortal(
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60"
+            onClick={() => setIsPaymentHistoryOpen(false)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 py-4 flex items-center justify-between border-b border-gray-100">
+                <div>
+                  <h3 className="font-bold text-base text-gray-800">Lịch sử giao dịch</h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Đã thu {paidAmount.toLocaleString('en-US')} · Đang chờ {(
+                      paymentTransactions
+                        .filter((item) => item.state === 'PENDING')
+                        .reduce((total, item) => total + item.amount, 0)
+                    ).toLocaleString('en-US')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPaymentHistoryOpen(false)}
+                  className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-5">
+                {paymentTransactions.length === 0 && (
+                  <p className="rounded-lg border border-dashed border-gray-200 px-3 py-6 text-center text-[11px] text-gray-400">
+                    Chưa có giao dịch thanh toán.
+                  </p>
+                )}
+                {paymentTransactions.length > 0 && (
+                  <div className="overflow-x-auto rounded-lg border border-gray-100">
+                    <table className="w-full min-w-[640px] text-left">
+                      <thead className="bg-gray-50 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                        <tr>
+                          <th className="px-3 py-2">Thời gian</th>
+                          <th className="px-3 py-2">Loại</th>
+                          <th className="px-3 py-2">Phương thức</th>
+                          <th className="px-3 py-2 text-right">Số tiền</th>
+                          <th className="px-3 py-2">Trạng thái</th>
+                          <th className="px-3 py-2 text-right">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paymentTransactions.map((item) => (
+                          <tr key={item.id} className="border-t border-gray-100 text-[11px]">
+                            <td className="px-3 py-2 whitespace-nowrap text-gray-500">{item.createdAt}</td>
+                            <td className="px-3 py-2 font-bold text-gray-700">{PAYMENT_TYPE_LABEL[item.paymentType]}</td>
+                            <td className="px-3 py-2 text-gray-700">{PAYMENT_METHOD_LABEL[item.method]}</td>
+                            <td className="px-3 py-2 text-right font-bold text-gray-800">{item.amount.toLocaleString('en-US')}</td>
+                            <td className="px-3 py-2">
+                              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                                item.state === 'SUCCESS'
+                                  ? 'border-green-200 bg-green-50 text-green-700'
+                                  : item.state === 'CANCELLED'
+                                    ? 'border-gray-200 bg-gray-50 text-gray-500'
+                                    : 'border-amber-200 bg-amber-50 text-amber-700'
+                              }`}>
+                                {PAYMENT_TXN_STATE_LABEL[item.state]}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => setDetailPaymentId(item.id)}
+                                className="font-bold text-blue-600 hover:underline"
+                              >
+                                Xem
+                              </button>
+                              {item.state === 'PENDING' && (
+                                <button
+                                  type="button"
+                                  onClick={() => cancelPaymentTransaction(item.id)}
+                                  className="ml-3 font-bold text-red-600 hover:underline"
+                                >
+                                  Hủy
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
         <CustomerPaymentModal
             isOpen={isPaymentModalOpen}
             onClose={() => setIsPaymentModalOpen(false)}
             paymentType={activePaymentType}
-            amount={activePaymentType === 'deposit' ? DEPOSIT_AMOUNT.toLocaleString('en-US') : remainingAmount.toLocaleString('en-US')}
-            session={activePaymentType === 'deposit' ? depositPaymentSession : remainingPaymentSession}
-            onSessionChange={activePaymentType === 'deposit' ? setDepositPaymentSession : setRemainingPaymentSession}
+            maxAmount={activePaymentType === 'deposit' ? depositUnallocated : remainingUnallocated}
+            transactions={paymentTransactions}
+            onTransactionsChange={setPaymentTransactions}
+            onViewTransaction={setDetailPaymentId}
             allowCashPayment={role === 'ADMIN'}
+        />
+
+        <PaymentTransactionDetailModal
+            transaction={paymentTransactions.find((item) => item.id === detailPaymentId) ?? null}
+            onClose={() => setDetailPaymentId(null)}
+            onTransactionsChange={setPaymentTransactions}
         />
 
         <UnpaidDepositRemainingWarningModal

@@ -16,6 +16,74 @@ export type FeeSourceLabel = 'VETC' | 'NCC' | 'Thủ công' | string;
 export type RoundMode = 'NEAREST_1000' | 'NEAREST_100' | 'NONE';
 export type CriterionRole = 'PRICE' | 'SURCHARGE' | 'BOTH';
 export type CriterionValueType = 'LIST' | 'RANGE' | 'TIME';
+
+/** fee_criterion.fee_type — cách tiêu chí tham gia tính phí */
+export type FeeCriterionFeeType = 'PRIMARY' | 'CONDITION' | 'SURCHARGE';
+
+export const FEE_TYPE_LABELS: Record<FeeCriterionFeeType, string> = {
+  PRIMARY: 'Chính',
+  CONDITION: 'Bổ sung',
+  SURCHARGE: 'Phụ phí',
+};
+
+export const FEE_TYPE_OPTIONS: Array<{
+  value: FeeCriterionFeeType;
+  label: string;
+  hint: string;
+}> = [
+  {
+    value: 'PRIMARY',
+    label: 'Chính (PRIMARY)',
+    hint: 'Trục tính giá theo bậc/đơn vị, ví dụ quãng đường km.',
+  },
+  {
+    value: 'CONDITION',
+    label: 'Bổ sung (CONDITION)',
+    hint: 'Điều kiện chọn đúng dòng giá, ví dụ loại xe, số chỗ.',
+  },
+  {
+    value: 'SURCHARGE',
+    label: 'Phụ phí (SURCHARGE)',
+    hint: 'Tiêu chí làm phụ phí, ví dụ thời tiết, khung giờ, lễ/tết.',
+  },
+];
+
+/** Bộ đơn vị chuẩn cho tiêu chí khoảng số. Hệ thống không tự quy đổi. */
+export const FEE_CRITERION_UNITS = ['km', 'm', 'tấn', 'chỗ'] as const;
+export type FeeCriterionUnit = (typeof FEE_CRITERION_UNITS)[number];
+
+const FEE_TYPE_BY_KEY: Record<string, FeeCriterionFeeType> = {
+  distanceKm: 'PRIMARY',
+  roadDistance: 'PRIMARY',
+  payload: 'CONDITION',
+  seats: 'CONDITION',
+  vehicleType: 'CONDITION',
+  rescueVehicleType: 'CONDITION',
+  cranePosture: 'CONDITION',
+  areaTerrain: 'CONDITION',
+  seat_number: 'CONDITION',
+  load_capacity: 'CONDITION',
+  isHighway: 'SURCHARGE',
+  timeWindow: 'SURCHARGE',
+  weather: 'SURCHARGE',
+  locationType: 'SURCHARGE',
+  extraEquipment: 'SURCHARGE',
+};
+
+const UNIT_BY_KEY: Partial<Record<string, FeeCriterionUnit>> = {
+  distanceKm: 'km',
+  roadDistance: 'm',
+  payload: 'tấn',
+  seats: 'chỗ',
+  seat_number: 'chỗ',
+  load_capacity: 'tấn',
+};
+
+export const feeTypeByCriterionKey = (key: string): FeeCriterionFeeType =>
+  FEE_TYPE_BY_KEY[key] ?? 'CONDITION';
+
+export const unitByCriterionKey = (key: string): FeeCriterionUnit | undefined =>
+  UNIT_BY_KEY[key];
 export type ServicePricingMode = 'FIXED' | 'PER_UNIT';
 /** Loại đoạn giá trên dòng đơn giá */
 export type PriceSegmentType = 'TIERED' | 'SINGLE';
@@ -462,6 +530,8 @@ export const EXTRA_FEE_CRITERION_DEFINITIONS: Array<{
   tableMapping: FeeCriterionTableMapping;
   fieldMapping: string;
   scope: FeeCriterionScope;
+  feeType: FeeCriterionFeeType;
+  unit?: FeeCriterionUnit;
 }> = [
   {
     id: 'FEE-CRITERION-SEAT-NUMBER',
@@ -474,6 +544,8 @@ export const EXTRA_FEE_CRITERION_DEFINITIONS: Array<{
     tableMapping: 'vehicle',
     fieldMapping: 'seat_number',
     scope: 'VEHICLE',
+    feeType: 'CONDITION',
+    unit: 'chỗ',
   },
   {
     id: 'FEE-CRITERION-LOAD-CAPACITY',
@@ -486,6 +558,8 @@ export const EXTRA_FEE_CRITERION_DEFINITIONS: Array<{
     tableMapping: 'vehicle',
     fieldMapping: 'load_capacity',
     scope: 'VEHICLE',
+    feeType: 'CONDITION',
+    unit: 'tấn',
   },
 ];
 
@@ -497,12 +571,16 @@ export interface FeeCriterionDefinition {
   values: string[];
   status: 'ACTIVE' | 'INACTIVE';
   updatedAt: string;
-  /** fee_criterion_mapping_field.table_mapping */
-  tableMapping: FeeCriterionTableMapping;
+  /** fee_criterion_mapping_field.table_mapping — nhập tự do, ví dụ order, vehicle, line */
+  tableMapping: string;
   /** fee_criterion_mapping_field.field_mapping — cột hoặc hàm transform */
   fieldMapping: string;
   /** fee_criterion_mapping_field.scope */
   scope: FeeCriterionScope;
+  /** fee_criterion.fee_type */
+  feeType: FeeCriterionFeeType;
+  /** Đơn vị đo khi valueType = RANGE. Không quy đổi giữa các đơn vị. */
+  unit?: FeeCriterionUnit;
 }
 
 export let feeCriterionDefinitions: FeeCriterionDefinition[] = [
@@ -517,6 +595,8 @@ export let feeCriterionDefinitions: FeeCriterionDefinition[] = [
       tableMapping: config.tableMapping,
       fieldMapping: config.fieldMapping,
       scope: FEE_CRITERION_SCOPE_BY_TABLE[config.tableMapping],
+      feeType: feeTypeByCriterionKey(config.key),
+      unit: config.valueType === 'RANGE' ? unitByCriterionKey(config.key) : undefined,
       status: 'ACTIVE' as const,
       updatedAt: '2026-07-30 10:00',
     };

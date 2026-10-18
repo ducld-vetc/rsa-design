@@ -42,7 +42,8 @@ import {
 } from 'lucide-react';
 import ImageUploadSection from '../shared/ImageUploadSection';
 import RescueVehicleCameraSection from '../shared/RescueVehicleCameraSection';
-import RescueGpsPlaybackSection from '../shared/RescueGpsPlaybackSection';
+import RescueOrderLocationSection from '../shared/RescueOrderLocationSection';
+import OrderStatusHistory from '../shared/OrderStatusHistory';
 import ServiceSelectionField from '../shared/ServiceSelectionField';
 import AISuggestionSection from '../shared/AISuggestionSection';
 import RescueList from './RescueList';
@@ -714,6 +715,11 @@ const StationOrderDetail: React.FC = () => {
                         );
                       })()}
                     </button>
+                    <OrderStatusHistory
+                      currentStatus={currentStatus}
+                      canUpdate={currentStatus !== 'FINISH-CANCELLED'}
+                      onUpdate={() => setIsStatusUpdateModalOpen(true)}
+                    />
                   </div>
                 </div>
     
@@ -1219,54 +1225,7 @@ const StationOrderDetail: React.FC = () => {
           <div id="section-process" className={`scroll-mt-40 ${rescueOrderId ? 'block' : 'hidden'}`}>
             <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
               <SectionHeader title="Quá trình cứu hộ (Theo dõi thời gian thực)" number={3} icon={<Activity size={18} />} />
-              <div className="grid grid-cols-1 lg:grid-cols-12 h-[600px]">
-                {/* Map Container */}
-                <div className="lg:col-span-8 bg-gray-100 relative group text-left">
-                  <iframe
-                      src="https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d15000!2d105.8452!3d21.0285!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1svi!2s!4v1700000000000!5m2!1svi!2s"
-                      width="100%"
-                      height="100%"
-                      style={{ border: 0 }}
-                      allowFullScreen
-                      loading="lazy"
-                      className="grayscale-[0.1] contrast-[1.05]"
-                  ></iframe>
-
-                  {/* Overlay Map UI */}
-                  <div className="absolute top-4 left-4 flex flex-col space-y-2">
-                    <div className="bg-white/95 p-3 rounded-xl shadow-lg border border-gray-100 backdrop-blur-sm">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-                          <Truck size={20} />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-[10px] font-black text-gray-400 uppercase leading-none">Vị trí xe cứu hộ</p>
-                          <p className="text-xs font-bold text-gray-800 mt-1">Cách hiện trường 2.5 km</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="absolute bottom-6 right-6 flex flex-col space-y-2">
-                    <button className="bg-white p-2 rounded-lg shadow-xl hover:bg-gray-50 active:scale-95 transition-all"><Plus size={20} /></button>
-                    <button className="bg-white p-2 rounded-lg shadow-xl hover:bg-gray-50 active:scale-95 transition-all border-t"><X size={20} /></button>
-                  </div>
-                </div>
-
-                {/* Timeline — VnetGPS map/playback */}
-                <div className="lg:col-span-4 border-l flex flex-col bg-white overflow-hidden text-left min-h-0">
-                  <RescueGpsPlaybackSection />
-                  <div className="p-4 bg-gray-50 border-t shrink-0">
-                    <button 
-                      onClick={() => setIsStatusUpdateModalOpen(true)}
-                      className="w-full bg-vetc-green text-white py-2.5 rounded-xl font-bold text-xs shadow-lg hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center space-x-2"
-                    >
-                      <Pencil size={14} />
-                      <span>Cập nhật trạng thái thủ công</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <RescueOrderLocationSection />
             </div>
           </div>
 

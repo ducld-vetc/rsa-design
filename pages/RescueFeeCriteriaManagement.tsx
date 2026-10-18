@@ -2,16 +2,29 @@ import React, { useMemo, useState } from 'react';
 import { Edit3, Plus, Search, X } from 'lucide-react';
 import AppSelect from '../shared/AppSelect';
 import {
+  FEE_CRITERION_SCOPE_BY_TABLE,
+  FEE_CRITERION_UNITS,
+  FEE_TYPE_LABELS,
+  FEE_TYPE_OPTIONS,
   feeCriterionDefinitions,
   incidentalFeeDefinitions,
   upsertFeeCriterionDefinition,
   upsertIncidentalFeeDefinition,
   type CriterionValueType,
   type FeeCriterionDefinition,
+  type FeeCriterionFeeType,
+  type FeeCriterionTableMapping,
+  type FeeCriterionUnit,
   type IncidentalFeeDefinition,
 } from '../data/rescueFeeMockData';
 
 type CatalogTab = 'criteria' | 'incidental';
+
+const FEE_TYPE_BADGE: Record<FeeCriterionFeeType, string> = {
+  PRIMARY: 'border-green-200 bg-green-50 text-green-700',
+  CONDITION: 'border-blue-200 bg-blue-50 text-blue-700',
+  SURCHARGE: 'border-amber-200 bg-amber-50 text-amber-700',
+};
 
 const emptyDefinition = (): FeeCriterionDefinition => ({
   id: `FEE-CRITERION-${Date.now()}`,
@@ -19,8 +32,12 @@ const emptyDefinition = (): FeeCriterionDefinition => ({
   label: '',
   valueType: 'LIST',
   values: [],
+  feeType: 'CONDITION',
   status: 'ACTIVE',
   updatedAt: '',
+  tableMapping: 'order',
+  fieldMapping: '',
+  scope: 'ORDER',
 });
 
 const emptyIncidental = (): IncidentalFeeDefinition => ({
@@ -78,7 +95,10 @@ const RescueFeeCriteriaManagement: React.FC = () => {
         return (
           !query ||
           definition.label.toLowerCase().includes(query) ||
-          definition.key.toLowerCase().includes(query)
+          definition.key.toLowerCase().includes(query) ||
+          definition.feeType.toLowerCase().includes(query) ||
+          FEE_TYPE_LABELS[definition.feeType].toLowerCase().includes(query) ||
+          (definition.unit ?? '').toLowerCase().includes(query)
         );
       }),
     [definitions, keyword, status]
@@ -143,10 +163,26 @@ const RescueFeeCriteriaManagement: React.FC = () => {
       setError('Tiêu chí dạng danh sách cần có ít nhất một giá trị');
       return;
     }
+    if (editing.valueType === 'RANGE' && !editing.unit) {
+      setError('Tiêu chí khoảng số cần chọn đơn vị tính');
+      return;
+    }
+    const tableMapping = editing.tableMapping.trim();
+    const fieldMapping = editing.fieldMapping.trim();
+    if (!tableMapping || !fieldMapping) {
+      setError('Vui lòng nhập bảng nguồn và cột nguồn trên đơn');
+      return;
+    }
+    const knownScope = FEE_CRITERION_SCOPE_BY_TABLE[tableMapping as FeeCriterionTableMapping];
     const saved: FeeCriterionDefinition = {
       ...editing,
       label,
       key,
+      feeType: editing.feeType,
+      tableMapping,
+      fieldMapping,
+      scope: knownScope ?? editing.scope,
+      unit: editing.valueType === 'RANGE' ? editing.unit : undefined,
       values: editing.valueType === 'LIST' ? values : [],
       updatedAt: new Date().toLocaleString('vi-VN'),
     };
@@ -315,13 +351,15 @@ const RescueFeeCriteriaManagement: React.FC = () => {
               Danh sách tiêu chí
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] border-collapse text-xs">
+              <table className="w-full min-w-[1100px] border-collapse text-xs">
                 <thead>
                   <tr className="bg-gray-50 text-[10px] font-bold uppercase text-gray-600">
                     <th className="border-b px-4 py-3 text-left">STT</th>
                     <th className="border-b px-4 py-3 text-left">Tên tiêu chí</th>
                     <th className="border-b px-4 py-3 text-left">Mã tiêu chí</th>
+                    <th className="border-b px-4 py-3 text-left">Vai trò</th>
                     <th className="border-b px-4 py-3 text-left">Kiểu giá trị</th>
+                    <th className="border-b px-4 py-3 text-left">Đơn vị tính</th>
                     <th className="border-b px-4 py-3 text-left">Giá trị cấu hình</th>
                     <th className="border-b px-4 py-3 text-center">Trạng thái</th>
                     <th className="border-b px-4 py-3 text-center">Thao tác</th>
@@ -335,12 +373,23 @@ const RescueFeeCriteriaManagement: React.FC = () => {
                         {definition.label}
                       </td>
                       <td className="border-b px-4 py-3 font-mono text-gray-600">{definition.key}</td>
+                      <td className="whitespace-nowrap border-b px-4 py-3">
+                        <span
+                          className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-bold ${FEE_TYPE_BADGE[definition.feeType]}`}
+                          title={definition.feeType}
+                        >
+                          {FEE_TYPE_LABELS[definition.feeType]}
+                        </span>
+                      </td>
                       <td className="border-b px-4 py-3">
                         {definition.valueType === 'LIST'
                           ? 'Danh sách'
                           : definition.valueType === 'TIME'
                             ? 'Khung giờ'
                             : 'Khoảng số'}
+                      </td>
+                      <td className="border-b px-4 py-3 text-gray-700">
+                        {definition.valueType === 'RANGE' && definition.unit ? definition.unit : '—'}
                       </td>
                       <td className="max-w-[340px] border-b px-4 py-3 text-gray-600">
                         {definition.valueType === 'RANGE'
@@ -349,11 +398,11 @@ const RescueFeeCriteriaManagement: React.FC = () => {
                             ? 'Nhập khung giờ Từ – Đến'
                             : definition.values.join(', ')}
                       </td>
-                      <td className="border-b px-4 py-3 text-center">
+                      <td className="whitespace-nowrap border-b px-4 py-3 text-center">
                         <button
                           type="button"
                           onClick={() => toggleStatus(definition)}
-                          className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${
+                          className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-bold ${
                             definition.status === 'ACTIVE'
                               ? 'border-green-200 bg-green-50 text-green-700'
                               : 'border-gray-200 bg-gray-100 text-gray-500'
@@ -500,7 +549,7 @@ const RescueFeeCriteriaManagement: React.FC = () => {
                 <X size={18} />
               </button>
             </div>
-            <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+            <div className="grid max-h-[min(70vh,640px)] grid-cols-1 gap-4 overflow-y-auto p-5 md:grid-cols-2">
               <div>
                 <label className={labelClass}>Tên tiêu chí *</label>
                 <input
@@ -534,6 +583,26 @@ const RescueFeeCriteriaManagement: React.FC = () => {
                 />
               </div>
               <div>
+                <label className={labelClass}>Vai trò *</label>
+                <AppSelect
+                  value={editing.feeType}
+                  options={FEE_TYPE_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                  onChange={(value) =>
+                    setEditing((current) =>
+                      current
+                        ? { ...current, feeType: value as FeeCriterionFeeType }
+                        : current
+                    )
+                  }
+                />
+                <p className="mt-1 text-[11px] leading-snug text-gray-500">
+                  {FEE_TYPE_OPTIONS.find((option) => option.value === editing.feeType)?.hint}
+                </p>
+              </div>
+              <div>
                 <label className={labelClass}>Kiểu giá trị</label>
                 <AppSelect
                   value={editing.valueType}
@@ -545,7 +614,11 @@ const RescueFeeCriteriaManagement: React.FC = () => {
                   onChange={(value) =>
                     setEditing((current) =>
                       current
-                        ? { ...current, valueType: value as CriterionValueType }
+                        ? {
+                            ...current,
+                            valueType: value as CriterionValueType,
+                            unit: value === 'RANGE' ? current.unit : undefined,
+                          }
                         : current
                     )
                   }
@@ -566,6 +639,53 @@ const RescueFeeCriteriaManagement: React.FC = () => {
                         : current
                     )
                   }
+                />
+              </div>
+              {editing.valueType === 'RANGE' && (
+                <div>
+                  <label className={labelClass}>Đơn vị tính *</label>
+                  <AppSelect
+                    value={editing.unit ?? ''}
+                    placeholder="Chọn đơn vị"
+                    options={FEE_CRITERION_UNITS.map((unit) => ({ value: unit, label: unit }))}
+                    onChange={(value) =>
+                      setEditing((current) =>
+                        current
+                          ? { ...current, unit: (value as FeeCriterionUnit) || undefined }
+                          : current
+                      )
+                    }
+                  />
+                  <p className="mt-1 text-[11px] leading-snug text-gray-500">
+                    Nhãn hiển thị và đơn vị gắn với giá (ví dụ 15.000đ/km). Hệ thống không quy đổi
+                    đơn vị.
+                  </p>
+                </div>
+              )}
+              <div>
+                <label className={labelClass}>Bảng nguồn trên đơn *</label>
+                <input
+                  value={editing.tableMapping}
+                  onChange={(event) =>
+                    setEditing((current) =>
+                      current ? { ...current, tableMapping: event.target.value } : current
+                    )
+                  }
+                  className={inputClass}
+                  placeholder="Ví dụ: order, vehicle, line"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Cột nguồn trên đơn *</label>
+                <input
+                  value={editing.fieldMapping}
+                  onChange={(event) =>
+                    setEditing((current) =>
+                      current ? { ...current, fieldMapping: event.target.value } : current
+                    )
+                  }
+                  className={inputClass}
+                  placeholder="Ví dụ: distanceKm, vehicleType"
                 />
               </div>
               {editing.valueType === 'LIST' && (
