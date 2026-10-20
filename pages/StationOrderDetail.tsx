@@ -43,7 +43,6 @@ import {
 import ImageUploadSection from '../shared/ImageUploadSection';
 import RescueVehicleCameraSection from '../shared/RescueVehicleCameraSection';
 import RescueOrderLocationSection from '../shared/RescueOrderLocationSection';
-import OrderStatusHistory from '../shared/OrderStatusHistory';
 import ServiceSelectionField from '../shared/ServiceSelectionField';
 import AISuggestionSection from '../shared/AISuggestionSection';
 import RescueList from './RescueList';
@@ -699,10 +698,10 @@ const StationOrderDetail: React.FC = () => {
                   <div className="h-10 w-px bg-gray-100 hidden md:block"></div>
                   <div className="flex flex-col">
                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Trạng thái hiện tại</span>
-                    <button 
-                      onClick={() => isEditing && setIsStatusUpdateModalOpen(true)}
-                      disabled={!isEditing}
-                      className={`flex items-center space-x-2 transition-opacity text-left group ${isEditing ? 'hover:opacity-80' : 'cursor-default'}`}
+                    <button
+                      type="button"
+                      onClick={() => setIsStatusUpdateModalOpen(true)}
+                      className="flex cursor-pointer items-center space-x-2 transition-opacity text-left group hover:opacity-80"
                     >
                       {(() => {
                         const statusInfo = STATUS_OPTIONS.flatMap(g => g.items).find(i => i.id === currentStatus) || { label: currentStatus, color: 'bg-gray-50 text-gray-600 border-gray-100', dot: 'bg-gray-400' };
@@ -715,11 +714,6 @@ const StationOrderDetail: React.FC = () => {
                         );
                       })()}
                     </button>
-                    <OrderStatusHistory
-                      currentStatus={currentStatus}
-                      canUpdate={currentStatus !== 'FINISH-CANCELLED'}
-                      onUpdate={() => setIsStatusUpdateModalOpen(true)}
-                    />
                   </div>
                 </div>
     

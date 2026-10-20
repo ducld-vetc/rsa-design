@@ -57,7 +57,7 @@ import {
 import ImageUploadSection from '../shared/ImageUploadSection';
 import RescueVehicleCameraSection from '../shared/RescueVehicleCameraSection';
 import RescueOrderLocationSection from '../shared/RescueOrderLocationSection';
-import OrderStatusHistory from '../shared/OrderStatusHistory';
+import ChangeRescueResourceModal from '../shared/ChangeRescueResourceModal';
 import ServiceSelectionField from '../shared/ServiceSelectionField';
 import AISuggestionSection from '../shared/AISuggestionSection';
 import RescueList from './RescueList';
@@ -137,6 +137,15 @@ const DRIVERS_MOCK = [
   { id: 'D3', name: 'Lê Văn Hùng', phone: '0944555111' },
   { id: 'D4', name: 'Phạm Đức Anh', phone: '0900111222' }
 ];
+
+const RESCUE_STATIONS = [
+  'Carpla Service - CN Hà Nội',
+  'Cứu hộ 116 Hà Nội',
+  'Garage Thăng Long',
+  'Cứu hộ ABC',
+];
+
+const CHANGE_RESOURCE_TITLE = 'Điều chỉnh thông tin cứu hộ';
 
 type OrderPaymentStatus = 'PENDING' | 'DEPOSITED' | 'PAID';
 
@@ -1380,6 +1389,7 @@ const GuestOrderDetails: React.FC<{
   const [isEditing, setIsEditing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedDriverId, setSelectedDriverId] = useState('D1');
+  const [knownDrivers, setKnownDrivers] = useState(DRIVERS_MOCK);
   const [driverPhone, setDriverPhone] = useState('0911222333');
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isManualSearchModalOpen, setIsManualSearchModalOpen] = useState(false);
@@ -1793,6 +1803,7 @@ const GuestOrderDetails: React.FC<{
     }
   };
   const [isStatusUpdateModalOpen, setIsStatusUpdateModalOpen] = useState(false);
+  const [changeResourceOpen, setChangeResourceOpen] = useState(false);
   const [isShareLocationWebviewOpen, setIsShareLocationWebviewOpen] = useState(false);
   /** Demo webview: normal | thiếu vị trí cứu hộ (auto GPS) */
   const [webviewDemoMode, setWebviewDemoMode] = useState<'normal' | 'missing-rescue'>('normal');
@@ -2123,11 +2134,11 @@ const GuestOrderDetails: React.FC<{
 
   // Update driver phone when selected driver changes
   useEffect(() => {
-    const driver = DRIVERS_MOCK.find(d => d.id === selectedDriverId);
+    const driver = knownDrivers.find(d => d.id === selectedDriverId);
     if (driver) {
       setDriverPhone(driver.phone);
     }
-  }, [selectedDriverId]);
+  }, [selectedDriverId, knownDrivers]);
 
   const handleUpdateServices = (newSelection: string[]) => {
     setSelectedServices(newSelection);
@@ -2529,13 +2540,6 @@ const GuestOrderDetails: React.FC<{
     );
   };
 
-  const handlePartnerFeeAwareChange = (next: string) => {
-    if (next === partnerName) return;
-    requestFeeCriteriaChange(`Đối tác cứu hộ: ${partnerName} → ${next}`, {
-      partnerName: next,
-    });
-  };
-
   const handleAdjustmentChange = (id: number, field: string, value: string) => {
     if (field === 'totalPrice') return;
     setCustomerTotalOverride(null);
@@ -2593,7 +2597,7 @@ const GuestOrderDetails: React.FC<{
     );
   };
 
-  const selectedDriver = DRIVERS_MOCK.find(d => d.id === selectedDriverId);
+  const selectedDriver = knownDrivers.find(d => d.id === selectedDriverId);
 
   // Helper to determine visibility
   const isVisible = (tabId: string) => viewMode === 'list' || activeTab === tabId;
@@ -2730,10 +2734,10 @@ const GuestOrderDetails: React.FC<{
               <div className="h-10 w-px bg-gray-100 hidden md:block"></div>
               <div className="flex flex-col">
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Trạng thái hiện tại</span>
-                <button 
-                  onClick={() => isEditing && setIsStatusUpdateModalOpen(true)}
-                  disabled={!isEditing}
-                  className={`flex items-center space-x-2 transition-opacity text-left group ${isEditing ? 'hover:opacity-80' : 'cursor-default'}`}
+                <button
+                  type="button"
+                  onClick={() => setIsStatusUpdateModalOpen(true)}
+                  className="flex cursor-pointer items-center space-x-2 transition-opacity text-left group hover:opacity-80"
                 >
                   {(() => {
                     const statusInfo = STATUS_OPTIONS.flatMap(g => g.items).find(i => i.id === currentStatus) || { label: currentStatus, color: 'bg-gray-50 text-gray-600 border-gray-100', dot: 'bg-gray-400' };
@@ -2746,11 +2750,6 @@ const GuestOrderDetails: React.FC<{
                     );
                   })()}
                 </button>
-                <OrderStatusHistory
-                  currentStatus={currentStatus}
-                  canUpdate={!isOrderCancelled}
-                  onUpdate={() => setIsStatusUpdateModalOpen(true)}
-                />
               </div>
 
               <div className="h-10 w-px bg-gray-100 hidden md:block"></div>
@@ -3502,31 +3501,51 @@ const GuestOrderDetails: React.FC<{
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 pt-4 border-t border-gray-50 text-left">
                   <div className="lg:col-span-1">
                     <Label required>Đối tác cung cấp</Label>
-                    <PartnerSelect 
-                      value={partnerName}
-                      onChange={handlePartnerFeeAwareChange}
-                      onCreate={(data) => {
-                        setStationName(data.stationName);
-                        setRescueVehicleType(data.stationSupportedVehicleTypes.join(', '));
-                        setSelectedDriverId(data.driverName); 
-                        setDriverPhone(data.driverPhone);
-                      }}
-                      disabled={!isEditing}
-                    />
+                    <div className="flex gap-2">
+                      <div className="flex-1 min-w-0">
+                        <PartnerSelect
+                          value={partnerName}
+                          onChange={() => undefined}
+                          disabled
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        title={CHANGE_RESOURCE_TITLE}
+                        onClick={() => setChangeResourceOpen(true)}
+                        disabled={isEditing}
+                        className={`bg-vetc-green text-white w-8 h-8 rounded shrink-0 self-center hover:bg-green-700 transition-all flex items-center justify-center active:scale-95 shadow-sm ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
                   </div>
                   <div className="lg:col-span-1">
                     <Label required>Trạm cứu hộ cụ thể</Label>
-                    <select
-                        disabled={!isEditing}
-                        value={stationName}
-                        onChange={(e) => setStationName(e.target.value)}
-                        className="w-full border rounded px-3 py-2 text-xs bg-white outline-none focus:border-vetc-green font-bold disabled:bg-gray-50 disabled:text-gray-500"
-                    >
-                      <option value="Carpla Service - CN Hà Nội">Carpla Service - CN Hà Nội</option>
-                      <option value="Cứu hộ 116 Hà Nội">Cứu hộ 116 Hà Nội</option>
-                      <option value="Garage Thăng Long">Garage Thăng Long</option>
-                      <option value="Cứu hộ ABC">Cứu hộ ABC</option>
-                    </select>
+                    <div className="flex gap-2">
+                      <select
+                          disabled
+                          value={stationName}
+                          onChange={() => undefined}
+                          className="flex-1 min-w-0 border rounded px-3 py-2 text-xs bg-gray-50 text-gray-500 outline-none font-bold cursor-not-allowed"
+                      >
+                        {!RESCUE_STATIONS.includes(stationName) && stationName && (
+                          <option value={stationName}>{stationName}</option>
+                        )}
+                        {RESCUE_STATIONS.map((station) => (
+                          <option key={station} value={station}>{station}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        title={CHANGE_RESOURCE_TITLE}
+                        onClick={() => setChangeResourceOpen(true)}
+                        disabled={isEditing}
+                        className={`bg-vetc-green text-white w-8 h-8 rounded shrink-0 self-center hover:bg-green-700 transition-all flex items-center justify-center active:scale-95 shadow-sm ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -3546,19 +3565,40 @@ const GuestOrderDetails: React.FC<{
                   </div>
                   <div>
                     <Label>Biển số xe cứu hộ</Label>
-                    <Input value={rescueLicensePlate} onChange={setRescueLicensePlate} readOnly={!isEditing} />
+                    <div className="flex gap-2">
+                      <Input value={rescueLicensePlate} readOnly className="flex-1 min-w-0 bg-gray-50" />
+                      <button
+                        type="button"
+                        title={CHANGE_RESOURCE_TITLE}
+                        onClick={() => setChangeResourceOpen(true)}
+                        disabled={isEditing}
+                        className={`bg-vetc-green text-white w-8 h-8 rounded shrink-0 self-center hover:bg-green-700 transition-all flex items-center justify-center active:scale-95 shadow-sm ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <Label required>Tài xế thực hiện</Label>
-                    <DriverSelect 
-                      value={selectedDriverId}
-                      onChange={(id, name, phone) => {
-                        setSelectedDriverId(id);
-                        if (phone) setDriverPhone(phone);
-                      }}
-                      disabled={!isEditing}
-                      drivers={DRIVERS_MOCK}
-                    />
+                    <div className="flex gap-2">
+                      <div className="flex-1 min-w-0">
+                        <DriverSelect
+                          value={selectedDriverId}
+                          onChange={() => undefined}
+                          disabled
+                          drivers={knownDrivers}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        title={CHANGE_RESOURCE_TITLE}
+                        onClick={() => setChangeResourceOpen(true)}
+                        disabled={isEditing}
+                        className={`bg-vetc-green text-white w-8 h-8 rounded shrink-0 self-center hover:bg-green-700 transition-all flex items-center justify-center active:scale-95 shadow-sm ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <Label>SĐT Tài xế</Label>
@@ -4942,6 +4982,34 @@ const GuestOrderDetails: React.FC<{
           title={ratingHistoryModal.type ? RATING_TYPE_LABELS[ratingHistoryModal.type] : ''}
           orderCode={displayOrderId}
           versions={ratingHistoryModal.type ? ratingHistories[ratingHistoryModal.type] : []}
+        />
+
+        <ChangeRescueResourceModal
+          open={changeResourceOpen}
+          orderClosed={currentStatus === 'FINISH-COMPLETED' || currentStatus === 'FINISH-CANCELLED'}
+          currentPartner={partnerName}
+          currentStation={stationName}
+          currentDriverId={selectedDriverId}
+          currentDriverName={selectedDriver?.name ?? ''}
+          currentDriverPhone={driverPhone}
+          currentPlate={rescueLicensePlate}
+          onClose={() => setChangeResourceOpen(false)}
+          onConfirm={({ partner, station, driverId, driverName, phone, plate }) => {
+            setKnownDrivers((prev) =>
+              prev.some((item) => item.id === driverId)
+                ? prev
+                : [...prev, { id: driverId, name: driverName, phone }]
+            );
+            setStationName(station);
+            setSelectedDriverId(driverId);
+            if (phone) setDriverPhone(phone);
+            setRescueLicensePlate(plate);
+            if (partner !== partnerName) {
+              requestFeeCriteriaChange(`Đối tác cứu hộ: ${partnerName} → ${partner}`, {
+                partnerName: partner,
+              });
+            }
+          }}
         />
 
         <StatusUpdateModal

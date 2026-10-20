@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw, X, ChevronRight, Check } from 'lucide-react';
+import OrderStatusHistory from './OrderStatusHistory';
 
 export const STATUS_OPTIONS = [
   {
@@ -50,23 +50,15 @@ const StatusUpdateModal = ({ isOpen, onClose, currentStatus, onUpdate }: StatusU
   
   const currentStatusInfo = STATUS_OPTIONS.flatMap(g => g.items).find(i => i.id === currentStatus) || { label: currentStatus, color: 'bg-gray-50 text-gray-600 border-gray-100', dot: 'bg-gray-400' };
 
+  if (!isOpen) return null;
+
   return (
-    <AnimatePresence>
-      {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             onClick={onClose}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col"
-          >
+          <div className="relative z-10 flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="p-4 border-b flex items-center justify-between bg-gray-50/50">
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 rounded-lg bg-vetc-green/10 flex items-center justify-center text-vetc-green">
@@ -74,12 +66,14 @@ const StatusUpdateModal = ({ isOpen, onClose, currentStatus, onUpdate }: StatusU
                 </div>
                 <h3 className="font-black text-gray-800 uppercase tracking-tight text-sm">Cập nhật trạng thái</h3>
               </div>
-              <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
                 <X size={18} className="text-gray-400" />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+            <div className="flex min-w-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
               {/* Current Status Display */}
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Trạng thái hiện tại</p>
@@ -104,6 +98,7 @@ const StatusUpdateModal = ({ isOpen, onClose, currentStatus, onUpdate }: StatusU
                       <div className="grid grid-cols-1 gap-2">
                         {group.items.map((item) => (
                           <button
+                            type="button"
                             key={item.id}
                             onClick={() => setSelectedStatus(item.id)}
                             className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left ${
@@ -131,15 +126,16 @@ const StatusUpdateModal = ({ isOpen, onClose, currentStatus, onUpdate }: StatusU
                 </div>
               </div>
             </div>
-
             <div className="p-4 bg-gray-50 border-t flex items-center space-x-3">
               <button
+                type="button"
                 onClick={onClose}
                 className="flex-1 px-4 py-2.5 border-2 border-gray-200 text-gray-500 rounded-xl text-xs font-bold hover:bg-white transition-all active:scale-95"
               >
                 Hủy bỏ
               </button>
               <button
+                type="button"
                 onClick={() => onUpdate(selectedStatus)}
                 disabled={selectedStatus === currentStatus}
                 className={`flex-1 px-4 py-2.5 rounded-xl text-xs font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center space-x-2 ${
@@ -152,10 +148,16 @@ const StatusUpdateModal = ({ isOpen, onClose, currentStatus, onUpdate }: StatusU
                 <span>Cập nhật ngay</span>
               </button>
             </div>
-          </motion.div>
+            </div>
+            <OrderStatusHistory
+              currentStatus={currentStatus}
+              labelOf={(statusId) =>
+                STATUS_OPTIONS.flatMap((group) => group.items).find((item) => item.id === statusId)?.label ?? statusId
+              }
+            />
+            </div>
+          </div>
         </div>
-      )}
-    </AnimatePresence>
   );
 };
 
