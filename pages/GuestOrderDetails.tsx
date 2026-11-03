@@ -21,6 +21,7 @@ import {
   Eye,
   FileText,
   Hash,
+  History,
   Info,
   LifeBuoy,
   Loader2,
@@ -57,6 +58,7 @@ import {
 import ImageUploadSection from '../shared/ImageUploadSection';
 import RescueVehicleCameraSection from '../shared/RescueVehicleCameraSection';
 import RescueOrderLocationSection from '../shared/RescueOrderLocationSection';
+import RescueOrderActionLog from '../shared/RescueOrderActionLog';
 import ChangeRescueResourceModal from '../shared/ChangeRescueResourceModal';
 import ServiceSelectionField from '../shared/ServiceSelectionField';
 import AISuggestionSection from '../shared/AISuggestionSection';
@@ -2626,6 +2628,7 @@ const GuestOrderDetails: React.FC<{
     { id: 'monitoring', label: 'Giám sát & Thực thi', icon: <ShieldCheck size={16}/> },
     { id: 'invoice', label: 'Hóa đơn', icon: <FileText size={16}/> },
     { id: 'payment-request', label: 'Đề nghị thanh toán', icon: <CreditCard size={16}/> },
+    { id: 'action-log', label: 'Nhật ký', icon: <History size={16}/> },
   ];
 
   // Mock data for Searching/RescueList component
@@ -2811,6 +2814,15 @@ const GuestOrderDetails: React.FC<{
                     <span>Hủy</span>
                   </button>
               )}
+
+              <button
+                  type="button"
+                  onClick={() => scrollToSection('action-log')}
+                  className="flex items-center space-x-2 px-4 py-2 border-2 border-gray-300 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-50 transition-all active:scale-95"
+              >
+                  <History size={14} />
+                  <span>Nhật ký</span>
+              </button>
 
               {isEditing ? (
                   <>
@@ -4536,6 +4548,19 @@ const GuestOrderDetails: React.FC<{
               <div className="p-4">
                 <PaymentRequestSection disabled={currentStatus !== 'FINISH-COMPLETED'} />
               </div>
+            </div>
+          </div>
+
+          <div id="section-action-log" className={`scroll-mt-40 ${isVisible('action-log') ? 'block' : 'hidden'}`}>
+            <div className="border rounded-lg shadow-sm bg-white overflow-hidden text-left">
+              <SectionHeader title="Nhật ký thao tác" number={10} icon={<History size={18} />} />
+              <RescueOrderActionLog
+                statusId={currentStatus}
+                customerName={customerName}
+                plate={vehiclePlate}
+                address={mapAddress}
+                serviceName={navState?.mainService || 'Kéo xe'}
+              />
             </div>
           </div>
         </div>
