@@ -107,6 +107,24 @@ export interface CorporatePackageLine {
   fixedSponsorRules?: FixedSponsorRule[];
 }
 
+/** Đơn vị kỳ của package_usage_policy.period_unit */
+export type UsagePeriodUnit = 'YEAR' | 'MONTH';
+
+/** Quota lượt cứu hộ, 1-1 với gói. NULL = không giới hạn. */
+export interface PackageUsagePolicy {
+  maxTotalUses: number | null;
+  maxUsesPerPeriod: number | null;
+  periodUnit: UsagePeriodUnit | null;
+  periodLength: number | null;
+}
+
+export const UNLIMITED_USAGE_POLICY: PackageUsagePolicy = {
+  maxTotalUses: null,
+  maxUsesPerPeriod: null,
+  periodUnit: null,
+  periodLength: null,
+};
+
 export interface RescuePackageRecord {
   id: number;
   packageCode: string;
@@ -126,6 +144,8 @@ export interface RescuePackageRecord {
   sponsorValue: number | null;
   maxSponsorAmount: number | null;
   services: PackageServiceLine[];
+  /** package_usage_policy — số lần được cứu hộ. */
+  usagePolicy: PackageUsagePolicy;
   corporates: CorporatePackageLine[];
   createdAt: string;
   createdBy: string;
@@ -213,6 +233,12 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
       ps('ps-26-8', 8, 100),
       ps('ps-26-6', 6, 100),
     ],
+    usagePolicy: {
+      maxTotalUses: 3,
+      maxUsesPerPeriod: 1,
+      periodUnit: 'YEAR',
+      periodLength: null,
+    },
     corporates: [],
     createdAt: '10/08/2025 09:00:00',
     createdBy: 'system',
@@ -246,6 +272,7 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
       ps('ps-27-8', 8, 100),
       ps('ps-27-6', 6, null),
     ],
+    usagePolicy: { ...UNLIMITED_USAGE_POLICY },
     corporates: [cp('cp-27-1', 20, 'CUSTOMER', 'PERIODIC')],
     createdAt: '10/08/2025 09:10:00',
     createdBy: 'system',
@@ -274,6 +301,7 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
       ps('ps-17-5', 5, 3, 3),
       ps('ps-17-1', 1, 100, 1),
     ],
+    usagePolicy: { ...UNLIMITED_USAGE_POLICY },
     corporates: [cp('cp-17-1', 15, 'PARTNERSHIP', 'PERIODIC')],
     createdAt: '20/08/2025 11:00:00',
     createdBy: 'rsa_admin',
@@ -303,6 +331,7 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
       ps('ps-101-1', 1, 50),
       ps('ps-101-7', 7, 1),
     ],
+    usagePolicy: { ...UNLIMITED_USAGE_POLICY },
     corporates: [
       cp('cp-101-1', 16, 'CHANNEL', 'INCIDENTAL'),
       cp('cp-101-2', 99, 'SPONSOR', 'INCIDENTAL', true, {
@@ -338,6 +367,7 @@ export const MOCK_RESCUE_PACKAGES: RescuePackageRecord[] = [
     sponsorValue: null,
     maxSponsorAmount: null,
     services: [ps('ps-4-8', 8, 100, 1)],
+    usagePolicy: { ...UNLIMITED_USAGE_POLICY },
     corporates: [cp('cp-4-1', 2, 'CHANNEL', 'PERIODIC')],
     createdAt: '15/01/2025 08:00:00',
     createdBy: 'system',

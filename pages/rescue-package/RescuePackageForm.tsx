@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Building2, Info, Package, Pencil, Plus, Save, Trash2, Wrench, X } from 'lucide-react';
+import { Building2, Info, Package, Pencil, Plus, Repeat, Save, Trash2, Wrench, X } from 'lucide-react';
 import {
   CORPORATE_ROLE_OPTIONS,
   PACKAGE_TYPE_OPTIONS,
@@ -18,10 +18,12 @@ import {
   type FixedSponsorRule,
   type PackageServiceLine,
   type PackageType,
+  type PackageUsagePolicy,
   type RescuePackageFormPayload,
   type SponsorCategory,
   type SponsorType,
   type TargetCustomer,
+  type UsagePeriodUnit,
 } from '../../data/rescuePackageMockData';
 import {
   MOCK_RESCUE_SERVICES,
@@ -88,6 +90,12 @@ type FormState = {
   isGift: boolean;
   status: PartnerStatus;
   packageType: PackageType;
+  maxTotalUses: string;
+  totalUnlimited: boolean;
+  maxUsesPerPeriod: string;
+  periodUnlimited: boolean;
+  periodUnit: UsagePeriodUnit;
+  periodLength: string;
   services: ServiceDraft[];
   corporates: CorporateDraft[];
 };
@@ -197,9 +205,29 @@ const EMPTY_FORM: FormState = {
   isGift: false,
   status: 'active',
   packageType: 'ALWAYS',
+  maxTotalUses: '',
+  totalUnlimited: true,
+  maxUsesPerPeriod: '',
+  periodUnlimited: true,
+  periodUnit: 'YEAR',
+  periodLength: '1',
   services: [EMPTY_SERVICE()],
   corporates: [],
 };
+
+const positiveInt = (raw: string): number | null => {
+  const t = raw.trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = Number(t);
+  return n > 0 ? n : null;
+};
+
+const usagePolicyFromForm = (form: FormState): PackageUsagePolicy => ({
+  maxTotalUses: form.totalUnlimited ? null : positiveInt(form.maxTotalUses),
+  maxUsesPerPeriod: form.periodUnlimited ? null : positiveInt(form.maxUsesPerPeriod),
+  periodUnit: form.periodUnlimited ? null : form.periodUnit,
+  periodLength: form.periodUnlimited ? null : positiveInt(form.periodLength),
+});
 
 const optionalNumber = (raw: string): number | null => {
   const t = raw.trim();
@@ -272,6 +300,7 @@ const toPayload = (form: FormState): RescuePackageFormPayload => {
     isGift: form.isGift,
     status: form.status,
     packageType: form.packageType,
+    usagePolicy: usagePolicyFromForm(form),
     sponsorType: '',
     sponsorValue: null,
     maxSponsorAmount: null,
@@ -303,6 +332,13 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
       isGift: existing.isGift,
       status: existing.status,
       packageType: existing.packageType,
+      maxTotalUses: existing.usagePolicy.maxTotalUses == null ? '' : String(existing.usagePolicy.maxTotalUses),
+      totalUnlimited: existing.usagePolicy.maxTotalUses == null,
+      maxUsesPerPeriod:
+        existing.usagePolicy.maxUsesPerPeriod == null ? '' : String(existing.usagePolicy.maxUsesPerPeriod),
+      periodUnlimited: existing.usagePolicy.maxUsesPerPeriod == null,
+      periodUnit: existing.usagePolicy.periodUnit ?? 'YEAR',
+      periodLength: existing.usagePolicy.periodLength == null ? '' : String(existing.usagePolicy.periodLength),
       services:
         existing.services.length > 0
           ? existing.services.map((row) => ({
@@ -523,6 +559,25 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
       const hasSponsor = activeCorps.some((row) => row.role === 'SPONSOR');
       if (!hasChannel || !hasSponsor) {
         setError('Gói TRIP phải có ít nhất 1 DN vai trò Kênh bán (CHANNEL) và 1 DN vai trò SPONSOR đang hoạt động.');
+        return;
+      }
+    }
+
+    if (!form.totalUnlimited && positiveInt(form.maxTotalUses) == null) {
+      setError('Tổng số lần sử dụng phải là số nguyên lớn hơn 0, hoặc chọn Không giới hạn.');
+      return;
+    }
+    if (!form.periodUnlimited) {
+      if (positiveInt(form.maxUsesPerPeriod) == null) {
+        setError('Số lần trong một kỳ phải là số nguyên lớn hơn 0, hoặc chọn Không giới hạn.');
+        return;
+      }
+      if (form.periodUnit !== 'YEAR' && form.periodUnit !== 'MONTH') {
+        setError('Chọn đơn vị kỳ: Năm hoặc Tháng.');
+        return;
+      }
+      if (positiveInt(form.periodLength) == null) {
+        setError('Độ dài mỗi kỳ phải là số nguyên lớn hơn 0.');
         return;
       }
     }
@@ -752,6 +807,97 @@ const RescuePackageForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
             </div>
           </div>
 
+        </div>
+      </div>
+
+      <div className="border rounded-lg shadow-sm overflow-visible bg-white w-full min-w-0">
+        <div className="overflow-hidden rounded-t-lg">
+          <SectionHeader title="Số lần sử dụng" icon={<Repeat size={16} />} />
+        </div>
+        <div className="p-4 space-y-4">
+          <p className="flex items-start gap-2 text-[12px] text-gray-500 leading-relaxed">
+            <Info size={14} className="shrink-0 mt-0.5 text-gray-400" />
+            <span>
+              Số đơn cứu hộ được dùng trong thời hạn gói. Chọn Không giới hạn nếu không khống chế. Kỳ tính từ ngày kích hoạt.
+            </span>
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="min-w-0">
+              <FieldLabel>Tổng số lần trong thời hạn gói</FieldLabel>
+              <input
+                className={inputClass}
+                value={form.maxTotalUses}
+                disabled={disabled || form.totalUnlimited}
+                inputMode="numeric"
+                placeholder={form.totalUnlimited ? 'Không giới hạn' : 'VD: 3'}
+                onChange={(e) => update('maxTotalUses', e.target.value.replace(/\D/g, ''))}
+              />
+              <label className="mt-2 inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-vetc-green"
+                  checked={form.totalUnlimited}
+                  disabled={disabled}
+                  onChange={(e) => {
+                    update('totalUnlimited', e.target.checked);
+                    if (e.target.checked) update('maxTotalUses', '');
+                  }}
+                />
+                Không giới hạn tổng
+              </label>
+            </div>
+            <div className="min-w-0">
+              <FieldLabel>Số lần tối đa trong một kỳ</FieldLabel>
+              <input
+                className={inputClass}
+                value={form.maxUsesPerPeriod}
+                disabled={disabled || form.periodUnlimited}
+                inputMode="numeric"
+                placeholder={form.periodUnlimited ? 'Không giới hạn' : 'VD: 1'}
+                onChange={(e) => update('maxUsesPerPeriod', e.target.value.replace(/\D/g, ''))}
+              />
+              <label className="mt-2 inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-vetc-green"
+                  checked={form.periodUnlimited}
+                  disabled={disabled}
+                  onChange={(e) => {
+                    update('periodUnlimited', e.target.checked);
+                    if (e.target.checked) update('maxUsesPerPeriod', '');
+                  }}
+                />
+                Không giới hạn theo kỳ
+              </label>
+            </div>
+            {!form.periodUnlimited && (
+              <>
+                <div className="min-w-0">
+                  <FieldLabel required>Đơn vị kỳ</FieldLabel>
+                  <select
+                    className={selectClass}
+                    value={form.periodUnit}
+                    disabled={disabled}
+                    onChange={(e) => update('periodUnit', e.target.value as UsagePeriodUnit)}
+                  >
+                    <option value="YEAR">Năm</option>
+                    <option value="MONTH">Tháng</option>
+                  </select>
+                </div>
+                <div className="min-w-0">
+                  <FieldLabel required>Độ dài mỗi kỳ</FieldLabel>
+                  <input
+                    className={inputClass}
+                    value={form.periodLength}
+                    disabled={disabled}
+                    inputMode="numeric"
+                    placeholder="1"
+                    onChange={(e) => update('periodLength', e.target.value.replace(/\D/g, ''))}
+                  />
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
