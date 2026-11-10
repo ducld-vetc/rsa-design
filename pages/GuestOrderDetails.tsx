@@ -1988,6 +1988,8 @@ const GuestOrderDetails: React.FC<{
   const individualCustomerPrice = tableTotals.customerPaidKhcn;
 
   const remainingAmount = refundAmount > 0 ? 0 : Math.max(0, individualCustomerPrice - paidAmount);
+  const totalDepositAmount = DEPOSIT_AMOUNT;
+  const depositRequiredAmount = Math.max(0, DEPOSIT_AMOUNT - depositSuccess);
   const depositUnallocated = Math.max(0, DEPOSIT_AMOUNT - depositAllocated);
   const remainingUnallocated = Math.max(0, remainingAmount - remainingPending);
   const orderPaymentStatus = resolveOrderPaymentStatus(
@@ -3823,10 +3825,19 @@ const GuestOrderDetails: React.FC<{
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 pt-4 border-t border-gray-100">
                       <div className="min-w-0">
-                        <Label>Tiền đã cọc</Label>
+                        <Label>Tổng tiền cọc</Label>
+                        <Input
+                            value={totalDepositAmount.toLocaleString('en-US')}
+                            className="w-full text-right text-gray-800 font-bold bg-gray-50"
+                            readOnly
+                        />
+                      </div>
+
+                      <div className="min-w-0">
+                        <Label>Tiền cần cọc</Label>
                         <div className="flex gap-2">
                           <Input
-                              value={DEPOSIT_AMOUNT.toLocaleString('en-US')}
+                              value={depositRequiredAmount.toLocaleString('en-US')}
                               className="flex-1 min-w-0 text-right text-green-600 font-bold bg-gray-50"
                               readOnly
                           />
