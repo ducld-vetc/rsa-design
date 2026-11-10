@@ -41,6 +41,9 @@ export interface RescueUnit {
   contact1: string;
   contact2: string;
   vehicleType: string;
+  plate?: string;
+  stationName?: string;
+  dispatchType?: 'Xe cứu hộ' | 'Trạm cứu hộ';
   overloaded?: boolean;
   driverBusy?: boolean;
   busyOrderCode?: string;

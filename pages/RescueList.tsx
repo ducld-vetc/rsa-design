@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Timer, CheckCircle2, XCircle, Clock, ChevronRight, AlertCircle, Edit3, ArrowLeft, Maximize2, Search, X, Compass, MessageSquareQuote, RotateCcw, Bell, UserCog, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Timer, CheckCircle2, XCircle, Clock, ChevronRight, AlertCircle, Edit3, ArrowLeft, Maximize2, Search, X, Compass, RotateCcw, Bell, UserCog, AlertTriangle, ChevronDown } from 'lucide-react';
 import { RescueUnit, FormData } from '../types';
 import NotificationModal, { NotificationRecipient } from '../components/NotificationModal';
-import { OverloadBadge } from '../shared/OrderAlertBadges';
 
 interface RescueListProps {
   data: FormData;
@@ -59,6 +58,7 @@ const mockUnits: RescueUnit[] = [
   {
     id: '1',
     name: 'Carpla Service - CN Hà Nội',
+    stationName: 'Trạm Việt Hưng',
     partner: 'CARPLA - CARPLA SERVICE',
     status: 'Accepted',
     distance: 3.2,
@@ -67,6 +67,8 @@ const mockUnits: RescueUnit[] = [
     contact1: 'LÊ VŨ LONG - 1900998865',
     contact2: 'Mr. Hoàn - 936499296',
     vehicleType: '<= 1.4 tấn',
+    plate: '29C-12345',
+    dispatchType: 'Xe cứu hộ',
     overloaded: true,
     driverBusy: true,
     busyOrderCode: 'RSA-260426-001'
@@ -74,6 +76,7 @@ const mockUnits: RescueUnit[] = [
   {
     id: '2',
     name: 'Cứu hộ 116 Hà Nội',
+    stationName: 'Trạm Cầu Giấy',
     partner: '116 GROUP',
     status: 'Accepted',
     distance: 5.8,
@@ -81,11 +84,13 @@ const mockUnits: RescueUnit[] = [
     address: 'Quận Cầu Giấy, Hà Nội',
     contact1: 'HÀ VĂN TUẤN - 0912345678',
     contact2: 'Trạm trưởng - 0912345679',
-    vehicleType: '<= 2.5 tấn'
+    vehicleType: '<= 2.5 tấn',
+    dispatchType: 'Trạm cứu hộ',
   },
   {
     id: '3',
     name: 'Garage Thăng Long',
+    stationName: 'Trạm Ba Đình',
     partner: 'THĂNG LONG AUTO',
     status: 'Pending',
     distance: 4.1,
@@ -94,6 +99,8 @@ const mockUnits: RescueUnit[] = [
     contact1: 'NGUYỄN ANH DŨNG - 0988888888',
     contact2: 'CSKH - 0988111222',
     vehicleType: '<= 1.4 tấn',
+    plate: '30A-13579',
+    dispatchType: 'Xe cứu hộ',
     overloaded: true,
     driverBusy: true,
     busyOrderCode: 'RSA-260426-012'
@@ -101,6 +108,7 @@ const mockUnits: RescueUnit[] = [
   {
     id: '4',
     name: 'Cứu hộ ABC',
+    stationName: 'Trạm Hoàn Kiếm',
     partner: 'ABC PARTNER',
     status: 'Rejected',
     distance: 2.5,
@@ -108,7 +116,8 @@ const mockUnits: RescueUnit[] = [
     address: 'Quận Hoàn Kiếm, Hà Nội',
     contact1: 'TRẦN VĂN B - 0909090909',
     contact2: 'Kỹ thuật - 0909111222',
-    vehicleType: '<= 1.4 tấn'
+    vehicleType: '<= 1.4 tấn',
+    dispatchType: 'Trạm cứu hộ',
   }
 ];
 
@@ -246,7 +255,6 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
   const [timeLeft, setTimeLeft] = useState(120);
   const [isRangeModalOpen, setIsRangeModalOpen] = useState(false);
   const [searchRange, setSearchRange] = useState('20');
-  const [unitNotes, setUnitNotes] = useState<Record<string, string>>({});
   const [units, setUnits] = useState<RescueUnit[]>(mockUnits);
   const [busyWarningUnit, setBusyWarningUnit] = useState<RescueUnit | null>(null);
   const [changeDriverUnit, setChangeDriverUnit] = useState<RescueUnit | null>(null);
@@ -327,10 +335,6 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
     onExpandSearch();
   };
 
-  const handleNoteChange = (id: string, note: string) => {
-    setUnitNotes(prev => ({ ...prev, [id]: note }));
-  };
-
   const handleResend = (id: string) => {
     // Logic gửi lại yêu cầu cứu hộ
     console.log(`Resending request to unit ${id}`);
@@ -401,12 +405,12 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
           <thead>
             <tr className="bg-gray-50 border-b text-gray-500 uppercase text-[11px] font-bold tracking-wider">
               <th className="px-4 py-3 text-left">Đơn vị cứu hộ</th>
+              <th className="px-4 py-3 text-left">Phương tiện</th>
+              <th className="px-4 py-3 text-left">Loại điều phối</th>
               <th className="px-4 py-3 text-left">SĐT tài xế</th>
               <th className="px-4 py-3 text-left">Trạng thái</th>
-              <th className="px-4 py-3 text-center">Khoảng cách</th>
               <th className="px-4 py-3 text-center">Thời gian tiếp cận</th>
               <th className="px-4 py-3 text-center">Chi phí dự kiến</th>
-              <th className="px-4 py-3 text-left min-w-[150px]">Ghi chú</th>
               <th className="px-4 py-3 text-right">Thao tác</th>
             </tr>
           </thead>
@@ -414,27 +418,22 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
             {units.map((unit) => (
               <tr key={unit.id} className={`hover:bg-gray-50 transition-colors ${unit.status === 'Rejected' ? 'opacity-60 bg-gray-50/50' : ''}`}>
                 <td className="px-4 py-4">
-                  <div className="font-bold text-gray-900">{unit.address}</div>
-                  <div className="text-[11px] text-gray-500">{unit.name}</div>
+                  <div className="font-bold text-gray-900">{unit.stationName || unit.name}</div>
+                  <div className="text-[11px] text-gray-500">{unit.address}</div>
                   <div className="text-[11px] text-gray-500">{unit.contact2}</div>
                 </td>
                 <td className="px-4 py-4">
-                  <div className="font-medium text-gray-900">{unit.contact1}</div>
-                  {unit.driverBusy && (
-                    <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                      <AlertTriangle size={10} />
-                      <span>Đang trong chuyến{unit.busyOrderCode ? ` · ${unit.busyOrderCode}` : ''}</span>
-                    </span>
-                  )}
+                  <div className="font-bold text-gray-900">{unit.plate || '—'}</div>
+                </td>
+                <td className="px-4 py-4 text-gray-800">
+                  <div>{unit.dispatchType || '—'}</div>
+                  <div className="text-[11px] text-gray-500">{unit.distance} km</div>
                 </td>
                 <td className="px-4 py-4">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {getStatusBadge(unit.status)}
-                    {unit.overloaded && <OverloadBadge compact />}
-                  </div>
+                  <div className="font-medium text-gray-900">{unit.contact1}</div>
                 </td>
-                <td className="px-4 py-4 text-center font-medium text-gray-600">
-                  {unit.distance} km
+                <td className="px-4 py-4">
+                  {getStatusBadge(unit.status)}
                 </td>
                 <td className="px-4 py-4 text-center">
                   <span className="inline-flex items-center text-blue-600 font-bold">
@@ -452,17 +451,6 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
                       <span className="text-[9px] text-gray-400 font-bold uppercase">Tạm tính</span>
                     </div>
                   )}
-                </td>
-                <td className="px-4 py-4">
-                  <div className="relative group">
-                    <textarea 
-                      value={unitNotes[unit.id] || ''}
-                      onChange={(e) => handleNoteChange(unit.id, e.target.value)}
-                      placeholder="Nhập ghi chú cho đơn vị này..."
-                      className="w-full border rounded-lg p-2 text-[11px] outline-none focus:border-vetc-green bg-gray-50/50 focus:bg-white transition-all min-h-[40px] resize-none"
-                    />
-                    <MessageSquareQuote size={12} className="absolute right-2 bottom-2 text-gray-300 pointer-events-none group-focus-within:text-vetc-green" />
-                  </div>
                 </td>
                 <td className="px-4 py-4 text-right">
                   <div className="flex items-center justify-end space-x-2">
@@ -517,7 +505,7 @@ const RescueList: React.FC<RescueListProps> = ({ data, onSelect, onManualEntry, 
 
       <div className="flex items-center space-x-2 text-xs text-gray-400 italic">
         <AlertCircle size={14} />
-        <span>Lưu ý: Bạn có thể nhập ghi chú và chọn thủ công đơn vị cứu hộ mong muốn trước khi hết thời gian chờ.</span>
+        <span>Lưu ý: Bạn có thể chọn thủ công đơn vị cứu hộ mong muốn trước khi hết thời gian chờ.</span>
       </div>
 
       {/* Range Selection Modal */}
