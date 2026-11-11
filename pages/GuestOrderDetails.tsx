@@ -1331,7 +1331,8 @@ const INITIAL_PAYMENT_TRANSACTIONS: PaymentTransaction[] = [
     createdAt: '16:40:12 08/10/2026',
     pushStatus: 'success',
     pushTime: '16:40:18 08/10/2026',
-    paymentCheckStatus: 'paid'
+    paymentCheckStatus: 'paid',
+    transactionCode: 'FT261008164012'
   },
   {
     id: 'pt-seed-cash',
@@ -1738,6 +1739,7 @@ const GuestOrderDetails: React.FC<{
   const [paymentTransactions, setPaymentTransactions] = useState<PaymentTransaction[]>(INITIAL_PAYMENT_TRANSACTIONS);
   const [isPaymentHistoryOpen, setIsPaymentHistoryOpen] = useState(false);
   const [detailPaymentId, setDetailPaymentId] = useState<string | null>(null);
+  const [txnCodeEdit, setTxnCodeEdit] = useState<{ id: string; value: string } | null>(null);
   const DEPOSIT_AMOUNT = 50_000;
   const sumTransactions = (type: CustomerPaymentType, states: Array<PaymentTransaction['state']>) =>
     paymentTransactions
@@ -4768,7 +4770,7 @@ const GuestOrderDetails: React.FC<{
             onClick={() => setIsPaymentHistoryOpen(false)}
           >
             <div
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-5 py-4 flex items-center justify-between border-b border-gray-100">
@@ -4798,7 +4800,7 @@ const GuestOrderDetails: React.FC<{
                 )}
                 {paymentTransactions.length > 0 && (
                   <div className="overflow-x-auto rounded-lg border border-gray-100">
-                    <table className="w-full min-w-[640px] text-left">
+                    <table className="w-full min-w-[760px] text-left">
                       <thead className="bg-gray-50 text-[10px] font-bold uppercase tracking-wider text-gray-400">
                         <tr>
                           <th className="px-3 py-2">Thời gian</th>
@@ -4806,6 +4808,7 @@ const GuestOrderDetails: React.FC<{
                           <th className="px-3 py-2">Phương thức</th>
                           <th className="px-3 py-2 text-right">Số tiền</th>
                           <th className="px-3 py-2">Trạng thái</th>
+                          <th className="px-3 py-2">Mã giao dịch</th>
                           <th className="px-3 py-2 text-right">Thao tác</th>
                         </tr>
                       </thead>
@@ -4827,6 +4830,9 @@ const GuestOrderDetails: React.FC<{
                                 {PAYMENT_TXN_STATE_LABEL[item.state]}
                               </span>
                             </td>
+                            <td className="px-3 py-2 whitespace-nowrap text-gray-700">
+                              {item.transactionCode || '—'}
+                            </td>
                             <td className="px-3 py-2 text-right whitespace-nowrap">
                               <button
                                 type="button"
@@ -4834,6 +4840,13 @@ const GuestOrderDetails: React.FC<{
                                 className="font-bold text-blue-600 hover:underline"
                               >
                                 Xem
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setTxnCodeEdit({ id: item.id, value: item.transactionCode ?? '' })}
+                                className="ml-3 font-bold text-vetc-green hover:underline"
+                              >
+                                Nhập mã
                               </button>
                               {item.state === 'PENDING' && (
                                 <button
@@ -4851,6 +4864,76 @@ const GuestOrderDetails: React.FC<{
                     </table>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {txnCodeEdit && createPortal(
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60"
+            onClick={() => setTxnCodeEdit(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 py-4 flex items-center justify-between border-b border-gray-100">
+                <h3 className="font-bold text-base text-gray-800">Nhập mã giao dịch</h3>
+                <button
+                  type="button"
+                  onClick={() => setTxnCodeEdit(null)}
+                  className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <label
+                    htmlFor="payment-txn-code"
+                    className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-600"
+                  >
+                    Mã giao dịch
+                  </label>
+                  <input
+                    id="payment-txn-code"
+                    type="text"
+                    autoFocus
+                    value={txnCodeEdit.value}
+                    onChange={(event) => setTxnCodeEdit({ ...txnCodeEdit, value: event.target.value })}
+                    placeholder="Nhập mã giao dịch"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none focus:border-vetc-green"
+                  />
+                  <p className="mt-1 text-[10px] text-gray-400">Không bắt buộc. Để trống rồi lưu nếu muốn xóa mã đã nhập.</p>
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setTxnCodeEdit(null)}
+                    className="flex-1 py-2.5 rounded-xl border font-bold text-xs text-gray-500 hover:bg-gray-50"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = txnCodeEdit.value.trim();
+                      setPaymentTransactions((current) =>
+                        current.map((item) =>
+                          item.id === txnCodeEdit.id
+                            ? { ...item, transactionCode: next || undefined }
+                            : item
+                        )
+                      );
+                      setTxnCodeEdit(null);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-vetc-green text-white font-bold text-xs hover:bg-green-700"
+                  >
+                    Lưu
+                  </button>
+                </div>
               </div>
             </div>
           </div>,

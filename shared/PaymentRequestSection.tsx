@@ -285,6 +285,7 @@ const UploadZone: React.FC<{
 
 const PaymentRequestSection: React.FC<PaymentRequestSectionProps> = ({ disabled = false }) => {
   const [files, setFiles] = useState<PaymentFile[]>(MOCK_FILES);
+  const [paymentNote, setPaymentNote] = useState('');
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string; type: string } | null>(null);
   const invoiceInputRef = useRef<HTMLInputElement>(null);
   const transferInputRef = useRef<HTMLInputElement>(null);
@@ -376,6 +377,22 @@ const PaymentRequestSection: React.FC<PaymentRequestSectionProps> = ({ disabled 
           />
         </div>
 
+        <div className="text-left">
+          <label
+            htmlFor="payment-request-note"
+            className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-gray-500"
+          >
+            Ghi chú thanh toán
+          </label>
+          <textarea
+            id="payment-request-note"
+            value={paymentNote}
+            onChange={(event) => setPaymentNote(event.target.value)}
+            rows={3}
+            placeholder="Nhập ghi chú thanh toán"
+            className="w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 outline-none focus:border-vetc-green"
+          />
+        </div>
       </div>
 
       <AnimatePresence>

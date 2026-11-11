@@ -48,6 +48,8 @@ export interface PaymentTransaction {
   cashStatus?: CashPaymentStatus;
   cashConfirmedTime?: string;
   cashProofImages?: string[];
+  /** Mã giao dịch ngân hàng / biên lai. Không bắt buộc. */
+  transactionCode?: string;
 }
 
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethodType, string> = {
@@ -389,7 +391,12 @@ export const PaymentTransactionDetailModal: React.FC<PaymentTransactionDetailMod
 }) => {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [transactionCodeDraft, setTransactionCodeDraft] = useState('');
   const proofInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setTransactionCodeDraft(transaction?.transactionCode ?? '');
+  }, [transaction?.id, transaction?.transactionCode]);
 
   if (!transaction) return null;
 
@@ -433,6 +440,12 @@ export const PaymentTransactionDetailModal: React.FC<PaymentTransactionDetailMod
         )
       );
     }, 1500);
+  };
+
+  const commitTransactionCode = () => {
+    const next = transactionCodeDraft.trim();
+    if ((transaction.transactionCode ?? '') === next) return;
+    patch({ transactionCode: next || undefined });
   };
 
   const handleProofUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -571,6 +584,24 @@ export const PaymentTransactionDetailModal: React.FC<PaymentTransactionDetailMod
                   </p>
                 )}
               </div>
+              <div className="text-left">
+                <label
+                  htmlFor="cash-transaction-code"
+                  className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-gray-700"
+                >
+                  Mã giao dịch
+                </label>
+                <input
+                  id="cash-transaction-code"
+                  type="text"
+                  value={transactionCodeDraft}
+                  onChange={(event) => setTransactionCodeDraft(event.target.value)}
+                  onBlur={commitTransactionCode}
+                  placeholder="Nhập mã giao dịch"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-800 outline-none focus:border-vetc-green"
+                />
+                <p className="mt-1 text-[10px] text-gray-400">Không bắt buộc</p>
+              </div>
               <div className="space-y-3 text-left">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wide">Ảnh bằng chứng thanh toán</span>
@@ -617,7 +648,8 @@ export const PaymentTransactionDetailModal: React.FC<PaymentTransactionDetailMod
                     cashStatus: 'confirmed',
                     cashConfirmedTime: formatDateTime(new Date()),
                     cashProofImages,
-                    state: 'SUCCESS'
+                    state: 'SUCCESS',
+                    transactionCode: transactionCodeDraft.trim() || undefined
                   })}
                   className="w-full flex items-center justify-center space-x-2 bg-amber-500 text-white py-2.5 rounded-xl text-xs font-bold shadow-md hover:bg-amber-600"
                 >
