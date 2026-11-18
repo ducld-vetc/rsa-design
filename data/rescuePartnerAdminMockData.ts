@@ -193,6 +193,8 @@ export interface RescueStationAdminRecord {
   accountName: string;
   bankName: string;
   taxCode: string;
+  /** Ảnh QR thanh toán, data URL. Không bắt buộc. */
+  paymentQrImage?: string;
   capacity: number;
   services: string[];
   vehicleTypes: string[];

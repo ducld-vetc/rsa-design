@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Banknote, Car, Edit3, Inbox, KeyRound, Lock, MapPin, Pencil, Plus, RefreshCw, Save, Trash2, Unlock, User, Users, Wrench, X } from 'lucide-react';
+import { Banknote, Car, Edit3, Inbox, KeyRound, Lock, MapPin, Pencil, Plus, RefreshCw, Save, Trash2, Unlock, Upload, User, Users, Wrench, X } from 'lucide-react';
 import {
   ADMIN_PROVINCES,
   MOCK_RESCUE_PROVIDERS,
@@ -86,6 +86,7 @@ const EMPTY_FORM: FormState = {
   accountName: '',
   bankName: '',
   taxCode: '',
+  paymentQrImage: '',
   capacity: 1,
   services: [],
   vehicleTypes: [],
@@ -161,7 +162,11 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
   const [form, setForm] = useState<FormState>(() => {
     if (!existing) return EMPTY_FORM;
     const { id: _id, createdAt, createdBy, updatedAt, updatedBy, contacts, ...rest } = existing;
-    return { ...rest, contacts: ensureTwoContacts(stationContactsOf(existing)) };
+    return {
+      ...rest,
+      contacts: ensureTwoContacts(stationContactsOf(existing)),
+      paymentQrImage: rest.paymentQrImage ?? '',
+    };
   });
   const [error, setError] = useState('');
   const [tab, setTab] = useState<StationTab>('general');
@@ -183,6 +188,15 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
 
   const update = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const onPaymentQrFile = (file: File | undefined) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') update('paymentQrImage', reader.result);
+    };
+    reader.readAsDataURL(file);
   };
 
   const wards = useMemo(() => getWardsByProvince(form.province), [form.province]);
@@ -500,10 +514,9 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 w-full min-w-0">
-      <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0 flex flex-col">
+      <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
         <SectionHeader title="Thông tin liên hệ" icon={<User size={16} />} />
-        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {form.contacts.map((contact, index) => (
             <React.Fragment key={contact.id}>
               <div className="min-w-0">
@@ -531,9 +544,9 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
         </div>
       </div>
 
-      <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0 flex flex-col">
+      <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
         <SectionHeader title="Thông tin thanh toán" icon={<Banknote size={16} />} />
-        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="min-w-0">
             <FieldLabel>STK thụ hưởng</FieldLabel>
             <input
@@ -574,8 +587,58 @@ const RescueStationAdminForm: React.FC<{ mode: FormMode }> = ({ mode }) => {
               onChange={(e) => update('taxCode', e.target.value)}
             />
           </div>
+          <div className="min-w-0 sm:col-span-2 lg:col-span-4">
+            <FieldLabel>Ảnh QR thanh toán</FieldLabel>
+            {readOnly ? (
+              form.paymentQrImage ? (
+                <img
+                  src={form.paymentQrImage}
+                  alt="QR thanh toán"
+                  className="h-28 w-28 rounded border border-gray-200 bg-white object-contain"
+                />
+              ) : (
+                <p className="text-sm text-gray-400">Chưa có ảnh</p>
+              )
+            ) : (
+              <div className="flex items-start gap-3">
+                {form.paymentQrImage ? (
+                  <img
+                    src={form.paymentQrImage}
+                    alt="QR thanh toán"
+                    className="h-28 w-28 shrink-0 rounded border border-gray-200 bg-white object-contain"
+                  />
+                ) : null}
+                <div className="flex min-w-0 flex-col gap-2">
+                  <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-600 transition-colors hover:border-vetc-green hover:text-vetc-green">
+                    <Upload size={14} />
+                    <span>{form.paymentQrImage ? 'Đổi ảnh' : 'Tải ảnh lên'}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        onPaymentQrFile(e.target.files?.[0]);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  {form.paymentQrImage ? (
+                    <button
+                      type="button"
+                      onClick={() => update('paymentQrImage', '')}
+                      className="inline-flex w-fit items-center gap-1 text-xs font-medium text-red-500 hover:text-red-600"
+                    >
+                      <Trash2 size={12} />
+                      Xóa ảnh
+                    </button>
+                  ) : (
+                    <p className="text-xs text-gray-400">Không bắt buộc. JPG, PNG, WEBP.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
       </div>
 
       <div className="border rounded-lg shadow-sm overflow-hidden bg-white w-full min-w-0">
