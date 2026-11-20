@@ -2,9 +2,11 @@ import React, { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Download,
+  ExternalLink,
   Eye,
   FileText,
   Image as ImageIcon,
+  Link2,
   Lock,
   Paperclip,
   Receipt,
@@ -14,11 +16,13 @@ import {
 } from 'lucide-react';
 
 type PaymentFileCategory = 'invoice' | 'transfer' | 'other';
+type PaymentFileType = 'FILE' | 'LINK';
 
 interface PaymentFile {
   id: string;
   name: string;
   type: string;
+  fileType: PaymentFileType;
   size: string;
   url: string;
   preview?: string;
@@ -34,6 +38,7 @@ const MOCK_FILES: PaymentFile[] = [
     id: 'mock1',
     name: 'HoaDon_NCC_Carpla_042026.pdf',
     type: 'application/pdf',
+    fileType: 'FILE',
     size: '1.2 MB',
     url: '#',
     category: 'invoice',
@@ -42,14 +47,25 @@ const MOCK_FILES: PaymentFile[] = [
     id: 'mock2',
     name: 'HoaDon_DichVu_CuuHo.pdf',
     type: 'application/pdf',
+    fileType: 'FILE',
     size: '980 KB',
     url: '#',
+    category: 'invoice',
+  },
+  {
+    id: 'mock-inv-link',
+    name: 'Link tra cứu hóa đơn 04/2026',
+    type: 'text/uri-list',
+    fileType: 'LINK',
+    size: '',
+    url: 'https://hoadon.example.com/tra-cuu/HD-042026',
     category: 'invoice',
   },
   {
     id: 'mock-tf1',
     name: 'CK_Vietcombank_042026.jpg',
     type: 'image/jpeg',
+    fileType: 'FILE',
     size: '640 KB',
     url: '#',
     preview: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=300&fit=crop',
@@ -59,6 +75,7 @@ const MOCK_FILES: PaymentFile[] = [
     id: 'mock-tf2',
     name: 'BienLai_ChuyenKhoan.png',
     type: 'image/png',
+    fileType: 'FILE',
     size: '510 KB',
     url: '#',
     preview: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=400&h=300&fit=crop',
@@ -68,6 +85,7 @@ const MOCK_FILES: PaymentFile[] = [
     id: 'mock3',
     name: 'ChungTu_ThanhToan_01.jpg',
     type: 'image/jpeg',
+    fileType: 'FILE',
     size: '850 KB',
     url: '#',
     preview: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&h=300&fit=crop',
@@ -77,6 +95,7 @@ const MOCK_FILES: PaymentFile[] = [
     id: 'mock4',
     name: 'BienBan_BanGiao.pdf',
     type: 'application/pdf',
+    fileType: 'FILE',
     size: '420 KB',
     url: '#',
     category: 'other',
@@ -162,9 +181,19 @@ const FileCard: React.FC<{
   onDelete: (id: string) => void;
 }> = ({ file, onPreview, onDelete }) => {
   const meta = CATEGORY_META[file.category];
+  const isLink = file.fileType === 'LINK';
   return (
     <div className="flex items-center gap-2 px-2.5 py-2 border rounded-lg bg-gray-50/50 hover:bg-white hover:shadow-sm transition-all">
-      {file.preview ? (
+      {isLink ? (
+        <button
+          type="button"
+          title="Xem link"
+          className="w-8 h-8 rounded-md border border-sky-100 bg-sky-50 flex items-center justify-center shrink-0 hover:ring-2 hover:ring-sky-400 transition-all"
+          onClick={() => onPreview(file)}
+        >
+          <Link2 size={14} className="text-sky-600" />
+        </button>
+      ) : file.preview ? (
         <button
           type="button"
           className="w-8 h-8 rounded-md overflow-hidden border border-gray-200 shrink-0 hover:ring-2 hover:ring-blue-400 transition-all"
@@ -188,37 +217,53 @@ const FileCard: React.FC<{
 
       <div className="flex-1 min-w-0">
         <p className="text-[11px] font-bold text-gray-800 truncate">{file.name}</p>
-        <p className="text-[9px] text-gray-400 font-medium">{file.size}</p>
+        {isLink ? (
+          <a
+            href={file.url}
+            target="_blank"
+            rel="noreferrer"
+            className="block text-[9px] text-sky-600 font-medium truncate hover:underline"
+            title={file.url}
+          >
+            {file.url}
+          </a>
+        ) : (
+          <p className="text-[9px] text-gray-400 font-medium">{file.size}</p>
+        )}
       </div>
 
       <div className="flex items-center shrink-0">
         <button
           type="button"
-          title="Xem trước"
+          title={isLink ? 'Xem link' : 'Xem trước'}
           onClick={() => {
-            if (file.preview) onPreview(file);
+            if (isLink || file.preview) onPreview(file);
             else window.open(file.url, '_blank');
           }}
           className="p-1 rounded-md hover:bg-blue-100 text-blue-500 transition-colors"
         >
           <Eye size={13} />
         </button>
-        <a
-          href={file.url}
-          download={file.name}
-          title="Tải xuống"
-          className="p-1 rounded-md hover:bg-green-100 text-green-500 transition-colors"
-        >
-          <Download size={13} />
-        </a>
-        <button
-          type="button"
-          title="Xóa"
-          onClick={() => onDelete(file.id)}
-          className="p-1 rounded-md hover:bg-red-100 text-red-400 transition-colors"
-        >
-          <Trash2 size={13} />
-        </button>
+        {isLink ? null : (
+          <>
+            <a
+              href={file.url}
+              download={file.name}
+              title="Tải xuống"
+              className="p-1 rounded-md hover:bg-green-100 text-green-500 transition-colors"
+            >
+              <Download size={13} />
+            </a>
+            <button
+              type="button"
+              title="Xóa"
+              onClick={() => onDelete(file.id)}
+              className="p-1 rounded-md hover:bg-red-100 text-red-400 transition-colors"
+            >
+              <Trash2 size={13} />
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -286,7 +331,12 @@ const UploadZone: React.FC<{
 const PaymentRequestSection: React.FC<PaymentRequestSectionProps> = ({ disabled = false }) => {
   const [files, setFiles] = useState<PaymentFile[]>(MOCK_FILES);
   const [paymentNote, setPaymentNote] = useState('');
-  const [previewFile, setPreviewFile] = useState<{ name: string; url: string; type: string } | null>(null);
+  const [previewFile, setPreviewFile] = useState<{
+    name: string;
+    url: string;
+    type: string;
+    fileType: PaymentFileType;
+  } | null>(null);
   const invoiceInputRef = useRef<HTMLInputElement>(null);
   const transferInputRef = useRef<HTMLInputElement>(null);
   const otherInputRef = useRef<HTMLInputElement>(null);
@@ -297,6 +347,7 @@ const PaymentRequestSection: React.FC<PaymentRequestSectionProps> = ({ disabled 
       id: Math.random().toString(36).substr(2, 9),
       name: f.name,
       type: f.type,
+      fileType: 'FILE',
       size:
         f.size > 1024 * 1024
           ? `${(f.size / (1024 * 1024)).toFixed(1)} MB`
@@ -316,8 +367,12 @@ const PaymentRequestSection: React.FC<PaymentRequestSectionProps> = ({ disabled 
   };
 
   const handlePreview = (file: PaymentFile) => {
+    if (file.fileType === 'LINK') {
+      setPreviewFile({ name: file.name, url: file.url, type: file.type, fileType: 'LINK' });
+      return;
+    }
     if (file.preview) {
-      setPreviewFile({ name: file.name, url: file.preview, type: file.type });
+      setPreviewFile({ name: file.name, url: file.preview, type: file.type, fileType: 'FILE' });
     }
   };
 
@@ -420,14 +475,26 @@ const PaymentRequestSection: React.FC<PaymentRequestSectionProps> = ({ disabled 
                   </span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <a
-                    href={previewFile.url}
-                    download={previewFile.name}
-                    className="p-2 rounded-lg hover:bg-green-100 text-green-600 transition-colors"
-                    title="Tải xuống"
-                  >
-                    <Download size={16} />
-                  </a>
+                  {previewFile.fileType === 'LINK' ? (
+                    <a
+                      href={previewFile.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2 rounded-lg hover:bg-sky-100 text-sky-600 transition-colors"
+                      title="Mở link"
+                    >
+                      <ExternalLink size={16} />
+                    </a>
+                  ) : (
+                    <a
+                      href={previewFile.url}
+                      download={previewFile.name}
+                      className="p-2 rounded-lg hover:bg-green-100 text-green-600 transition-colors"
+                      title="Tải xuống"
+                    >
+                      <Download size={16} />
+                    </a>
+                  )}
                   <button
                     type="button"
                     onClick={() => setPreviewFile(null)}
@@ -437,13 +504,32 @@ const PaymentRequestSection: React.FC<PaymentRequestSectionProps> = ({ disabled 
                   </button>
                 </div>
               </div>
-              <div className="p-4 flex items-center justify-center overflow-auto">
-                <img
-                  src={previewFile.url}
-                  alt={previewFile.name}
-                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
-                />
-              </div>
+              {previewFile.fileType === 'LINK' ? (
+                <div className="p-4 flex flex-col gap-3 min-h-0">
+                  <a
+                    href={previewFile.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 hover:underline"
+                  >
+                    <Link2 size={14} className="shrink-0" />
+                    <span className="truncate">{previewFile.url}</span>
+                  </a>
+                  <iframe
+                    src={previewFile.url}
+                    title={previewFile.name}
+                    className="w-full h-[60vh] rounded-lg border border-gray-200 bg-white"
+                  />
+                </div>
+              ) : (
+                <div className="p-4 flex items-center justify-center overflow-auto">
+                  <img
+                    src={previewFile.url}
+                    alt={previewFile.name}
+                    className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                  />
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

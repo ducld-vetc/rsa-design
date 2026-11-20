@@ -5,7 +5,10 @@ import {
   Calendar,
   CreditCard,
   Download,
+  ExternalLink,
+  Eye,
   FileText,
+  Link2,
   Trash2,
   Upload,
   X,
@@ -55,7 +58,7 @@ const FormField: React.FC<{
   </div>
 );
 
-type UploadedFileKind = 'image' | 'pdf' | 'other';
+type UploadedFileKind = 'image' | 'pdf' | 'other' | 'link';
 
 interface UploadedFile {
   id: string;
@@ -82,55 +85,91 @@ const UploadedFileCard: React.FC<{
   file: UploadedFile;
   onOpen: (file: UploadedFile) => void;
   onRemove: (id: string) => void;
-}> = ({ file, onOpen, onRemove }) => (
-  <div
-    onClick={() => onOpen(file)}
-    title={file.name}
-    className="flex items-center gap-2.5 p-2 border rounded-lg bg-gray-50/50 hover:bg-white hover:shadow-sm transition-all cursor-pointer group/file"
-  >
-    {file.kind === 'image' ? (
-      <div className="w-9 h-9 rounded-md overflow-hidden border border-gray-200 shrink-0">
-        <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
-      </div>
-    ) : (
-      <div
-        className={`w-9 h-9 rounded-md border flex items-center justify-center shrink-0 ${
-          file.kind === 'pdf' ? 'bg-red-50 border-red-100' : 'bg-blue-50 border-blue-100'
-        }`}
-      >
-        <FileText size={16} className={file.kind === 'pdf' ? 'text-red-500' : 'text-blue-500'} />
-      </div>
-    )}
+}> = ({ file, onOpen, onRemove }) => {
+  const isLink = file.kind === 'link';
+  return (
+    <div
+      onClick={() => onOpen(file)}
+      title={file.name}
+      className="flex items-center gap-2.5 p-2 border rounded-lg bg-gray-50/50 hover:bg-white hover:shadow-sm transition-all cursor-pointer group/file"
+    >
+      {isLink ? (
+        <div className="w-9 h-9 rounded-md border border-sky-100 bg-sky-50 flex items-center justify-center shrink-0">
+          <Link2 size={16} className="text-sky-600" />
+        </div>
+      ) : file.kind === 'image' ? (
+        <div className="w-9 h-9 rounded-md overflow-hidden border border-gray-200 shrink-0">
+          <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
+        </div>
+      ) : (
+        <div
+          className={`w-9 h-9 rounded-md border flex items-center justify-center shrink-0 ${
+            file.kind === 'pdf' ? 'bg-red-50 border-red-100' : 'bg-blue-50 border-blue-100'
+          }`}
+        >
+          <FileText size={16} className={file.kind === 'pdf' ? 'text-red-500' : 'text-blue-500'} />
+        </div>
+      )}
 
-    <div className="flex-1 min-w-0">
-      <p className="text-[11px] font-bold text-gray-800 truncate">{file.name}</p>
-      <p className="text-[9px] text-gray-400 font-medium">{file.size}</p>
-    </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] font-bold text-gray-800 truncate">{file.name}</p>
+        {isLink ? (
+          <a
+            href={file.url}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title={file.url}
+            className="block text-[9px] text-sky-600 font-medium truncate hover:underline"
+          >
+            {file.url}
+          </a>
+        ) : (
+          <p className="text-[9px] text-gray-400 font-medium">{file.size}</p>
+        )}
+      </div>
 
-    <div className="flex items-center gap-0.5 shrink-0">
-      <a
-        href={file.url}
-        download={file.name}
-        onClick={(e) => e.stopPropagation()}
-        title="Tải xuống"
-        className="p-1.5 rounded-md hover:bg-green-100 text-green-500 transition-colors"
-      >
-        <Download size={14} />
-      </a>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove(file.id);
-        }}
-        title="Xóa"
-        className="p-1.5 rounded-md hover:bg-red-100 text-red-400 transition-colors"
-      >
-        <Trash2 size={14} />
-      </button>
+      <div className="flex items-center gap-0.5 shrink-0">
+        {isLink ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen(file);
+            }}
+            title="Xem link"
+            className="p-1.5 rounded-md hover:bg-blue-100 text-blue-500 transition-colors"
+          >
+            <Eye size={14} />
+          </button>
+        ) : (
+          <>
+            <a
+              href={file.url}
+              download={file.name}
+              onClick={(e) => e.stopPropagation()}
+              title="Tải xuống"
+              className="p-1.5 rounded-md hover:bg-green-100 text-green-500 transition-colors"
+            >
+              <Download size={14} />
+            </a>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(file.id);
+              }}
+              title="Xóa"
+              className="p-1.5 rounded-md hover:bg-red-100 text-red-400 transition-colors"
+            >
+              <Trash2 size={14} />
+            </button>
+          </>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const UploadedFileList: React.FC<{
   files: UploadedFile[];
@@ -209,9 +248,21 @@ const PaymentRequestDetail: React.FC = () => {
   const [invoiceNumber, setInvoiceNumber] = useState(detail?.invoiceNumber ?? '');
   const [contractNumber, setContractNumber] = useState(detail?.contractNumber ?? '');
   const [note, setNote] = useState(detail?.note ?? '');
-  const [invoiceFiles, setInvoiceFiles] = useState<UploadedFile[]>([]);
+  const [invoiceFiles, setInvoiceFiles] = useState<UploadedFile[]>([
+    {
+      id: 'invoice-link',
+      name: 'Link tra cứu hóa đơn',
+      url: 'https://hoadon.example.com/tra-cuu/HD-042026',
+      size: '',
+      kind: 'link',
+    },
+  ]);
   const [otherFiles, setOtherFiles] = useState<UploadedFile[]>([]);
-  const [previewImage, setPreviewImage] = useState<{ name: string; url: string } | null>(null);
+  const [previewImage, setPreviewImage] = useState<{
+    name: string;
+    url: string;
+    kind: 'image' | 'link';
+  } | null>(null);
 
   if (!detail) {
     return (
@@ -255,14 +306,16 @@ const PaymentRequestDetail: React.FC = () => {
   ) => {
     setter((prev) => {
       const target = prev.find((f) => f.id === id);
-      if (target) URL.revokeObjectURL(target.url);
+      if (target && target.kind !== 'link') URL.revokeObjectURL(target.url);
       return prev.filter((f) => f.id !== id);
     });
   };
 
   const openFile = (file: UploadedFile) => {
     if (file.kind === 'image') {
-      setPreviewImage({ name: file.name, url: file.url });
+      setPreviewImage({ name: file.name, url: file.url, kind: 'image' });
+    } else if (file.kind === 'link') {
+      setPreviewImage({ name: file.name, url: file.url, kind: 'link' });
     } else {
       window.open(file.url, '_blank', 'noopener,noreferrer');
     }
@@ -507,19 +560,19 @@ const PaymentRequestDetail: React.FC = () => {
             title="Ảnh hiện trường"
             hint="(Ảnh BSX, hiện trạng xe trước khi xử lý theo từng dịch vụ)"
             photos={detail.evidencePhotos.scene}
-            onPreview={(url, name) => setPreviewImage({ url, name })}
+            onPreview={(url, name) => setPreviewImage({ url, name, kind: 'image' })}
           />
           <EvidencePhotoGroup
             title="Ảnh xử lý cứu hộ"
             hint="(Ảnh xử lý theo từng dịch vụ)"
             photos={detail.evidencePhotos.process}
-            onPreview={(url, name) => setPreviewImage({ url, name })}
+            onPreview={(url, name) => setPreviewImage({ url, name, kind: 'image' })}
           />
           <EvidencePhotoGroup
             title="Ảnh kết quả"
             hint="(Ảnh BSX cùng kết quả sau khi thực hiện)"
             photos={detail.evidencePhotos.result}
-            onPreview={(url, name) => setPreviewImage({ url, name })}
+            onPreview={(url, name) => setPreviewImage({ url, name, kind: 'image' })}
           />
         </div>
       </div>
@@ -553,22 +606,54 @@ const PaymentRequestDetail: React.FC = () => {
           >
             <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-gray-100">
               <span className="text-xs font-bold text-gray-700 truncate">{previewImage.name}</span>
-              <button
-                type="button"
-                onClick={() => setPreviewImage(null)}
-                className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors"
-                title="Đóng"
-              >
-                <X size={16} />
-              </button>
+              <div className="flex items-center gap-1">
+                {previewImage.kind === 'link' && (
+                  <a
+                    href={previewImage.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1 rounded hover:bg-sky-100 text-sky-600 transition-colors"
+                    title="Mở link"
+                  >
+                    <ExternalLink size={16} />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewImage(null)}
+                  className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors"
+                  title="Đóng"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
-            <div className="p-3 overflow-auto flex items-center justify-center">
-              <img
-                src={previewImage.url}
-                alt={previewImage.name}
-                className="max-w-full max-h-[70vh] object-contain rounded"
-              />
-            </div>
+            {previewImage.kind === 'link' ? (
+              <div className="p-3 flex flex-col gap-3">
+                <a
+                  href={previewImage.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 hover:underline"
+                >
+                  <Link2 size={14} className="shrink-0" />
+                  <span className="truncate">{previewImage.url}</span>
+                </a>
+                <iframe
+                  src={previewImage.url}
+                  title={previewImage.name}
+                  className="w-[70vw] max-w-3xl h-[60vh] rounded-lg border border-gray-200 bg-white"
+                />
+              </div>
+            ) : (
+              <div className="p-3 overflow-auto flex items-center justify-center">
+                <img
+                  src={previewImage.url}
+                  alt={previewImage.name}
+                  className="max-w-full max-h-[70vh] object-contain rounded"
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
