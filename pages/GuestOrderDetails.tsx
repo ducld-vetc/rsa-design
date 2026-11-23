@@ -103,6 +103,7 @@ import {FormData, RescueUnit} from '../types';
 import Searching from "./Searching";
 import PartnerSelect from '../components/PartnerSelect';
 import PaymentRequestSection from '../shared/PaymentRequestSection';
+import AdvanceRequestSection from '../shared/AdvanceRequestSection';
 import DriverSelect from '../components/DriverSelect';
 import WorkshopSelect from '../shared/WorkshopSelect';
 import { INITIAL_WORKSHOP_STATIONS, WorkshopStation } from '../data/workshopStations';
@@ -1361,6 +1362,7 @@ const GuestOrderDetails: React.FC<{
 }> = ({ role = 'CSKH' }) => {
   const location = useLocation();
   const navState = (location.state ?? null) as OrderDetailsNavState | null;
+  const viewOnly = Boolean(navState?.viewOnly);
 
   const [viewMode, setViewMode] = useState<'list' | 'tabs'>('list');
   const [activeTab, setActiveTab] = useState('general');
@@ -1426,8 +1428,6 @@ const GuestOrderDetails: React.FC<{
   const [workshopStations, setWorkshopStations] = useState<WorkshopStation[]>(INITIAL_WORKSHOP_STATIONS);
   const [estimatedDistance, setEstimatedDistance] = useState('2.37');
   const [roadsideDistance, setRoadsideDistance] = useState('');
-  const [advanceAmount, setAdvanceAmount] = useState('');
-  const [advancePerson, setAdvancePerson] = useState('');
 
   const ENTERPRISE_OPTIONS = [
     { value: '', label: '-- Chọn doanh nghiệp --' },
@@ -2011,6 +2011,7 @@ const GuestOrderDetails: React.FC<{
         : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50 shadow-sm';
 
   const handleStartEditing = () => {
+    if (viewOnly) return;
     setEditBaselineTotal(individualCustomerPrice);
     setCustomerTotalOverride(null);
     setIsEditing(true);
@@ -2770,7 +2771,7 @@ const GuestOrderDetails: React.FC<{
             </div>
 
             <div className="flex items-center space-x-3 shrink-0">
-              {!isOrderCancelled && (
+              {!isOrderCancelled && !viewOnly && (
                     <button
                         type="button"
                         onClick={handlePushCustomerUpdateRequest}
@@ -2845,7 +2846,7 @@ const GuestOrderDetails: React.FC<{
                       <span>Lưu thay đổi</span>
                     </button>
                   </>
-              ) : (
+              ) : !viewOnly ? (
                   <button
                       onClick={handleStartEditing}
                       className={`flex items-center space-x-2 px-6 py-2 ${headerPrimaryBtnClass}`}
@@ -2853,7 +2854,7 @@ const GuestOrderDetails: React.FC<{
                     <Edit size={14} className="group-hover:scale-110 transition-transform" />
                     <span>Cập nhật</span>
                   </button>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -4239,32 +4240,11 @@ const GuestOrderDetails: React.FC<{
                   </div>
                 </div>
 
-                {/* Advance Payment */}
-                <div className="pt-4 border-t border-gray-100">
-                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center">
-                    <span className="w-1 h-3 bg-vetc-green mr-2 rounded-full"></span>
-                    Tạm ứng
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
-                    <div className="lg:col-span-1">
-                      <Label>Tạm ứng</Label>
-                      <Input
-                          value={advanceAmount}
-                          onChange={setAdvanceAmount}
-                          readOnly={!isEditing}
-                          className="text-right font-bold"
-                      />
-                    </div>
-                    <div className="lg:col-span-1">
-                      <Label>Người tạm ứng</Label>
-                      <Input
-                          value={advancePerson}
-                          onChange={setAdvancePerson}
-                          readOnly={!isEditing}
-                      />
-                    </div>
-                  </div>
-                </div>
+                <AdvanceRequestSection
+                  orderId={displayOrderId}
+                  refundAmount={refundAmount}
+                  supplierCost={tableTotals.totalPrice}
+                />
 
               </div>
             </div>

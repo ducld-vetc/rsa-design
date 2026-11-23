@@ -38,7 +38,7 @@ const PaymentQrModal: React.FC<PaymentQrModalProps> = ({
           <div className="relative p-4 bg-white border-2 border-dashed border-gray-200 rounded-2xl">
             <div className="w-48 h-48 bg-gray-50 flex items-center justify-center relative overflow-hidden">
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}`}
                 alt="Payment QR"
                 className="w-full h-full p-2"
               />

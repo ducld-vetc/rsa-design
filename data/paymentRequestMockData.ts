@@ -1,6 +1,29 @@
-export type PaymentRequestStatus = 'not_created' | 'created' | 'pending' | 'approved' | 'rejected';
+export type PaymentRequestStatus =
+  | 'not_created'
+  | 'draft'
+  | 'pending_approval'
+  | 'approved'
+  | 'awaiting_payment'
+  | 'paid'
+  | 'rejected';
 export type AttachmentStatus = 'no_files' | 'complete' | 'has_invoice' | 'has_transfer';
 export type OrderType = 'single' | 'package';
+export type AdvancePurpose = 'refund_customer' | 'pay_supplier';
+
+export const ADVANCE_PURPOSE_LABEL: Record<AdvancePurpose, string> = {
+  refund_customer: 'Hoàn cho khách',
+  pay_supplier: 'Trả NCC',
+};
+
+export interface PaymentAdvanceLine {
+  id: string;
+  advancerName: string;
+  purpose: AdvancePurpose;
+  reason: string;
+  requestedAmount: number;
+  actualAmount: number;
+  proofLabel: string;
+}
 
 export interface PaymentRequestListItem {
   id: string;
@@ -13,6 +36,14 @@ export interface PaymentRequestListItem {
   rescueStation: { name: string; phone: string };
   vehicle: { plate: string; owner: string; phone: string };
   amount: number;
+  supplierCost: number;
+  refundAmount: number;
+  advancedRefund: number;
+  advancedSupplier: number;
+  customerPayable: number;
+  advancerPayable: number;
+  nccPayable: number;
+  hasPendingAdvance: boolean;
   updatedAt?: string;
   updatedBy?: string;
   createdAt?: string;
@@ -24,6 +55,7 @@ export interface PaymentRequestListItem {
 
 export interface PaymentRequestDetail {
   orderId: string;
+  status: PaymentRequestStatus;
   orderType: OrderType;
   service: string;
   quantity: number;
@@ -40,10 +72,14 @@ export interface PaymentRequestDetail {
   orderCost: number;
   totalCustomerReceivable: number;
   customerDeposit: number;
-  depositRefundAdvanceAmount: number;
-  depositRefundAdvancer: string;
-  supplierAdvanceAmount: number;
-  supplierAdvancer: string;
+  refundAmount: number;
+  advancedRefund: number;
+  advancedSupplier: number;
+  customerPayable: number;
+  advancerPayable: number;
+  nccPayable: number;
+  hasPendingAdvance: boolean;
+  advances: PaymentAdvanceLine[];
   provider: string;
   providerTaxId: string;
   rescueStation: string;
@@ -103,24 +139,48 @@ const generateListItems = (): PaymentRequestListItem[] => {
       'complete',
     ];
     const attachmentStatus = attachmentStatuses[i % attachmentStatuses.length];
-    const isCreated = i % 5 === 0;
-    const isRejected = i % 11 === 0;
+    const statuses: PaymentRequestStatus[] = [
+      'draft',
+      'pending_approval',
+      'awaiting_payment',
+      'paid',
+      'rejected',
+      'approved',
+      'not_created',
+    ];
+    const status = statuses[i % statuses.length];
+    const isPackage = i % 4 === 0;
+    const supplierCost = i === 1 ? 1_000_000 : 500000 + (i % 8) * 100000;
+    const refundAmount = isPackage ? 0 : 300000;
+    const advancedRefund = isPackage ? 0 : i === 5 ? 300000 : 200000;
+    const advancedSupplier = i === 2 ? 0 : Math.min(400000, supplierCost);
+    const customerPayable = Math.max(0, refundAmount - advancedRefund);
+    const advancerPayable = advancedRefund + advancedSupplier;
+    const nccPayable = Math.max(0, supplierCost - advancedSupplier);
 
     items.push({
       id: String(i),
       orderId: `RS1260702${String(i).padStart(4, '0')}`,
-      orderType: i % 4 === 0 ? 'package' : 'single',
+      orderType: isPackage ? 'package' : 'single',
+      supplierCost,
+      refundAmount,
+      advancedRefund,
+      advancedSupplier,
+      customerPayable,
+      advancerPayable,
+      nccPayable,
+      hasPendingAdvance: i === 2,
       attachmentStatus,
-      status: isRejected ? 'rejected' : isCreated ? 'created' : 'not_created',
-      rejectionReason: isRejected ? 'Thiếu hóa đơn hợp lệ' : undefined,
+      status,
+      rejectionReason: status === 'rejected' ? 'Thiếu hóa đơn hợp lệ' : undefined,
       rescueUnit: { name: provider, phone: '0988777999' },
       rescueStation: station,
       vehicle: { plate: PLATES[i % PLATES.length], owner: owner.name, phone: owner.phone },
-      amount: 500000 + (i % 8) * 100000,
-      updatedAt: isCreated ? '02/07/2026 10:30' : undefined,
-      updatedBy: isCreated ? 'rsa_test1' : undefined,
-      createdAt: isCreated ? '01/07/2026 15:20' : undefined,
-      createdBy: isCreated ? 'rsa_test1' : undefined,
+      amount: supplierCost,
+      updatedAt: status === 'draft' || status === 'not_created' ? undefined : '02/07/2026 10:30',
+      updatedBy: status === 'draft' || status === 'not_created' ? undefined : 'rsa_test1',
+      createdAt: status === 'draft' || status === 'not_created' ? undefined : '01/07/2026 15:20',
+      createdBy: status === 'draft' || status === 'not_created' ? undefined : 'rsa_test1',
       providerType: i % 2 === 0 ? 'Đối tác' : 'Nội bộ',
       provider,
       phone: owner.phone,
@@ -135,10 +195,12 @@ export const PAYMENT_REQUEST_STATUS_CONFIG: Record<
   PaymentRequestStatus,
   { label: string; className: string }
 > = {
-  not_created: { label: 'Chưa tạo', className: 'bg-gray-100 text-gray-600 border-gray-200' },
-  created: { label: 'Đã tạo', className: 'bg-blue-50 text-blue-600 border-blue-200' },
-  pending: { label: 'Chờ duyệt', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  approved: { label: 'Đã duyệt', className: 'bg-green-50 text-green-700 border-green-200' },
+  not_created: { label: 'Chưa tạo', className: 'bg-white text-gray-500 border-gray-300' },
+  draft: { label: 'Nháp', className: 'bg-gray-100 text-gray-600 border-gray-200' },
+  pending_approval: { label: 'Chờ phê duyệt', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  approved: { label: 'Đã phê duyệt', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  awaiting_payment: { label: 'Chờ thanh toán', className: 'bg-sky-50 text-sky-700 border-sky-200' },
+  paid: { label: 'Đã thanh toán', className: 'bg-green-50 text-green-700 border-green-200' },
   rejected: { label: 'Từ chối', className: 'bg-red-50 text-red-600 border-red-200' },
 };
 
@@ -166,6 +228,7 @@ export const getPaymentRequestDetail = (orderId: string): PaymentRequestDetail |
 
   return {
     orderId: listItem.orderId,
+    status: listItem.status,
     orderType: listItem.orderType,
     service: 'Sự cố kỹ thuật Khác khiến xe không di chuyển',
     quantity: 1,
@@ -183,13 +246,44 @@ export const getPaymentRequestDetail = (orderId: string): PaymentRequestDetail |
     towingDestination:
       'VinFast, 948, Đường Quang Trung, Phường Yên Nghĩa, Thành phố Hà Nội, 10189, Việt Nam',
     rescueDistanceKm: 8 + (Number(listItem.id) % 5) * 2,
-    orderCost: listItem.amount,
-    totalCustomerReceivable: listItem.amount + (listItem.orderType === 'single' ? 50000 : 0),
+    orderCost: listItem.supplierCost,
+    totalCustomerReceivable: listItem.supplierCost + (listItem.orderType === 'single' ? 50000 : 0),
     customerDeposit: listItem.orderType === 'single' ? 200000 : 0,
-    depositRefundAdvanceAmount: listItem.orderType === 'single' ? 200000 : 0,
-    depositRefundAdvancer: listItem.orderType === 'single' ? 'Nguyễn Văn An — rsa_test1' : '',
-    supplierAdvanceAmount: listItem.amount,
-    supplierAdvancer: 'Trần Thị Bình — rsa_test2',
+    refundAmount: listItem.refundAmount,
+    advancedRefund: listItem.advancedRefund,
+    advancedSupplier: listItem.advancedSupplier,
+    customerPayable: listItem.customerPayable,
+    advancerPayable: listItem.advancerPayable,
+    nccPayable: listItem.nccPayable,
+    hasPendingAdvance: listItem.hasPendingAdvance,
+    advances: [
+      ...(listItem.advancedRefund > 0
+        ? [
+            {
+              id: `${listItem.orderId}-refund`,
+              advancerName: 'Nguyễn Văn An',
+              purpose: 'refund_customer' as const,
+              reason: 'Khách thanh toán dư so với phí',
+              requestedAmount: listItem.advancedRefund,
+              actualAmount: listItem.advancedRefund,
+              proofLabel: 'UNC_hoan_khach.jpg',
+            },
+          ]
+        : []),
+      ...(listItem.advancedSupplier > 0
+        ? [
+            {
+              id: `${listItem.orderId}-supplier`,
+              advancerName: 'Trần Thị Bình',
+              purpose: 'pay_supplier' as const,
+              reason: 'Nhà cung cấp yêu cầu thu trước khi xuất hóa đơn',
+              requestedAmount: listItem.advancedSupplier,
+              actualAmount: listItem.advancedSupplier,
+              proofLabel: 'UNC_tra_ncc.jpg',
+            },
+          ]
+        : []),
+    ],
     provider: listItem.rescueUnit.name,
     providerTaxId: '0110938494-004',
     rescueStation: listItem.rescueStation.name,

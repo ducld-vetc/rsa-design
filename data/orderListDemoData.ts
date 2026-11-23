@@ -50,6 +50,7 @@ export type OrderDetailsNavState = {
   plate: string;
   address: string;
   mainService: string;
+  viewOnly?: boolean;
 };
 
 const DEMO_CUSTOMERS = [

@@ -226,7 +226,7 @@ const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 w-full max-w-lg max-h-[min(90vh,860px)] flex flex-col">
+      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 w-full max-w-lg flex flex-col">
         <div className="bg-vetc-green p-4 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-2">
             <QrCode size={20} />
@@ -237,7 +237,7 @@ const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           </button>
         </div>
 
-        <div className="p-6 space-y-5 overflow-y-auto">
+        <div className="p-6 space-y-5">
           <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-3">
             <div className="text-center">
               <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Số còn phải thu</p>
@@ -276,48 +276,48 @@ const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
           {maxAmount > 0 && (
             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
               <p className="text-xs font-bold text-gray-500 text-center">Chọn phương thức thanh toán</p>
-              <div className={`grid grid-cols-1 gap-3 ${allowCashPayment ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => handleSelectMethod('push')}
                   disabled={pendingMethods.has('push')}
-                  className="flex flex-col items-center p-5 border-2 border-gray-100 rounded-xl hover:border-vetc-green hover:bg-green-50/50 transition-all group disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-100 disabled:hover:bg-white"
+                  className="flex flex-col items-center p-3 border-2 border-gray-100 rounded-xl hover:border-vetc-green hover:bg-green-50/50 transition-all group disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-100 disabled:hover:bg-white"
                 >
-                  <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:bg-vetc-green group-hover:text-white transition-colors">
-                    <Send size={22} />
+                  <div className="w-9 h-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-2 group-hover:bg-vetc-green group-hover:text-white transition-colors">
+                    <Send size={18} />
                   </div>
-                  <span className="text-xs font-black text-gray-800">Đẩy KH thanh toán</span>
-                  <span className="text-[10px] text-gray-400 mt-1 text-center">Gửi yêu cầu TT lên app khách hàng</span>
+                  <span className="text-[11px] font-black text-gray-800 text-center leading-tight">Đẩy KH thanh toán</span>
+                  <span className="text-[9px] text-gray-400 mt-1 text-center leading-tight">Gửi yêu cầu TT lên app khách hàng</span>
                 </button>
                 <button
                   onClick={() => handleSelectMethod('qr')}
                   disabled={pendingMethods.has('qr')}
-                  className="flex flex-col items-center p-5 border-2 border-gray-100 rounded-xl hover:border-vetc-green hover:bg-green-50/50 transition-all group disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-100 disabled:hover:bg-white"
+                  className="flex flex-col items-center p-3 border-2 border-gray-100 rounded-xl hover:border-vetc-green hover:bg-green-50/50 transition-all group disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-100 disabled:hover:bg-white"
                 >
-                  <div className="w-12 h-12 rounded-full bg-green-50 text-vetc-green flex items-center justify-center mb-3 group-hover:bg-vetc-green group-hover:text-white transition-colors">
-                    <QrCode size={22} />
+                  <div className="w-9 h-9 rounded-full bg-green-50 text-vetc-green flex items-center justify-center mb-2 group-hover:bg-vetc-green group-hover:text-white transition-colors">
+                    <QrCode size={18} />
                   </div>
-                  <span className="text-xs font-black text-gray-800">Gen QR Code</span>
-                  <span className="text-[10px] text-gray-400 mt-1 text-center">Tạo mã QR để KH quét thanh toán</span>
+                  <span className="text-[11px] font-black text-gray-800 text-center leading-tight">Gen QR Code</span>
+                  <span className="text-[9px] text-gray-400 mt-1 text-center leading-tight">Tạo mã QR để KH quét thanh toán</span>
                 </button>
                 <button
                   onClick={() => handleSelectMethod('cash')}
                   disabled={!allowCashPayment || pendingMethods.has('cash')}
                   title={allowCashPayment ? 'Xác nhận thu tiền mặt' : 'Chỉ vai trò Admin được sử dụng tiền mặt'}
-                  className={`flex flex-col items-center p-5 border-2 rounded-xl transition-all group ${
+                  className={`flex flex-col items-center p-3 border-2 rounded-xl transition-all group ${
                     allowCashPayment
                       ? 'border-gray-100 hover:border-vetc-green hover:bg-green-50/50'
                       : 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'
                   }`}
                 >
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-colors ${
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-2 transition-colors ${
                     allowCashPayment
                       ? 'bg-amber-50 text-amber-600 group-hover:bg-vetc-green group-hover:text-white'
                       : 'bg-gray-100 text-gray-400'
                   }`}>
-                    <Banknote size={22} />
+                    <Banknote size={18} />
                   </div>
-                  <span className={`text-xs font-black ${allowCashPayment ? 'text-gray-800' : 'text-gray-400'}`}>Tiền mặt</span>
-                  <span className="text-[10px] text-gray-400 mt-1 text-center">
+                  <span className={`text-[11px] font-black text-center leading-tight ${allowCashPayment ? 'text-gray-800' : 'text-gray-400'}`}>Tiền mặt</span>
+                  <span className="text-[9px] text-gray-400 mt-1 text-center leading-tight">
                     {allowCashPayment ? 'Ghi nhận thu tiền mặt tại quầy' : 'Chỉ dành cho Admin'}
                   </span>
                 </button>

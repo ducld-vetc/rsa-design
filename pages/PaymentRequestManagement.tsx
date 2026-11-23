@@ -177,6 +177,10 @@ const PaymentRequestManagement: React.FC = () => {
     navigate(`/payment-request-management/${record.orderId}`);
   };
 
+  const handleViewPaymentRequest = (record: PaymentRequestListItem) => {
+    navigate(`/payment-request-management/${record.orderId}?view=1`, { state: { viewOnly: true } });
+  };
+
   const SectionHeader = ({ title, icon }: { title: string; icon?: React.ReactNode }) => (
     <div className="bg-vetc-green text-white px-4 py-2 flex items-center space-x-2 font-bold text-sm uppercase tracking-wide">
       {icon}
@@ -256,9 +260,11 @@ const PaymentRequestManagement: React.FC = () => {
               >
                 <option value="">Tất cả</option>
                 <option value="Chưa tạo">Chưa tạo</option>
-                <option value="Đã tạo">Đã tạo</option>
-                <option value="Chờ duyệt">Chờ duyệt</option>
-                <option value="Đã duyệt">Đã duyệt</option>
+                <option value="Nháp">Nháp</option>
+                <option value="Chờ phê duyệt">Chờ phê duyệt</option>
+                <option value="Chờ thanh toán">Chờ thanh toán</option>
+                <option value="Đã phê duyệt">Đã phê duyệt</option>
+                <option value="Đã thanh toán">Đã thanh toán</option>
                 <option value="Từ chối">Từ chối</option>
               </select>
             </div>
@@ -271,9 +277,11 @@ const PaymentRequestManagement: React.FC = () => {
               >
                 <option value="">Tất cả</option>
                 <option value="Chưa tạo">Chưa tạo</option>
-                <option value="Đã tạo">Đã tạo</option>
-                <option value="Chờ duyệt">Chờ duyệt</option>
-                <option value="Đã duyệt">Đã duyệt</option>
+                <option value="Nháp">Nháp</option>
+                <option value="Chờ phê duyệt">Chờ phê duyệt</option>
+                <option value="Chờ thanh toán">Chờ thanh toán</option>
+                <option value="Đã phê duyệt">Đã phê duyệt</option>
+                <option value="Đã thanh toán">Đã thanh toán</option>
                 <option value="Từ chối">Từ chối</option>
               </select>
             </div>
@@ -377,7 +385,7 @@ const PaymentRequestManagement: React.FC = () => {
       <div className="border rounded-lg shadow-sm bg-white w-full min-w-0 overflow-hidden">
         <SectionHeader title="Danh sách đơn hàng" />
         <div className="w-full overflow-x-auto overscroll-x-contain custom-scrollbar isolate">
-          <table className="w-full text-xs border-separate border-spacing-0 min-w-[1400px]">
+          <table className="w-full text-xs border-separate border-spacing-0 min-w-[1680px]">
             <thead>
               <tr className="bg-gray-50 border-b text-gray-600">
                 <th className="px-3 py-2 text-center w-10 min-w-[40px] font-bold border-r sticky left-0 z-20 bg-gray-50">STT</th>
@@ -388,7 +396,9 @@ const PaymentRequestManagement: React.FC = () => {
                 <th className="px-3 py-2 text-left font-bold border-r min-w-[180px]">Đơn vị cứu hộ</th>
                 <th className="px-3 py-2 text-left font-bold border-r min-w-[180px]">Trạm cứu hộ</th>
                 <th className="px-3 py-2 text-left font-bold border-r min-w-[200px]">Phương tiện được cứu hộ</th>
-                <th className="px-3 py-2 text-right font-bold border-r w-28">Số tiền</th>
+                <th className="px-3 py-2 text-right font-bold border-r w-28">NCC</th>
+                <th className="px-3 py-2 text-right font-bold border-r w-28">Khách hàng</th>
+                <th className="px-3 py-2 text-right font-bold border-r w-32">Người tạm ứng</th>
                 <th className="px-3 py-2 text-left font-bold border-r w-32">Ngày cập nhật</th>
                 <th className="px-3 py-2 text-left font-bold border-r w-28">Người cập nhật</th>
                 <th className="px-3 py-2 text-left font-bold border-r w-28">Ngày tạo</th>
@@ -428,9 +438,9 @@ const PaymentRequestManagement: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleViewDetail(record)}
+                          onClick={() => handleViewPaymentRequest(record)}
                           className="text-blue-500 hover:text-blue-700 transition-colors"
-                          title="Xem chi tiết"
+                          title="Xem chi tiết đề nghị thanh toán"
                         >
                           <Eye size={15} />
                         </button>
@@ -480,7 +490,13 @@ const PaymentRequestManagement: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-3 py-3 border-r align-top text-right tabular-nums font-medium text-gray-800">
-                      {formatCurrency(record.amount)}
+                      {record.nccPayable > 0 ? formatCurrency(record.nccPayable) : renderCell('')}
+                    </td>
+                    <td className="px-3 py-3 border-r align-top text-right tabular-nums font-medium text-gray-800">
+                      {record.customerPayable > 0 ? formatCurrency(record.customerPayable) : renderCell('')}
+                    </td>
+                    <td className="px-3 py-3 border-r align-top text-right tabular-nums font-medium text-gray-800">
+                      {record.advancerPayable > 0 ? formatCurrency(record.advancerPayable) : renderCell('')}
                     </td>
                     <td className="px-3 py-3 border-r align-top">{renderCell(record.updatedAt)}</td>
                     <td className="px-3 py-3 border-r align-top">{renderCell(record.updatedBy)}</td>
