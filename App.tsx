@@ -30,6 +30,7 @@ import PackagePurchaseManagement from './pages/PackagePurchaseManagement';
 import CustomerManagement from './pages/CustomerManagement';
 import PackageImportManagement from './pages/PackageImportManagement';
 import PaymentRequestManagement from './pages/PaymentRequestManagement';
+import PaymentRequestApproval from './pages/PaymentRequestApproval';
 import PaymentRequestDetail from './pages/PaymentRequestDetail';
 import LocationSearch, { LocationSearchPrefill } from './pages/LocationSearch';
 import ShiftDefinitionManagement from './pages/ShiftDefinitionManagement';
@@ -132,6 +133,7 @@ const App: React.FC = () => {
     if (path.includes('/rescue-fee-config')) return Step.RESCUE_FEE_CONFIGURATION;
     if (path.includes('/location-search')) return Step.LOCATION_SEARCH;
     if (path.includes('/pricing-policy')) return Step.PRICING_POLICY;
+    if (path.includes('/payment-request-approval')) return Step.PAYMENT_REQUEST_APPROVAL;
     if (path.includes('/payment-request-management')) return Step.PAYMENT_REQUEST_MANAGEMENT;
     if (path.includes('/package-import')) return Step.PACKAGE_IMPORT;
     if (path.includes('/customer-management')) return Step.CUSTOMER_MANAGEMENT;
@@ -334,6 +336,7 @@ const App: React.FC = () => {
   const handleNavigateToCustomerManagement = () => navigate('/customer-management');
   const handleNavigateToPackageImport = () => navigate('/package-import');
   const handleNavigateToPaymentRequestManagement = () => navigate('/payment-request-management');
+  const handleNavigateToPaymentRequestApproval = () => navigate('/payment-request-approval');
   const handleNavigateToLocationSearch = () => navigate('/location-search');
   const handleNavigateToShiftDefinition = () => navigate('/shift-definition-management');
   const handleNavigateToShiftMonthlySchedule = () => navigate('/shift-monthly-schedule');
@@ -442,6 +445,7 @@ const App: React.FC = () => {
     Step.CUSTOMER_MANAGEMENT,
     Step.PACKAGE_IMPORT,
     Step.PAYMENT_REQUEST_MANAGEMENT,
+    Step.PAYMENT_REQUEST_APPROVAL,
     Step.LOCATION_SEARCH,
     Step.SHIFT_DEFINITION_MANAGEMENT,
     Step.SHIFT_MONTHLY_SCHEDULE,
@@ -579,6 +583,9 @@ const App: React.FC = () => {
       }
       return ['Quản trị hệ thống', 'Gói cứu hộ', 'Cấu hình gói cứu hộ'];
     }
+    if (currentStep === Step.PAYMENT_REQUEST_APPROVAL) {
+      return ['Quản trị hệ thống', 'Quản lý thanh toán', 'Duyệt đề nghị thanh toán'];
+    }
     if (currentStep === Step.PAYMENT_REQUEST_MANAGEMENT) {
       if (location.pathname.includes('/payment-request-management/')) {
         return ['Quản trị hệ thống', 'Quản lý thanh toán', 'Tạo đề nghị thanh toán'];
@@ -611,6 +618,7 @@ const App: React.FC = () => {
         onNavigateCustomerManagement={handleNavigateToCustomerManagement}
         onNavigatePackageImport={handleNavigateToPackageImport}
         onNavigatePaymentRequestManagement={handleNavigateToPaymentRequestManagement}
+        onNavigatePaymentRequestApproval={handleNavigateToPaymentRequestApproval}
         onNavigateLocationSearch={handleNavigateToLocationSearch}
         onNavigateShiftDefinition={handleNavigateToShiftDefinition}
         onNavigateShiftMonthlySchedule={handleNavigateToShiftMonthlySchedule}
@@ -784,6 +792,9 @@ const App: React.FC = () => {
                 } />
                 <Route path="/payment-request-management" element={
                   <PaymentRequestManagement />
+                } />
+                <Route path="/payment-request-approval" element={
+                  <PaymentRequestApproval />
                 } />
                 <Route path="/payment-request-management/:orderId" element={
                   <PaymentRequestDetail />

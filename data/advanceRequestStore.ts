@@ -1,4 +1,5 @@
 export type AdvancePurpose = 'refund_customer' | 'pay_supplier';
+export type AdvancePayer = 'accountant' | 'customer' | 'supplier';
 export type AdvanceRequestStatus = 'pending' | 'confirmed' | 'rejected' | 'cancelled';
 
 export interface AdvanceReason {
@@ -23,6 +24,7 @@ export interface AdvanceRequest {
   orderId: string;
   advancerName: string;
   purpose: AdvancePurpose;
+  reimburseBy: AdvancePayer;
   reasonId: string;
   requestedAmount: number;
   actualAmount: number | null;
@@ -44,6 +46,18 @@ export const ADVANCE_PURPOSE_LABEL: Record<AdvancePurpose, string> = {
   refund_customer: 'Hoàn cho khách',
   pay_supplier: 'Trả NCC',
 };
+
+export const ADVANCE_PAYER_LABEL: Record<AdvancePayer, string> = {
+  accountant: 'Kế toán',
+  customer: 'Khách hàng',
+  supplier: 'Nhà cung cấp',
+};
+
+export const ADVANCE_PAYER_OPTIONS: { value: AdvancePayer; label: string }[] = [
+  { value: 'accountant', label: 'Kế toán' },
+  { value: 'customer', label: 'Khách hàng' },
+  { value: 'supplier', label: 'Nhà cung cấp' },
+];
 
 export const ADVANCE_STATUS_LABEL: Record<AdvanceRequestStatus, string> = {
   pending: 'Chờ xử lý',
@@ -148,6 +162,7 @@ export const seedOrderAdvances = (
       orderId,
       advancerName: 'Trần Thị Bình',
       purpose: 'pay_supplier',
+      reimburseBy: 'supplier',
       reasonId: 'ncc_before_invoice',
       requestedAmount: 400000,
       actualAmount: 400000,
@@ -171,6 +186,7 @@ export const seedOrderAdvances = (
       orderId,
       advancerName: 'Nguyễn Văn An',
       purpose: 'refund_customer',
+      reimburseBy: 'accountant',
       reasonId: 'kh_overpay',
       requestedAmount: 200000,
       actualAmount: 200000,
@@ -194,6 +210,7 @@ export const seedOrderAdvances = (
       orderId,
       advancerName: 'Lê Hoàng Nam',
       purpose: 'pay_supplier',
+      reimburseBy: 'customer',
       reasonId: 'ncc_onsite',
       requestedAmount: 100000,
       actualAmount: null,
@@ -218,6 +235,7 @@ export const createAdvanceRequest = (input: {
   orderId: string;
   advancerName: string;
   purpose: AdvancePurpose;
+  reimburseBy: AdvancePayer;
   reasonId: string;
   requestedAmount: number;
   note: string;
@@ -235,6 +253,7 @@ export const createAdvanceRequest = (input: {
       orderId: input.orderId,
       advancerName: input.advancerName,
       purpose: input.purpose,
+      reimburseBy: input.reimburseBy,
       reasonId: input.reasonId,
       requestedAmount: input.requestedAmount,
       actualAmount: null,

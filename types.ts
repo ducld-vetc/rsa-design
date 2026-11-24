@@ -129,6 +129,7 @@ export enum Step {
   SERVICE_MANAGEMENT = 59,
   PACKAGE_CATALOG = 60,
   CUSTOMER_MANAGEMENT = 61,
+  PAYMENT_REQUEST_APPROVAL = 62,
 }
 
 export interface MonitoringOrder {

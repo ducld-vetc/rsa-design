@@ -22,6 +22,7 @@ interface SidebarProps {
   onNavigateCustomerManagement: () => void;
   onNavigatePackageImport: () => void;
   onNavigatePaymentRequestManagement: () => void;
+  onNavigatePaymentRequestApproval: () => void;
   onNavigateLocationSearch: () => void;
   onNavigateShiftDefinition: () => void;
   onNavigateShiftMonthlySchedule: () => void;
@@ -51,6 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigateCustomerManagement,
   onNavigatePackageImport,
   onNavigatePaymentRequestManagement,
+  onNavigatePaymentRequestApproval,
   onNavigateLocationSearch,
   onNavigateShiftDefinition,
   onNavigateShiftMonthlySchedule,
@@ -320,7 +322,11 @@ const Sidebar: React.FC<SidebarProps> = ({
               <div>
                 <div
                   onClick={() => toggleMenu('payment')}
-                  className="flex items-center justify-between gap-1 text-sm px-2 py-1.5 rounded cursor-pointer text-gray-600 hover:bg-gray-100 transition-colors"
+                  className={`flex items-center justify-between gap-1 text-sm px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                    currentStep === Step.PAYMENT_REQUEST_MANAGEMENT || currentStep === Step.PAYMENT_REQUEST_APPROVAL
+                      ? 'text-blue-600 bg-blue-50'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <Wallet size={14} className="shrink-0" />
@@ -336,6 +342,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <FileText size={13} className="shrink-0" />
                       <span className="whitespace-nowrap">Đề nghị thanh toán</span>
+                    </div>
+                    <div
+                      onClick={onNavigatePaymentRequestApproval}
+                      className={`flex items-center gap-2 text-[13px] px-2 py-1.5 rounded cursor-pointer leading-snug ${currentStep === Step.PAYMENT_REQUEST_APPROVAL ? 'font-semibold text-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      <ShieldCheck size={13} className="shrink-0" />
+                      <span className="whitespace-nowrap">Duyệt đề nghị thanh toán</span>
                     </div>
                   </div>
                 )}

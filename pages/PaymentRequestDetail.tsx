@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  ADVANCE_PAYER_LABEL,
   ADVANCE_PURPOSE_LABEL,
   getPaymentRequestDetail,
   ORDER_TYPE_CONFIG,
@@ -689,7 +690,7 @@ const PaymentRequestDetail: React.FC = () => {
                   className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg text-xs font-bold hover:bg-sky-700"
                 >
                   <Check size={14} />
-                  Chờ thanh toán
+                  Phê duyệt
                 </button>
               </>
             )}
@@ -1073,11 +1074,12 @@ const PaymentRequestDetail: React.FC = () => {
           />
           <div className="p-4 space-y-4">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-xs">
+              <table className="w-full min-w-[760px] text-left text-xs">
                 <thead>
                   <tr className="border-b text-[10px] font-bold uppercase text-gray-400">
                     <th className="py-2 pr-3">Người tạm ứng</th>
                     <th className="py-2 pr-3">Mục đích</th>
+                    <th className="py-2 pr-3">Người hoàn ứng</th>
                     <th className="py-2 pr-3">Lý do</th>
                     <th className="py-2 pr-3 text-right">Số yêu cầu</th>
                     <th className="py-2 pr-3 text-right">Số thực chi</th>
@@ -1089,6 +1091,7 @@ const PaymentRequestDetail: React.FC = () => {
                     <tr key={line.id} className="border-b border-gray-100">
                       <td className="py-2 pr-3 font-bold text-gray-800">{line.advancerName}</td>
                       <td className="py-2 pr-3">{ADVANCE_PURPOSE_LABEL[line.purpose]}</td>
+                      <td className="py-2 pr-3">{ADVANCE_PAYER_LABEL[line.reimburseBy]}</td>
                       <td className="py-2 pr-3 text-gray-600">{line.reason}</td>
                       <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(line.requestedAmount)}</td>
                       <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(line.actualAmount)}</td>

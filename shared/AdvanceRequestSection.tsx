@@ -3,9 +3,12 @@ import { Eye, Upload, X } from 'lucide-react';
 import AppSelect from './AppSelect';
 import {
   ADVANCE_BANKS,
+  ADVANCE_PAYER_LABEL,
+  ADVANCE_PAYER_OPTIONS,
   ADVANCE_REASONS,
   ADVANCE_STATUS_LABEL,
   ADVANCE_USERS,
+  type AdvancePayer,
   type AdvancePurpose,
   cancelAdvanceRequest,
   confirmedAmount,
@@ -55,6 +58,7 @@ const AdvanceRequestSection: React.FC<AdvanceRequestSectionProps> = ({
   const [listOpen, setListOpen] = useState(false);
   const [advancerName, setAdvancerName] = useState(ADVANCE_USERS[0].name);
   const [purpose, setPurpose] = useState<AdvancePurpose>('refund_customer');
+  const [reimburseBy, setReimburseBy] = useState<AdvancePayer>('accountant');
   const [reasonId, setReasonId] = useState(ADVANCE_REASONS[0].id);
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -90,6 +94,7 @@ const AdvanceRequestSection: React.FC<AdvanceRequestSectionProps> = ({
     setAmount('');
     setNote('');
     setPurpose('refund_customer');
+    setReimburseBy('accountant');
     setReasonId(ADVANCE_REASONS[0].id);
     setBankName('');
     setAccountNumber('');
@@ -137,6 +142,7 @@ const AdvanceRequestSection: React.FC<AdvanceRequestSectionProps> = ({
       orderId,
       advancerName,
       purpose,
+      reimburseBy,
       reasonId,
       requestedAmount: requested,
       note: note.trim(),
@@ -204,11 +210,12 @@ const AdvanceRequestSection: React.FC<AdvanceRequestSectionProps> = ({
 
       {listOpen && (
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left text-[11px]">
+          <table className="w-full min-w-[1120px] text-left text-[11px]">
             <thead>
               <tr className="border-b text-[10px] font-bold uppercase text-gray-400">
                 <th className="py-2 pr-3">Người tạm ứng</th>
                 <th className="py-2 pr-3">Loại yêu cầu</th>
+                <th className="py-2 pr-3">Người hoàn ứng</th>
                 <th className="py-2 pr-3">Lý do</th>
                 <th className="py-2 pr-3 text-right">Số yêu cầu</th>
                 <th className="py-2 pr-3 text-right">Số thực chi</th>
@@ -222,7 +229,7 @@ const AdvanceRequestSection: React.FC<AdvanceRequestSectionProps> = ({
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="py-4 text-center text-gray-400">Chưa có tạm ứng</td>
+                  <td colSpan={11} className="py-4 text-center text-gray-400">Chưa có tạm ứng</td>
                 </tr>
               )}
               {rows.map((row) => (
@@ -231,6 +238,7 @@ const AdvanceRequestSection: React.FC<AdvanceRequestSectionProps> = ({
                   <td className="py-2 pr-3 text-gray-700">
                     {row.purpose === 'refund_customer' ? 'Khách hàng' : 'NCC'}
                   </td>
+                  <td className="py-2 pr-3 text-gray-700">{ADVANCE_PAYER_LABEL[row.reimburseBy]}</td>
                   <td className="py-2 pr-3 text-gray-600">{reasonById(row.reasonId)?.label ?? row.note}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">{formatMoney(row.requestedAmount)}</td>
                   <td className="py-2 pr-3 text-right tabular-nums">
@@ -314,6 +322,15 @@ const AdvanceRequestSection: React.FC<AdvanceRequestSectionProps> = ({
                   onChange={choosePurpose}
                   options={REQUEST_TYPES}
                   placeholder="Chọn loại yêu cầu"
+                  className="h-[34px] px-3 text-xs"
+                />
+              </Field>
+              <Field label="Người hoàn ứng" required>
+                <AppSelect
+                  value={reimburseBy}
+                  onChange={(value) => setReimburseBy(value as AdvancePayer)}
+                  options={ADVANCE_PAYER_OPTIONS}
+                  placeholder="Chọn người hoàn ứng"
                   className="h-[34px] px-3 text-xs"
                 />
               </Field>

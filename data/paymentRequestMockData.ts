@@ -1,3 +1,16 @@
+import { ADVANCE_PAYER_LABEL, type AdvancePayer } from './advanceRequestStore';
+
+export type { AdvancePayer };
+export { ADVANCE_PAYER_LABEL };
+
+export const formatAdvancePayers = (payers: Array<AdvancePayer | null | undefined>) => {
+  const labels = payers
+    .filter((payer): payer is AdvancePayer => Boolean(payer))
+    .map((payer) => ADVANCE_PAYER_LABEL[payer]);
+  const unique = Array.from(new Set(labels));
+  return unique.length > 0 ? unique.join(', ') : '';
+};
+
 export type PaymentRequestStatus =
   | 'not_created'
   | 'draft'
@@ -19,6 +32,7 @@ export interface PaymentAdvanceLine {
   id: string;
   advancerName: string;
   purpose: AdvancePurpose;
+  reimburseBy: AdvancePayer;
   reason: string;
   requestedAmount: number;
   actualAmount: number;
@@ -43,11 +57,22 @@ export interface PaymentRequestListItem {
   customerPayable: number;
   advancerPayable: number;
   nccPayable: number;
+  refundReimburseBy: AdvancePayer | null;
+  supplierReimburseBy: AdvancePayer | null;
   hasPendingAdvance: boolean;
   updatedAt?: string;
   updatedBy?: string;
   createdAt?: string;
   createdBy?: string;
+  paymentDueDate?: string;
+  transferAmount?: number | null;
+  rescueCrew?: {
+    plate: string;
+    brand: string;
+    line: string;
+    driverName: string;
+    driverPhone: string;
+  };
   providerType?: string;
   provider?: string;
   phone?: string;
@@ -126,9 +151,25 @@ const OWNERS = [
 
 const PLATES = ['30F42275', '30A12345', '29B88888', '51G11122', '30H55566', '38A58531'];
 
+const RESCUE_CREWS = [
+  { plate: '51H29447', brand: 'KIA', line: 'Sedona', driverName: 'Võ Thanh Sơn', driverPhone: '0967502639' },
+  { plate: '30E77821', brand: 'MAZDA', line: 'TRANSIT', driverName: 'Nguyễn Văn Hùng', driverPhone: '0988777999' },
+  { plate: '29C15602', brand: 'HYUNDAI', line: 'Solati', driverName: 'Trần Minh Tuấn', driverPhone: '0912345678' },
+  { plate: '51G44018', brand: 'FORD', line: 'Transit', driverName: 'Lê Thị Mai', driverPhone: '0903123456' },
+  { plate: '30A90211', brand: 'TOYOTA', line: 'Hiace', driverName: 'Phạm Quốc Bảo', driverPhone: '0978123001' },
+  { plate: '43A22190', brand: 'THACO', line: 'Towner', driverName: 'Đỗ Văn Khoa', driverPhone: '0936554412' },
+  { plate: '60C11834', brand: 'KIA', line: 'Carnival', driverName: 'Hoàng Thị Lan', driverPhone: '0966112233' },
+  { plate: '15B67320', brand: 'MERCEDES', line: 'Sprinter', driverName: 'Bùi Anh Dũng', driverPhone: '0988221100' },
+];
+
+const CREATORS = ['rsa_test1', 'rsa_test2', 'nguyen.lan', 'tran.hung'];
+const TRANSFER_AMOUNTS = [4_002_000, null, null, 2_884_000, 1_500_000, 6_750_000, null, 3_200_000];
+
+const pad = (value: number) => String(value).padStart(2, '0');
+
 const generateListItems = (): PaymentRequestListItem[] => {
   const items: PaymentRequestListItem[] = [];
-  for (let i = 1; i <= 47; i++) {
+  for (let i = 1; i <= 72; i++) {
     const owner = OWNERS[i % OWNERS.length];
     const station = STATIONS[i % STATIONS.length];
     const provider = PROVIDERS[i % PROVIDERS.length];
@@ -140,15 +181,21 @@ const generateListItems = (): PaymentRequestListItem[] => {
     ];
     const attachmentStatus = attachmentStatuses[i % attachmentStatuses.length];
     const statuses: PaymentRequestStatus[] = [
-      'draft',
+      'pending_approval',
       'pending_approval',
       'awaiting_payment',
+      'pending_approval',
       'paid',
       'rejected',
+      'pending_approval',
       'approved',
-      'not_created',
     ];
     const status = statuses[i % statuses.length];
+    const createdDay = 1 + (i % 23);
+    const dueDay = Math.min(30, createdDay + 5);
+    const createdAt = `${pad(createdDay)}/11/2026 ${pad(8 + (i % 10))}:${pad((i * 7) % 60)}:${pad((i * 13) % 60)}`;
+    const paymentDueDate = `${pad(dueDay)}/11/2026`;
+    const transferAmount = TRANSFER_AMOUNTS[i % TRANSFER_AMOUNTS.length];
     const isPackage = i % 4 === 0;
     const supplierCost = i === 1 ? 1_000_000 : 500000 + (i % 8) * 100000;
     const refundAmount = isPackage ? 0 : 300000;
@@ -157,6 +204,8 @@ const generateListItems = (): PaymentRequestListItem[] => {
     const customerPayable = Math.max(0, refundAmount - advancedRefund);
     const advancerPayable = advancedRefund + advancedSupplier;
     const nccPayable = Math.max(0, supplierCost - advancedSupplier);
+    const refundReimburseBy: AdvancePayer | null = advancedRefund > 0 ? (i % 2 === 0 ? 'accountant' : 'customer') : null;
+    const supplierReimburseBy: AdvancePayer | null = advancedSupplier > 0 ? (i % 3 === 0 ? 'supplier' : 'accountant') : null;
 
     items.push({
       id: String(i),
@@ -169,6 +218,8 @@ const generateListItems = (): PaymentRequestListItem[] => {
       customerPayable,
       advancerPayable,
       nccPayable,
+      refundReimburseBy,
+      supplierReimburseBy,
       hasPendingAdvance: i === 2,
       attachmentStatus,
       status,
@@ -176,11 +227,14 @@ const generateListItems = (): PaymentRequestListItem[] => {
       rescueUnit: { name: provider, phone: '0988777999' },
       rescueStation: station,
       vehicle: { plate: PLATES[i % PLATES.length], owner: owner.name, phone: owner.phone },
+      rescueCrew: RESCUE_CREWS[i % RESCUE_CREWS.length],
       amount: supplierCost,
-      updatedAt: status === 'draft' || status === 'not_created' ? undefined : '02/07/2026 10:30',
-      updatedBy: status === 'draft' || status === 'not_created' ? undefined : 'rsa_test1',
-      createdAt: status === 'draft' || status === 'not_created' ? undefined : '01/07/2026 15:20',
-      createdBy: status === 'draft' || status === 'not_created' ? undefined : 'rsa_test1',
+      transferAmount,
+      paymentDueDate,
+      updatedAt: createdAt,
+      updatedBy: CREATORS[i % CREATORS.length],
+      createdAt,
+      createdBy: CREATORS[i % CREATORS.length],
       providerType: i % 2 === 0 ? 'Đối tác' : 'Nội bộ',
       provider,
       phone: owner.phone,
@@ -222,13 +276,49 @@ export const ORDER_TYPE_CONFIG: Record<OrderType, { label: string; className: st
   package: { label: 'ĐƠN GÓI', className: 'bg-purple-50 text-purple-700 border-purple-300' },
 };
 
+const statusPatches = new Map<string, { status: PaymentRequestStatus; rejectionReason?: string }>();
+let patchVersion = 0;
+const patchListeners = new Set<() => void>();
+
+export const subscribePaymentRequestPatches = (listener: () => void) => {
+  patchListeners.add(listener);
+  return () => patchListeners.delete(listener);
+};
+
+export const getPaymentRequestPatchVersion = () => patchVersion;
+
+export const resolvePaymentRequest = (item: PaymentRequestListItem): PaymentRequestListItem => {
+  const patch = statusPatches.get(item.id);
+  if (!patch) return item;
+  return {
+    ...item,
+    status: patch.status,
+    rejectionReason: patch.status === 'rejected' ? patch.rejectionReason : item.rejectionReason,
+  };
+};
+
+export const listPaymentRequests = () => MOCK_PAYMENT_REQUEST_LIST.map(resolvePaymentRequest);
+
+export const applyPaymentRequestStatus = (
+  ids: string[],
+  status: PaymentRequestStatus,
+  rejectionReason?: string,
+) => {
+  ids.forEach((id) => {
+    statusPatches.set(id, { status, rejectionReason });
+  });
+  patchVersion += 1;
+  patchListeners.forEach((listener) => listener());
+};
+
 export const getPaymentRequestDetail = (orderId: string): PaymentRequestDetail | undefined => {
   const listItem = MOCK_PAYMENT_REQUEST_LIST.find((item) => item.orderId === orderId);
   if (!listItem) return undefined;
+  const resolved = resolvePaymentRequest(listItem);
 
   return {
-    orderId: listItem.orderId,
-    status: listItem.status,
+    orderId: resolved.orderId,
+    status: resolved.status,
     orderType: listItem.orderType,
     service: 'Sự cố kỹ thuật Khác khiến xe không di chuyển',
     quantity: 1,
@@ -263,6 +353,7 @@ export const getPaymentRequestDetail = (orderId: string): PaymentRequestDetail |
               id: `${listItem.orderId}-refund`,
               advancerName: 'Nguyễn Văn An',
               purpose: 'refund_customer' as const,
+              reimburseBy: listItem.refundReimburseBy ?? 'accountant',
               reason: 'Khách thanh toán dư so với phí',
               requestedAmount: listItem.advancedRefund,
               actualAmount: listItem.advancedRefund,
@@ -276,6 +367,7 @@ export const getPaymentRequestDetail = (orderId: string): PaymentRequestDetail |
               id: `${listItem.orderId}-supplier`,
               advancerName: 'Trần Thị Bình',
               purpose: 'pay_supplier' as const,
+              reimburseBy: listItem.supplierReimburseBy ?? 'supplier',
               reason: 'Nhà cung cấp yêu cầu thu trước khi xuất hóa đơn',
               requestedAmount: listItem.advancedSupplier,
               actualAmount: listItem.advancedSupplier,
@@ -288,10 +380,10 @@ export const getPaymentRequestDetail = (orderId: string): PaymentRequestDetail |
     providerTaxId: '0110938494-004',
     rescueStation: listItem.rescueStation.name,
     rescueStationPhone: listItem.rescueStation.phone,
-    rescueVehiclePlate: '',
+    rescueVehiclePlate: resolved.rescueCrew?.plate ?? '',
+    paymentDeadline: resolved.paymentDueDate ?? '07/11/2026',
     stationAddress:
       'Mazda, Đường Quang Trung, Phường Yên Nghĩa, Hà Nội, 10189, Việt Nam',
-    paymentDeadline: '07/07/2026',
     invoiceLink: '',
     invoiceNumber: '',
     contractNumber: '',
