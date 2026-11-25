@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Download,
   Eye,
+  History,
   FileSpreadsheet,
   Paperclip,
   Printer,
@@ -27,7 +28,9 @@ import {
   PaymentRequestStatus,
   subscribePaymentRequestPatches,
   formatAdvancePayers,
+  buildPaymentRequestHistory,
 } from '../data/paymentRequestMockData';
+import PaymentRequestHistoryModal from '../shared/PaymentRequestHistoryModal';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 const SERVICE_TYPES = ['Cứu hộ sự cố', 'Kéo xe', 'Sửa chữa lưu động'];
@@ -132,6 +135,7 @@ const PaymentRequestApproval: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [notice, setNotice] = useState('');
   const [rejectIds, setRejectIds] = useState<string[] | null>(null);
+  const [historyRecord, setHistoryRecord] = useState<PaymentRequestListItem | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
   const providers = useMemo(
@@ -590,6 +594,14 @@ const PaymentRequestApproval: React.FC = () => {
                       <div className="flex items-center justify-center gap-2 text-blue-500">
                         <button
                           type="button"
+                          title="Lịch sử"
+                          className="hover:text-blue-700"
+                          onClick={() => setHistoryRecord(record)}
+                        >
+                          <History size={15} />
+                        </button>
+                        <button
+                          type="button"
                           title="Xem đề nghị thanh toán"
                           className="hover:text-blue-700"
                           onClick={() =>
@@ -934,6 +946,13 @@ const PaymentRequestApproval: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      {historyRecord && (
+        <PaymentRequestHistoryModal
+          orderId={historyRecord.orderId}
+          rows={buildPaymentRequestHistory(historyRecord)}
+          onClose={() => setHistoryRecord(null)}
+        />
       )}
     </div>
   );

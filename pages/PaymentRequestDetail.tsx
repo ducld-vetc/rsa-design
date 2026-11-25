@@ -2,9 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
-  Ban,
   Calendar,
-  Check,
   Copy,
   CreditCard,
   Download,
@@ -15,7 +13,6 @@ import {
   Link2,
   QrCode,
   RefreshCw,
-  Save,
   Pencil,
   Plus,
   Trash2,
@@ -25,6 +22,8 @@ import {
 import {
   ADVANCE_PAYER_LABEL,
   ADVANCE_PURPOSE_LABEL,
+  buildPaymentRequestHistory,
+  findPaymentRequest,
   getPaymentRequestDetail,
   ORDER_TYPE_CONFIG,
   PAYMENT_REQUEST_STATUS_CONFIG,
@@ -32,6 +31,7 @@ import {
 } from '../data/paymentRequestMockData';
 import { ADVANCE_BANKS, ADVANCE_USERS, lockAdvanceRequests } from '../data/advanceRequestStore';
 import AppSelect from '../shared/AppSelect';
+import PaymentRequestHistoryModal from '../shared/PaymentRequestHistoryModal';
 import PaymentQrModal from '../shared/PaymentQrModal';
 
 const Label = ({ children, required = false }: { children?: React.ReactNode; required?: boolean }) => (
@@ -317,6 +317,12 @@ const PaymentRequestDetail: React.FC = () => {
     return getPaymentRequestDetail(orderId);
   }, [orderId]);
 
+  const [supplierPayAmount, setSupplierPayAmount] = useState(
+    detail?.nccPayable ? formatCurrency(detail.nccPayable) : ''
+  );
+  const [customerPayAmount, setCustomerPayAmount] = useState(
+    detail?.customerPayable ? formatCurrency(detail.customerPayable) : ''
+  );
   const [paymentDeadline, setPaymentDeadline] = useState(detail?.paymentDeadline ?? '');
   const [invoiceLink, setInvoiceLink] = useState(detail?.invoiceLink ?? '');
   const [invoiceNumber, setInvoiceNumber] = useState(detail?.invoiceNumber ?? '');
@@ -331,6 +337,7 @@ const PaymentRequestDetail: React.FC = () => {
   const [editingPayeeId, setEditingPayeeId] = useState<string | null>(null);
   const [adjustingPayeeId, setAdjustingPayeeId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [requestHistoryOpen, setRequestHistoryOpen] = useState(false);
   const [qrPayee, setQrPayee] = useState<Payee | null>(null);
   const [syncNote, setSyncNote] = useState('');
   const [activeSection, setActiveSection] = useState('section-order');
@@ -340,10 +347,6 @@ const PaymentRequestDetail: React.FC = () => {
   const [submitError, setSubmitError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState<PaymentRequestStatus>(detail?.status ?? 'draft');
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectError, setRejectError] = useState('');
-  const [draftNote, setDraftNote] = useState('');
   const [invoiceFiles, setInvoiceFiles] = useState<UploadedFile[]>([
     {
       id: 'invoice-link',
@@ -387,10 +390,8 @@ const PaymentRequestDetail: React.FC = () => {
     if (!detail) return;
     setStatus(detail.status);
     setSubmitted(false);
-    setRejectOpen(false);
-    setRejectReason('');
-    setRejectError('');
-    setDraftNote('');
+    setSupplierPayAmount(detail.nccPayable ? formatCurrency(detail.nccPayable) : '');
+    setCustomerPayAmount(detail.customerPayable ? formatCurrency(detail.customerPayable) : '');
   }, [detail]);
 
   if (!detail) {
@@ -525,9 +526,9 @@ const PaymentRequestDetail: React.FC = () => {
     }
     if (
       detail.customerPayable > 0 &&
-      (!customerAccount.trim() || !customerAccountName.trim() || !customerBankName.trim())
+      (!customerPayAmount.trim() || !customerAccount.trim() || !customerAccountName.trim() || !customerBankName.trim())
     ) {
-      setSubmitError('Nhập đủ số tài khoản, tên tài khoản và ngân hàng của khách hàng.');
+      setSubmitError('Nhập đủ số tiền thanh toán, số tài khoản, tên tài khoản và ngân hàng của khách hàng.');
       return;
     }
     if (detail.advancerPayable > 0) {
@@ -549,23 +550,8 @@ const PaymentRequestDetail: React.FC = () => {
     setStatus('pending_approval');
   };
 
-  const handleSaveDraft = () => {
-    setSubmitError('');
-    setStatus('draft');
-    setDraftNote('Đã lưu nháp.');
-  };
-
-  const confirmReject = () => {
-    if (!rejectReason.trim()) {
-      setRejectError('Nhập lý do từ chối.');
-      return;
-    }
-    setRejectError('');
-    setRejectOpen(false);
-    setStatus('rejected');
-  };
-
   const statusConfig = PAYMENT_REQUEST_STATUS_CONFIG[status];
+  const canPrepare = !viewOnly && (status === 'not_created' || status === 'draft');
   const sectionTabs = [
     { id: 'section-order', label: 'Thông tin đơn hàng' },
     { id: 'section-supplier', label: 'Nhà cung cấp' },
@@ -606,20 +592,30 @@ const PaymentRequestDetail: React.FC = () => {
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
+              onClick={() => setRequestHistoryOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 border-2 border-blue-200 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-50"
+            >
+              <History size={14} />
+              Lịch sử
+            </button>
+            <button
+              type="button"
               onClick={() => navigate('/payment-request-management')}
               className="flex items-center gap-2 px-4 py-2 border-2 border-gray-300 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-50"
             >
               <ArrowLeft size={14} />
               Quay lại
             </button>
-            {!viewOnly && (
+            {canPrepare && (
             <button
               type="button"
               onClick={() => {
                 const owner = detail.customer.trim().toUpperCase();
+                setCustomerPayAmount(detail.customerPayable ? formatCurrency(detail.customerPayable) : '');
                 setCustomerAccount('1903654789012');
                 setCustomerAccountName(owner);
                 setCustomerBankName('Vietcombank');
+                setSupplierPayAmount(detail.nccPayable ? formatCurrency(detail.nccPayable) : '');
                 setPaymentDeadline(detail.paymentDeadline);
                 setInvoiceLink(detail.invoiceLink);
                 setInvoiceNumber(detail.invoiceNumber);
@@ -649,17 +645,7 @@ const PaymentRequestDetail: React.FC = () => {
               Sync
             </button>
             )}
-            {!viewOnly && (status === 'not_created' || status === 'draft') && (
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              className="flex items-center gap-2 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50"
-            >
-              <Save size={14} />
-              Lưu nháp
-            </button>
-            )}
-            {status === 'draft' && (
+            {canPrepare && (
             <button
               type="button"
               onClick={handleSubmit}
@@ -667,50 +653,12 @@ const PaymentRequestDetail: React.FC = () => {
               className="flex items-center gap-2 px-4 py-2 bg-vetc-green text-white rounded-lg text-xs font-bold hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CreditCard size={14} />
-              Gửi phê duyệt
+              Trình duyệt
             </button>
-            )}
-            {status === 'pending_approval' && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRejectReason('');
-                    setRejectError('');
-                    setRejectOpen(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 border-2 border-red-300 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50"
-                >
-                  <Ban size={14} />
-                  Từ chối
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatus('awaiting_payment')}
-                  className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg text-xs font-bold hover:bg-sky-700"
-                >
-                  <Check size={14} />
-                  Phê duyệt
-                </button>
-              </>
-            )}
-            {status === 'awaiting_payment' && (
-              <button
-                type="button"
-                onClick={() => setStatus('paid')}
-                className="flex items-center gap-2 px-4 py-2 bg-vetc-green text-white rounded-lg text-xs font-bold hover:bg-green-700"
-              >
-                <Check size={14} />
-                Đã thanh toán
-              </button>
             )}
           </div>
         </div>
         {syncNote && <p className="px-4 pb-3 -mt-1 text-[11px] font-medium text-blue-600">{syncNote}</p>}
-        {draftNote && <p className="px-4 pb-3 -mt-1 text-[11px] font-medium text-gray-600">{draftNote}</p>}
-        {status === 'rejected' && rejectReason && (
-          <p className="px-4 pb-3 text-[11px] font-medium text-red-600">Lý do từ chối: {rejectReason}</p>
-        )}
         <div className="flex items-center px-4 border-t bg-gray-50/50 overflow-x-auto">
           {sectionTabs.map((tab) => (
             <button
@@ -771,16 +719,11 @@ const PaymentRequestDetail: React.FC = () => {
 
           <OrderInfoGroup title="Chi phí">
             <ReadOnlyField label="Chi phí nhà cung cấp" value={formatCurrency(detail.orderCost)} />
-            <ReadOnlyField label="Đã ứng trả NCC" value={formatCurrency(detail.advancedSupplier)} />
-            <ReadOnlyField label="Số tiền chi NCC" value={formatCurrency(detail.nccPayable)} />
-            <ReadOnlyField label="Tiền hoàn" value={formatCurrency(detail.refundAmount)} />
-            <ReadOnlyField label="Đã ứng hoàn" value={formatCurrency(detail.advancedRefund)} />
-            <ReadOnlyField label="Số tiền trả khách" value={formatCurrency(detail.customerPayable)} />
+            <ReadOnlyField label="Khách hàng thanh toán" value={formatCurrency(detail.totalCustomerReceivable)} />
             <ReadOnlyField
-              label="Tổng tiền phải thu của KH"
-              value={formatCurrency(detail.totalCustomerReceivable)}
+              label="Tạm ứng"
+              value={formatCurrency(detail.advancedSupplier + detail.advancedRefund)}
             />
-            <ReadOnlyField label="Tiền KH đã cọc" value={formatCurrency(detail.customerDeposit)} />
           </OrderInfoGroup>
 
           <div className="space-y-3">
@@ -824,7 +767,7 @@ const PaymentRequestDetail: React.FC = () => {
       <div id="section-supplier" className="order-2 scroll-mt-36 border rounded-lg shadow-sm overflow-hidden bg-white">
         <SectionHeader
           title="Nhà cung cấp"
-          action={<span className="text-[11px] font-bold">Số tiền chi {formatCurrency(detail.nccPayable)}</span>}
+          action={<span className="text-[11px] font-bold">Số tiền thanh toán {supplierPayAmount || '0'}</span>}
         />
         <div className="p-4">
           {detail.nccPayable === 0 && (
@@ -847,6 +790,19 @@ const PaymentRequestDetail: React.FC = () => {
               Hóa đơn và tài khoản nhà cung cấp
             </h3>
           <div className={FIELD_GRID_CLASS}>
+            <FormField label="Số tiền thanh toán" required>
+              <input
+                value={supplierPayAmount}
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/\D/g, '');
+                  setSupplierPayAmount(digits ? Number(digits).toLocaleString('vi-VN') : '');
+                }}
+                inputMode="numeric"
+                placeholder="Nhập số tiền thanh toán"
+                readOnly={viewOnly}
+                className={`${inputClass} text-right font-bold`}
+              />
+            </FormField>
             <FormField label="Hạn thanh toán" required>
               <div className="relative">
                 <input
@@ -972,7 +928,7 @@ const PaymentRequestDetail: React.FC = () => {
         <div id="section-customer" className="order-3 scroll-mt-36 border rounded-lg shadow-sm overflow-hidden bg-white">
           <SectionHeader
             title="Khách hàng"
-            action={<span className="text-[11px] font-bold">Số tiền trả {formatCurrency(detail.customerPayable)}</span>}
+            action={<span className="text-[11px] font-bold">Số tiền thanh toán {customerPayAmount || '0'}</span>}
           />
           <div className="p-4 space-y-4">
             <div className={FIELD_GRID_CLASS}>
@@ -995,7 +951,20 @@ const PaymentRequestDetail: React.FC = () => {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <FormField label="Số tiền thanh toán" required>
+                <input
+                  value={customerPayAmount}
+                  onChange={(event) => {
+                    const digits = event.target.value.replace(/\D/g, '');
+                    setCustomerPayAmount(digits ? Number(digits).toLocaleString('vi-VN') : '');
+                  }}
+                  inputMode="numeric"
+                  placeholder="Nhập số tiền thanh toán"
+                  readOnly={viewOnly}
+                  className={`${inputClass} text-right font-bold`}
+                />
+              </FormField>
               <FormField label="Số tài khoản" required>
                 <input value={customerAccount} onChange={(e) => setCustomerAccount(e.target.value)} placeholder="Nhập số tài khoản" readOnly={viewOnly} className={inputClass} />
               </FormField>
@@ -1316,40 +1285,22 @@ const PaymentRequestDetail: React.FC = () => {
         </p>
       )}
 
-      {rejectOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" onClick={() => setRejectOpen(false)}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <p className="text-sm font-black text-gray-900">Từ chối đề nghị thanh toán</p>
-            <p className="mt-1 text-xs text-gray-500">Nhập lý do trước khi chuyển sang trạng thái Từ chối.</p>
-            <textarea
-              value={rejectReason}
-              onChange={(event) => {
-                setRejectReason(event.target.value);
-                if (rejectError) setRejectError('');
-              }}
-              rows={3}
-              placeholder="Nhập lý do từ chối"
-              className={`mt-3 w-full resize-none rounded border px-3 py-2 text-sm outline-none focus:border-red-400 ${rejectError ? 'border-red-500' : 'border-gray-200'}`}
-            />
-            {rejectError && <p className="mt-1 text-xs font-medium text-red-500">{rejectError}</p>}
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setRejectOpen(false)}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50"
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                onClick={confirmReject}
-                className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700"
-              >
-                Xác nhận từ chối
-              </button>
-            </div>
-          </div>
-        </div>
+      {requestHistoryOpen && (
+        <PaymentRequestHistoryModal
+          orderId={detail.orderId}
+          rows={buildPaymentRequestHistory(
+            findPaymentRequest(detail.orderId) ?? {
+              status,
+              createdAt: '—',
+              createdBy: '—',
+              updatedAt: undefined,
+              updatedBy: undefined,
+              rejectionReason: undefined,
+            },
+            status,
+          )}
+          onClose={() => setRequestHistoryOpen(false)}
+        />
       )}
 
       <PaymentQrModal

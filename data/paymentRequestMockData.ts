@@ -3,6 +3,31 @@ import { ADVANCE_PAYER_LABEL, type AdvancePayer } from './advanceRequestStore';
 export type { AdvancePayer };
 export { ADVANCE_PAYER_LABEL };
 
+export interface PaymentRequestHistoryEntry {
+  createdAt: string;
+  createdBy: string;
+  status: PaymentRequestStatus;
+  rejectionReason: string;
+}
+
+export const buildPaymentRequestHistory = (
+  record: Pick<
+    PaymentRequestListItem,
+    'status' | 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy' | 'rejectionReason'
+  >,
+  currentStatus?: PaymentRequestStatus,
+): PaymentRequestHistoryEntry[] => {
+  const status = currentStatus ?? record.status;
+  return [
+    {
+      createdAt: record.createdAt || '—',
+      createdBy: record.createdBy || '—',
+      status,
+      rejectionReason: status === 'rejected' ? record.rejectionReason || '' : '',
+    },
+  ];
+};
+
 export const formatAdvancePayers = (payers: Array<AdvancePayer | null | undefined>) => {
   const labels = payers
     .filter((payer): payer is AdvancePayer => Boolean(payer))
@@ -240,10 +265,36 @@ const generateListItems = (): PaymentRequestListItem[] => {
       phone: owner.phone,
     });
   }
+
+  const prepareSamples: { status: PaymentRequestStatus; code: string }[] = [
+    { status: 'not_created', code: 'RS12607029001' },
+    { status: 'not_created', code: 'RS12607029002' },
+    { status: 'draft', code: 'RS12607029003' },
+    { status: 'draft', code: 'RS12607029004' },
+  ];
+  const prepared = prepareSamples.map((sample, index) => {
+    const source = items[index];
+    return {
+      ...source,
+      id: `prepare-${index + 1}`,
+      orderId: sample.code,
+      status: sample.status,
+      rejectionReason: undefined,
+      hasPendingAdvance: false,
+      orderType: 'single' as const,
+      createdAt: `25/11/2026 09:0${index}:00`,
+      updatedAt: `25/11/2026 09:0${index}:00`,
+    };
+  });
+  items.unshift(...prepared);
+
   return items;
 };
 
 export const MOCK_PAYMENT_REQUEST_LIST = generateListItems();
+
+export const findPaymentRequest = (orderId: string) =>
+  MOCK_PAYMENT_REQUEST_LIST.find((item) => item.orderId === orderId);
 
 export const PAYMENT_REQUEST_STATUS_CONFIG: Record<
   PaymentRequestStatus,

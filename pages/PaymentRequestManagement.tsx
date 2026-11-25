@@ -4,6 +4,7 @@ import {
   Search,
   Edit3,
   Eye,
+  History,
   ChevronLeft,
   ChevronRight,
   Calendar,
@@ -20,7 +21,9 @@ import {
   ATTACHMENT_STATUS_CONFIG,
   ORDER_TYPE_CONFIG,
   formatAdvancePayers,
+  buildPaymentRequestHistory,
 } from '../data/paymentRequestMockData';
+import PaymentRequestHistoryModal from '../shared/PaymentRequestHistoryModal';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 
@@ -82,6 +85,7 @@ const PaymentRequestManagement: React.FC = () => {
   const [orderTypeFilter, setOrderTypeFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(10);
+  const [historyRecord, setHistoryRecord] = useState<PaymentRequestListItem | null>(null);
 
   const advancedCount = [
     attachmentFilter,
@@ -279,7 +283,7 @@ const PaymentRequestManagement: React.FC = () => {
             <thead>
               <tr className="bg-gray-50 border-b text-gray-600">
                 <th className="px-3 py-2 text-center w-10 min-w-[40px] font-bold border-r sticky left-0 z-20 bg-gray-50">STT</th>
-                <th className="px-3 py-2 text-center w-20 min-w-[80px] font-bold border-r sticky left-10 z-30 bg-gray-50 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)]">Thao tác</th>
+                <th className="px-3 py-2 text-center w-24 min-w-[96px] font-bold border-r sticky left-10 z-30 bg-gray-50 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)]">Thao tác</th>
                 <th className="px-3 py-2 text-left font-bold border-r min-w-[160px]">Mã đơn hàng</th>
                 <th className="px-3 py-2 text-center font-bold border-r w-28">Trạng thái</th>
                 <th className="px-3 py-2 text-left font-bold border-r min-w-[140px]">Lý do từ chối</th>
@@ -333,6 +337,14 @@ const PaymentRequestManagement: React.FC = () => {
                           title="Xem chi tiết đề nghị thanh toán"
                         >
                           <Eye size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHistoryRecord(record)}
+                          className="text-blue-500 hover:text-blue-700 transition-colors"
+                          title="Lịch sử"
+                        >
+                          <History size={15} />
                         </button>
                       </div>
                     </td>
@@ -575,6 +587,13 @@ const PaymentRequestManagement: React.FC = () => {
             </div>
           </aside>
         </div>
+      )}
+      {historyRecord && (
+        <PaymentRequestHistoryModal
+          orderId={historyRecord.orderId}
+          rows={buildPaymentRequestHistory(historyRecord)}
+          onClose={() => setHistoryRecord(null)}
+        />
       )}
     </div>
   );
