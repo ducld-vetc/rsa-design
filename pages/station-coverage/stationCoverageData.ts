@@ -1,4 +1,5 @@
 import { DB_STATIONS, type DbStationRow } from './stationCoverageFromDb';
+import { DEFAULT_COVERAGE_VEHICLES } from './defaultCoverageVehicles';
 import { INTERNAL_VEHICLE_STATIONS } from './stationCoverageInternalVehicles';
 import { STATION_ADMIN_OVERRIDES } from './stationAdminOverrides';
 import {
@@ -69,7 +70,13 @@ export interface CoverageStation {
   address: string;
   provinceSource: ProvinceSource;
   hasValidPosition: boolean;
+  /** Điểm phủ là phương tiện mặc định — không mang thông tin trạm. */
+  pointKind?: 'station' | 'vehicle';
+  capturedAt?: string;
 }
+
+/** Nguồn điểm dùng để tính độ phủ và vẽ bản đồ. */
+export type CoveragePointSource = 'stations' | 'vehicles';
 
 export interface MapStationPoint extends CoverageStation {
   provinceId: string;
@@ -751,6 +758,55 @@ export function getMapStationPoints(mode: AddressSchemaMode): MapStationPoint[] 
   return merged.filter(shouldIncludeStationInCoverage).map((row) => toMapPoint(row, mode));
 }
 
+function provinceDefForV1(v1Code: string, mode: AddressSchemaMode): ProvinceDef {
+  const code = v1Code.trim().toUpperCase();
+  if (!code) return UNASSIGNED_DEF;
+  if (mode === 'new') {
+    const both = toBothProvinceCode(code);
+    return resolveProvinceFromCode(both) ?? resolveProvinceFromCode(code) ?? UNASSIGNED_DEF;
+  }
+  const area = AREA_BY_CODE.get(code);
+  if (area && !OLD_NON_PROVINCE_CODES.has(area.code)) return areaToProvinceDef(area);
+  return UNASSIGNED_DEF;
+}
+
+/**
+ * Phương tiện (Mặc định): chỉ tập biển số snapshot, không gắn trạm / đối tác / loại trạm.
+ * Độ phủ dùng cùng bán kính xã (xe gần nhất < R).
+ */
+export function getDefaultVehicleMapPoints(mode: AddressSchemaMode): MapStationPoint[] {
+  return DEFAULT_COVERAGE_VEHICLES.map((vehicle) => {
+    const plottable = hasPlottablePosition(vehicle.latitude, vehicle.longitude);
+    const def = plottable ? provinceDefForV1(vehicle.provinceCode, mode) : UNASSIGNED_DEF;
+    return {
+      id: `veh-${vehicle.plate}`,
+      name: vehicle.plate,
+      code: vehicle.plate,
+      areaType: null,
+      partner: '',
+      stationType: 'rescue_internal',
+      address: '',
+      provinceSource: plottable && def.id !== UNASSIGNED_PROVINCE_ID ? 'code' : 'unassigned',
+      hasValidPosition: plottable,
+      pointKind: 'vehicle',
+      capturedAt: vehicle.capturedAt,
+      provinceId: def.id,
+      provinceName: def.name,
+      provinceCode: def.id === UNASSIGNED_PROVINCE_ID ? '' : def.code,
+      districtCode: plottable ? vehicle.districtCode || null : null,
+      precinctCode: plottable ? vehicle.precinctCode || null : null,
+      position: [vehicle.latitude, vehicle.longitude],
+    };
+  });
+}
+
+export function formatVehicleCapturedAt(value: string | undefined): string {
+  if (!value) return '';
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (!match) return value;
+  return `${match[3]}/${match[2]}/${match[1]} ${match[4]}:${match[5]}`;
+}
+
 export function getProvinceCenters(mode: AddressSchemaMode): Record<string, [number, number]> {
   if (mode === 'old') {
     return Object.fromEntries(OLD_PROVINCES.map((item) => [item.id, item.center]));
@@ -1231,7 +1287,7 @@ function sortByCoverageThenStations<T extends { cr: number | null; total: number
   return [...items].sort((a, b) => {
     const aCr = a.cr ?? -1;
     const bCr = b.cr ?? -1;
-    if (aCr !== bCr) return aCr - bCr;
+    if (aCr !== bCr) return bCr - aCr;
     if (b.total !== a.total) return b.total - a.total;
     return a.name.localeCompare(b.name, 'vi');
   });
